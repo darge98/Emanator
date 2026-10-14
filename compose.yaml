@@ -1,0 +1,11 @@
+services:
+  # End-to-end check of the Engine against your real account (step 1).
+  # Interactive: `docker compose run --rm engine-smoke`
+  engine-smoke:
+    build: .
+    command: ["./node_modules/.bin/tsx", "packages/engine/scripts/smoke.ts"]
+    env_file: .env
+    volumes:
+      - ./data:/data
+    stdin_open: true
+    tty: true

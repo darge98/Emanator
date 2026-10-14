@@ -13,3 +13,20 @@ The Engine is an interface (a port), and the rest of the Harness does not know w
 - The subscription quota is shared with the Owner's interactive Claude Code use.
 - claude.ai connectors are not available with the token, so the Harness must connect external services itself (MCP OAuth).
 - The Engine needs a long-running process, because the SDK spawns the Claude Code CLI as a subprocess. Serverless hosting is ruled out.
+
+## Verification (2026-10-14)
+
+Run with Agent SDK 0.3.296 and Claude Code 2.1.296 on a Pro plan, using `packages/engine/scripts/smoke.ts` in a clean Linux container that had only the `setup-token` token and no host login. Every check passed:
+
+- **Authentication.** Turns run on the subscription token alone; the SDK reports `apiKeySource: "none"`, as it does for OAuth.
+- **Isolation.** With `settingSources: []` and `tools: []`, the model sees no built-in tools, only the Harness's own.
+- **Harness Tools and Approvals.**
+  - In-process Tools work.
+  - `canUseTool` waits for an asynchronous decision; a 3-second simulated Approval held the turn open.
+  - A denial reaches the model as an error result, the turn completes normally, and the denial is listed in `permission_denials`.
+- **Sessions and models.** A session resumed under the same id with a different model per turn (Haiku 5.5, then Sonnet 5.5) and kept its context. Opus 5.5 is available on Pro.
+- **Quota signals.**
+  - A `rate_limit_event` arrives on every turn. Its status and five-hour window reset time (epoch seconds) are enough for the "wait for reset and notify" rule.
+  - Utilization per window appears only in an undocumented `unifiedWindows` field, as 0–1 fractions, so the Engine doesn't read it.
+- **Plan type.** The experimental usage API returns no plan type and no rate-limit windows for a `setup-token` token, which probably lacks the profile scope. The Harness therefore cannot show "Pro" from the token alone.
+- **Cost and latency.** Each turn reports an estimated cost in USD, which on a subscription is not a bill. A turn takes 1.5–6 s end to end, start-up included.

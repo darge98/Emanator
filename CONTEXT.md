@@ -100,6 +100,10 @@ _Avoid_: chat, integration, connector
 A thread inside a Channel with its own continuous context, such as the "General" topic or a topic dedicated to one subject. Both the Owner and the Agent can open one. Each Routine says which Conversation it delivers its messages to. The context is reset only when the Owner asks for it.
 _Avoid_: chat, topic, session, thread
 
+**Turn** (it: *Turno*):
+A single exchange in a Conversation: a message from the Owner and the Agent's reply to it. Messages that arrive during a Turn wait for the next one.
+_Avoid_: request, message, run
+
 ### Model execution
 
 **Engine** (it: *Motore*):
