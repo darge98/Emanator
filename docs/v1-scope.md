@@ -14,6 +14,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - A Routine is a prompt plus one or more scheduled Triggers: a specific date, an interval or a cron expression.
 - The Agent decides which Faculties, Capabilities and Skills to use.
 - Each Routine picks its own model and the Conversation it delivers to.
+- Each Routine message starts with a header naming the Routine. It then still makes sense if it lands in General because the Owner deleted the target topic (see Conversations).
 - A Run may finish without messaging the Owner. A Heartbeat is just a Routine.
 - Runs, including Runs of the same Routine, execute in parallel.
 - Events that fire while the Harness is down are skipped.
@@ -21,6 +22,12 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 ### Conversations (Telegram)
 - Each Conversation is a Telegram topic in the private chat with the bot: a "General" topic plus dedicated ones. Both the Owner and the Agent can open a topic.
 - A Routine's output lands in its target Conversation, so replies there have that context.
+- Deleting a topic from the Telegram app only hides it for the Owner. Checked on 2026-10-15:
+  - the bot gets no update;
+  - sends to it still succeed, and Telegram reports them as delivered to the topic;
+  - the Owner's client shows them in General.
+
+  The Harness therefore can't detect the deletion, and the Conversation stays live. Archiving it is left to the UI.
 - Context is reset only by the Owner with `/new`, and is compacted automatically when it grows too large.
 - Messages within one Conversation are queued and handled in order.
 - Bot commands are in English (`/start`, `/new`, …). The bot answers only the paired Owner chat, using a pairing code shown in the UI.

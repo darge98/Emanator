@@ -63,6 +63,8 @@ You need Docker with Compose, a Telegram account, and a Claude Pro/Max subscript
 
 Commands: `/new` resets the context of the current Conversation, `/topic <name>` opens a dedicated topic, `/status` shows quota and model, and `/help` lists them.
 
+You can delete a topic from the Telegram app as usual. It only disappears on your side, though: Telegram doesn't tell the bot, so anything the bot sends there later shows up in General.
+
 > **About subscriptions.** Using a Pro/Max subscription token with the Agent SDK is a grey area in Anthropic's terms ([ADR 0001](docs/adr/0001-swappable-engine-agent-sdk-with-owner-subscription.md)). Emanator never logs you in: you bring your own credentials, and an API key always works.
 
 ## Development
