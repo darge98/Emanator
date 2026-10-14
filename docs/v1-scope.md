@@ -15,6 +15,10 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - The Agent decides which Faculties, Capabilities and Skills to use.
 - Each Routine picks its own model and the Conversation it delivers to.
 - Each Routine message starts with a header naming the Routine. It then still makes sense if it lands in General because the Owner deleted the target topic (see Conversations).
+- Conversation names, which Routines will be the first to use, follow one rule: a name identifies a *live* Conversation. This needs three changes:
+  - `findByName` must skip archived ones;
+  - names must be unique only among live Conversations (a table rebuild), so that a reopened `briefing` is `briefing` again;
+  - `general` must be reserved for the General Conversation.
 - A Run may finish without messaging the Owner. A Heartbeat is just a Routine.
 - Runs, including Runs of the same Routine, execute in parallel.
 - Events that fire while the Harness is down are skipped.
@@ -90,6 +94,7 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 - Sandbox with the shell Faculty (on *ask*), local MCP servers and Skills with scripts.
 - Plugin installation from Claude Code marketplaces.
 - Injecting new messages into the turn already in progress, instead of queueing them.
+- Cancelling a turn (a Stop button, cancelling a Run). The Engine must first check for a signal that was aborted before the turn started, which it currently ignores, and report a dedicated `cancelled` failure.
 - Catching up on Events missed while the Harness was down.
 - Handling overlapping Runs of the same Routine. In v1 they run in parallel, which is a known issue.
 - Restricting Capabilities per Routine.
