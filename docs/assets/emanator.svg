@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Emanator logo</title>
+  <defs>
+    <linearGradient id="beam" x1="17" x2="50" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.4" stop-color="#e6d2ff"/>
+      <stop offset="1" stop-color="#9a52f5" stop-opacity="0.3"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#b16cff" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#b16cff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="#13061f"/>
+  <rect x="16" y="15" width="6" height="34" rx="3" fill="#ffffff"/>
+  <rect x="16" y="15" width="33" height="6" rx="3" fill="url(#beam)"/>
+  <rect x="16" y="43" width="33" height="6" rx="3" fill="url(#beam)"/>
+  <rect x="16" y="29" width="16" height="6" rx="3" fill="#ffffff"/>
+  <circle cx="41" cy="32" r="10" fill="url(#glow)"/>
+  <circle cx="41" cy="32" r="4" fill="#b16cff"/>
+</svg>

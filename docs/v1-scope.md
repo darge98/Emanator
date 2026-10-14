@@ -89,9 +89,19 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 - Usage metrics panel: quota per window (five-hour, seven-day), turns, and estimated cost per Routine and Conversation, built on the Engine's `usage.limit` events.
 - UI authentication and deployment to a VPS.
 - Multiple Agents, and project workflows with dedicated development containers.
+- The ideas carried over from the first prototype, in [legacy-ideas.md](legacy-ideas.md):
+  - briefing behaviours, Action requests and commitments;
+  - a Decider for typed micro-decisions;
+  - Memory with confirmed facts and an initial interview;
+  - 👍/👎 feedback and `/perché`;
+  - budget alerts, quiet hours and urgency rules;
+  - Approval execution patterns;
+  - the panel's design tokens;
+  - the Persona prompts and their fixed rules.
 
 ## Risks to check first
 
-- **Subscription token with the Agent SDK:** a grey area in Anthropic's terms, and not yet tested end to end.
+- **Subscription token with the Agent SDK:** it works end to end (smoke run on 2026-10-14, see ADR 0001), but it remains a grey area in Anthropic's terms.
+- **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics.
 - **Google official MCP servers:** they are in Developer Preview, and it is unverified whether a personal @gmail.com account is accepted. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
 - **Built-in Personas named after real characters** (Jarvis, Cortana, Joi): trademark and copyright risk once the project is public.
