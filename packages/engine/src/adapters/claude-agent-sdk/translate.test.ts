@@ -102,13 +102,14 @@ describe('TurnTranslator', () => {
     ]);
   });
 
-  it('reports usage limits as a fraction with a reset date', () => {
+  it('reports the usage status, its window and when it resets', () => {
     const events = new TurnTranslator().translate(
       sdk({
         type: 'rate_limit_event',
         rate_limit_info: {
           status: 'allowed_warning',
           rateLimitType: 'five_hour',
+          // Documented but of unknown scale, so not reported.
           utilization: 82,
           resetsAt: 1_760_457_600,
         },
@@ -120,7 +121,6 @@ describe('TurnTranslator', () => {
         type: 'usage.limit',
         status: 'warning',
         window: 'five_hour',
-        utilization: 0.82,
         resetsAt: new Date(1_760_457_600_000),
       },
     ]);
@@ -167,6 +167,8 @@ describe('TurnTranslator', () => {
           unifiedWindows: {
             five_hour: { utilization: '27%' },
             seven_day: { utilization: 0.51 },
+            // Outside 0–1: the format changed, so the window is not trusted.
+            seven_day_opus: { utilization: 30 },
             weird: null,
           },
         },

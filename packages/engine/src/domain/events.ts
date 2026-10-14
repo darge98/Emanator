@@ -50,8 +50,6 @@ export interface UsageLimitChanged {
   status: UsageStatus;
   /** Which limit window this refers to, e.g. `five_hour` or `seven_day`. */
   window?: string;
-  /** Share of the window already used, between 0 and 1. */
-  utilization?: number;
   resetsAt?: Date;
   /** Every limit window the Engine knows about, when it reports them. */
   windows?: UsageWindow[];

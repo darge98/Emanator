@@ -165,14 +165,15 @@ function usageLimit(info: SDKRateLimitInfo): EngineEvent {
     type: 'usage.limit',
     status: usageStatus(info.status),
     ...(info.rateLimitType !== undefined && { window: info.rateLimitType }),
-    ...(info.utilization !== undefined && { utilization: asFraction(info.utilization) }),
     ...(info.resetsAt !== undefined && { resetsAt: asDate(info.resetsAt) }),
     ...(windows.length > 0 && { windows }),
   };
 }
 
+// Observed on a Pro subscription (smoke, 2026-10-14): utilization is a 0–1 fraction and
+// resetsAt is in epoch seconds. A value outside that range means the format changed.
 const unifiedWindowSchema = z.object({
-  utilization: z.number(),
+  utilization: z.number().min(0).max(1),
   resetsAt: z.number().optional(),
 });
 
@@ -180,6 +181,9 @@ const unifiedWindowSchema = z.object({
  * `unifiedWindows` is not in the SDK's types, but on a subscription it is the only place
  * that carries per-window utilization. It is read best-effort: a malformed or missing
  * entry is skipped, never fatal. The smoke script flags it if a future SDK drops it.
+ *
+ * The documented `utilization` field is ignored on purpose: it never arrived in practice
+ * and its scale is not stated.
  */
 function usageWindows(info: SDKRateLimitInfo): UsageWindow[] {
   const raw: unknown = (info as { unifiedWindows?: unknown }).unifiedWindows;
@@ -192,7 +196,7 @@ function usageWindows(info: SDKRateLimitInfo): UsageWindow[] {
     return [
       {
         name,
-        utilization: asFraction(utilization),
+        utilization,
         ...(resetsAt !== undefined && { resetsAt: asDate(resetsAt) }),
       },
     ];
@@ -208,12 +212,6 @@ function usageStatus(status: SDKRateLimitInfo['status']): UsageStatus {
     case 'rejected':
       return 'exhausted';
   }
-}
-
-// A real subscription event (smoke, 2026-10-14) reported window utilization as a 0–1 fraction;
-// the usage API documents 0–100, so both are accepted.
-function asFraction(utilization: number): number {
-  return utilization > 1 ? utilization / 100 : utilization;
 }
 
 // Confirmed by the smoke run: epoch seconds.
