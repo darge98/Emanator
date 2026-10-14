@@ -27,6 +27,6 @@ Run with Agent SDK 0.3.296 and Claude Code 2.1.296 on a Pro plan, using `package
 - **Sessions and models.** A session resumed under the same id with a different model per turn (Haiku 5.5, then Sonnet 5.5) and kept its context. Opus 5.5 is available on Pro.
 - **Quota signals.**
   - A `rate_limit_event` arrives on every turn. Its status and five-hour window reset time (epoch seconds) are enough for the "wait for reset and notify" rule.
-  - Utilization per window appears only in an undocumented `unifiedWindows` field, as 0–1 fractions, so the Engine doesn't read it.
+  - Utilization per window (five hours, seven days) appears only in an undocumented `unifiedWindows` field, as 0–1 fractions. The documented `utilization` field never arrived. The Engine reads `unifiedWindows` best-effort: malformed entries are skipped and a missing field only drops the percentages. The smoke script warns if an SDK upgrade removes it.
 - **Plan type.** The experimental usage API returns no plan type and no rate-limit windows for a `setup-token` token, which probably lacks the profile scope. The Harness therefore cannot show "Pro" from the token alone.
 - **Cost and latency.** Each turn reports an estimated cost in USD, which on a subscription is not a bill. A turn takes 1.5–6 s end to end, start-up included.

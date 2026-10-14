@@ -12,6 +12,7 @@ export type {
   TurnStarted,
   UsageLimitChanged,
   UsageStatus,
+  UsageWindow,
 } from './domain/events.ts';
 export type {
   PermissionDecider,

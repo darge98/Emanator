@@ -86,6 +86,7 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 - Catching up on Events missed while the Harness was down.
 - Handling overlapping Runs of the same Routine. In v1 they run in parallel, which is a known issue.
 - Restricting Capabilities per Routine.
+- Usage metrics panel: quota per window (five-hour, seven-day), turns, and estimated cost per Routine and Conversation, built on the Engine's `usage.limit` events.
 - UI authentication and deployment to a VPS.
 - Multiple Agents, and project workflows with dedicated development containers.
 

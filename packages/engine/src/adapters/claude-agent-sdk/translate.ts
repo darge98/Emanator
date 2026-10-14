@@ -7,11 +7,13 @@ import type {
   SDKSystemMessage,
   SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
 import type {
   CredentialSource,
   EngineEvent,
   TurnFailureReason,
   UsageStatus,
+  UsageWindow,
 } from '../../domain/events.ts';
 import type { SessionRef } from '../../domain/session.ts';
 import { CLAUDE_AGENT_SDK_ENGINE_ID } from './config.ts';
@@ -149,13 +151,43 @@ function failureReason(error: SDKAssistantMessageError): TurnFailureReason {
 }
 
 function usageLimit(info: SDKRateLimitInfo): EngineEvent {
+  const windows = usageWindows(info);
   return {
     type: 'usage.limit',
     status: usageStatus(info.status),
     ...(info.rateLimitType !== undefined && { window: info.rateLimitType }),
     ...(info.utilization !== undefined && { utilization: asFraction(info.utilization) }),
     ...(info.resetsAt !== undefined && { resetsAt: asDate(info.resetsAt) }),
+    ...(windows.length > 0 && { windows }),
   };
+}
+
+const unifiedWindowSchema = z.object({
+  utilization: z.number(),
+  resetsAt: z.number().optional(),
+});
+
+/**
+ * `unifiedWindows` is not in the SDK's types, but on a subscription it is the only place
+ * that carries per-window utilization. It is read best-effort: a malformed or missing
+ * entry is skipped, never fatal. The smoke script flags it if a future SDK drops it.
+ */
+function usageWindows(info: SDKRateLimitInfo): UsageWindow[] {
+  const raw: unknown = (info as { unifiedWindows?: unknown }).unifiedWindows;
+  if (typeof raw !== 'object' || raw === null) return [];
+
+  return Object.entries(raw).flatMap(([name, value]) => {
+    const parsed = unifiedWindowSchema.safeParse(value);
+    if (!parsed.success) return [];
+    const { utilization, resetsAt } = parsed.data;
+    return [
+      {
+        name,
+        utilization: asFraction(utilization),
+        ...(resetsAt !== undefined && { resetsAt: asDate(resetsAt) }),
+      },
+    ];
+  });
 }
 
 function usageStatus(status: SDKRateLimitInfo['status']): UsageStatus {

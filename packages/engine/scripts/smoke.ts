@@ -28,7 +28,7 @@ const EXTRA_MODELS = (process.env.SMOKE_EXTRA_MODELS ?? 'opus').split(',').filte
 const APPROVAL_DELAY_MS = 3000;
 const interactive = process.stdin.isTTY === true;
 
-type Status = 'pass' | 'fail' | 'info';
+type Status = 'pass' | 'fail' | 'warn' | 'info';
 interface Check {
   name: string;
   status: Status;
@@ -52,6 +52,7 @@ checks.push(await checkAuthAndIsolation());
 checks.push(...(await checkFacultiesAndApprovals()));
 checks.push(...(await checkSessionsAndModels()));
 checks.push(checkUsageSignals());
+checks.push(checkUsageWindows());
 
 const report = renderReport();
 console.log(`\n${report}`);
@@ -243,6 +244,24 @@ function checkUsageSignals(): Check {
   };
 }
 
+/** Per-window utilization comes from an undocumented SDK field: losing it degrades, never breaks. */
+function checkUsageWindows(): Check {
+  const windows = usageEvents.findLast((event) => event.windows)?.windows;
+  return {
+    name: 'Usage per window (undocumented SDK field, best-effort)',
+    status: windows ? 'pass' : 'warn',
+    details: windows
+      ? windows.map(
+          (w) =>
+            `${w.name}: ${Math.round(w.utilization * 100)}% used, resets ${w.resetsAt?.toISOString() ?? 'n/a'}`,
+        )
+      : [
+          'No per-window utilization received. The Engine still works, but usage percentages are gone:',
+          'check whether this SDK version renamed or dropped `unifiedWindows` in rate_limit_event.',
+        ],
+  };
+}
+
 // --- Plumbing ---------------------------------------------------------------
 
 async function runTurn(
@@ -374,7 +393,7 @@ function withoutType(event: EngineEvent): Record<string, unknown> {
 }
 
 function renderReport(): string {
-  const icon: Record<Status, string> = { pass: '✅', fail: '❌', info: 'ℹ️' };
+  const icon: Record<Status, string> = { pass: '✅', fail: '❌', warn: '⚠️', info: 'ℹ️' };
   const lines = [
     '# Engine smoke report',
     '',

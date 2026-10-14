@@ -53,6 +53,16 @@ export interface UsageLimitChanged {
   /** Share of the window already used, between 0 and 1. */
   utilization?: number;
   resetsAt?: Date;
+  /** Every limit window the Engine knows about, when it reports them. */
+  windows?: UsageWindow[];
+}
+
+export interface UsageWindow {
+  /** e.g. `five_hour` or `seven_day`. */
+  name: string;
+  /** Share of the window already used, between 0 and 1. */
+  utilization: number;
+  resetsAt?: Date;
 }
 
 export interface TurnCompleted {

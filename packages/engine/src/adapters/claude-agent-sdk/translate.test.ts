@@ -126,6 +126,70 @@ describe('TurnTranslator', () => {
     ]);
   });
 
+  it('reads per-window utilization from the undocumented unifiedWindows field', () => {
+    // Payload as received from a Pro subscription during the smoke run.
+    const [event] = new TurnTranslator().translate(
+      sdk({
+        type: 'rate_limit_event',
+        rate_limit_info: {
+          status: 'allowed',
+          resetsAt: 1792017000,
+          rateLimitType: 'five_hour',
+          overageStatus: 'rejected',
+          overageDisabledReason: 'out_of_credits',
+          isUsingOverage: false,
+          unifiedWindows: {
+            five_hour: { utilization: 0.27, resetsAt: 1792017000 },
+            seven_day: { utilization: 0.51, resetsAt: 1792353600 },
+          },
+        },
+      }),
+    );
+
+    expect(event).toEqual({
+      type: 'usage.limit',
+      status: 'ok',
+      window: 'five_hour',
+      resetsAt: new Date(1792017000_000),
+      windows: [
+        { name: 'five_hour', utilization: 0.27, resetsAt: new Date(1792017000_000) },
+        { name: 'seven_day', utilization: 0.51, resetsAt: new Date(1792353600_000) },
+      ],
+    });
+  });
+
+  it('skips malformed windows instead of failing', () => {
+    const [event] = new TurnTranslator().translate(
+      sdk({
+        type: 'rate_limit_event',
+        rate_limit_info: {
+          status: 'allowed',
+          unifiedWindows: {
+            five_hour: { utilization: '27%' },
+            seven_day: { utilization: 0.51 },
+            weird: null,
+          },
+        },
+      }),
+    );
+
+    expect(event).toEqual({
+      type: 'usage.limit',
+      status: 'ok',
+      windows: [{ name: 'seven_day', utilization: 0.51 }],
+    });
+  });
+
+  it('omits windows when the field is missing or not an object', () => {
+    for (const unifiedWindows of [undefined, 'five_hour', 42]) {
+      const [event] = new TurnTranslator().translate(
+        sdk({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', unifiedWindows } }),
+      );
+
+      expect(event).toEqual({ type: 'usage.limit', status: 'exhausted' });
+    }
+  });
+
   it('completes the turn with the denials collected along the way', () => {
     const translator = new TurnTranslator();
     translator.translate(init());
