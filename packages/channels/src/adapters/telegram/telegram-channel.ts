@@ -1,4 +1,3 @@
-import { randomInt } from 'node:crypto';
 import { type Database, type Logger, runMigrations } from '@emanator/shared/server';
 import { autoRetry } from '@grammyjs/auto-retry';
 import { Bot } from 'grammy';
@@ -13,24 +12,16 @@ import {
 import { toInboundEvent } from './inbound.ts';
 import { telegramMigrations } from './migrations.ts';
 import { TelegramPairing } from './pairing.ts';
+import { ProgressDrafts } from './progress-drafts.ts';
 import { isThreadNotFound, shouldFallBackToPlainText } from './send-errors.ts';
 import { splitText } from './split-text.ts';
 
 export const TELEGRAM_CHANNEL_ID = 'telegram';
 
-// Drafts disappear after about 30 s, so a long turn has to refresh them.
-const DRAFT_REFRESH_MS = 20_000;
-
 export interface TelegramChannelConfig {
   token: string;
   db: Database;
   logger: Logger;
-}
-
-interface ActiveDraft {
-  id: number;
-  status: string;
-  timer: NodeJS.Timeout;
 }
 
 /**
@@ -43,7 +34,9 @@ export class TelegramChannel implements Channel {
   private readonly bot: Bot;
   private readonly pairing: TelegramPairing;
   private readonly logger: Logger;
-  private readonly drafts = new Map<string, ActiveDraft>();
+  private readonly progress = new ProgressDrafts((threadId, draftId, text) =>
+    this.sendDraft(threadId, draftId, text),
+  );
 
   constructor({ token, db, logger }: TelegramChannelConfig) {
     runMigrations(db, 'channels.telegram', telegramMigrations);
@@ -92,8 +85,7 @@ export class TelegramChannel implements Channel {
   }
 
   async stop(): Promise<void> {
-    for (const draft of this.drafts.values()) clearInterval(draft.timer);
-    this.drafts.clear();
+    this.progress.clear();
     await this.bot.stop();
   }
 
@@ -127,28 +119,7 @@ export class TelegramChannel implements Channel {
   }
 
   async showProgress(threadId: string | undefined, status: string | null): Promise<void> {
-    const key = threadId ?? '';
-    const active = this.drafts.get(key);
-    if (status === null) {
-      if (active) clearInterval(active.timer);
-      this.drafts.delete(key);
-      return;
-    }
-
-    let draft = active;
-    if (draft) {
-      draft.status = status;
-    } else {
-      const created: ActiveDraft = {
-        id: randomInt(1, 2 ** 31 - 1),
-        status,
-        timer: setInterval(() => void this.pushDraft(threadId, created), DRAFT_REFRESH_MS),
-      };
-      created.timer.unref();
-      this.drafts.set(key, created);
-      draft = created;
-    }
-    await this.pushDraft(threadId, draft);
+    await this.progress.show(threadId, status);
   }
 
   async setCommands(commands: readonly CommandInfo[]): Promise<void> {
@@ -185,16 +156,15 @@ export class TelegramChannel implements Channel {
     );
   }
 
-  private async pushDraft(threadId: string | undefined, draft: ActiveDraft): Promise<void> {
+  private async sendDraft(
+    threadId: string | undefined,
+    draftId: number,
+    text: string,
+  ): Promise<void> {
     const owner = this.pairing.owner();
     if (!owner) return;
     try {
-      await this.bot.api.sendMessageDraft(
-        owner.chatId,
-        draft.id,
-        draft.status,
-        threadOptions(threadId),
-      );
+      await this.bot.api.sendMessageDraft(owner.chatId, draftId, text, threadOptions(threadId));
     } catch (error) {
       this.logger.warn('Could not show progress', { error: describe(error) });
     }
