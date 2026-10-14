@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { type Database, type Logger, runMigrations } from '@emanator/shared/server';
 import { autoRetry } from '@grammyjs/auto-retry';
-import { Bot, GrammyError } from 'grammy';
+import { Bot } from 'grammy';
 import type { Message } from 'grammy/types';
 import {
   type Channel,
@@ -13,6 +13,7 @@ import {
 import { toInboundEvent } from './inbound.ts';
 import { telegramMigrations } from './migrations.ts';
 import { TelegramPairing } from './pairing.ts';
+import { isThreadNotFound, shouldFallBackToPlainText } from './send-errors.ts';
 import { splitText } from './split-text.ts';
 
 export const TELEGRAM_CHANNEL_ID = 'telegram';
@@ -104,7 +105,8 @@ export class TelegramChannel implements Channel {
       await this.bot.api.sendRichMessage(chatId, { markdown }, thread);
     } catch (error) {
       if (isThreadNotFound(error)) throw new ThreadNotFoundError(threadId);
-      this.logger.warn('Rich message rejected, falling back to plain text', {
+      if (!shouldFallBackToPlainText(error)) throw error;
+      this.logger.warn('Telegram rejected the rich message, falling back to plain text', {
         error: describe(error),
       });
       for (const chunk of splitText(markdown)) {
@@ -207,10 +209,6 @@ export class TelegramChannel implements Channel {
 
 function threadOptions(threadId: string | undefined) {
   return threadId === undefined ? {} : { message_thread_id: Number(threadId) };
-}
-
-function isThreadNotFound(error: unknown): boolean {
-  return error instanceof GrammyError && /thread not found/i.test(error.description);
 }
 
 function describe(error: unknown): string {
