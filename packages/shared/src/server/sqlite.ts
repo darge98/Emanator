@@ -14,15 +14,38 @@ export function openDatabase(path: string): Database {
   return db;
 }
 
-/** Runs `work` inside a transaction, rolling back if it throws. */
-export function transaction<T>(db: Database, work: () => T): T {
+/**
+ * Runs `work` inside a transaction, rolling back if it throws.
+ *
+ * `work` must be synchronous, like `node:sqlite` itself. An async function would return at
+ * its first `await`: the transaction would commit early, and the writes after the `await`
+ * would run outside it, with no rollback if they fail. That is refused at compile time and,
+ * as a last resort, at run time.
+ */
+export function transaction<T>(
+  db: Database,
+  work: () => T extends PromiseLike<unknown> ? never : T,
+): T {
   db.exec('BEGIN');
   try {
     const result = work();
+    if (isThenable(result)) {
+      // The rest of the async work still runs on its own; keep its failure from going unhandled.
+      Promise.resolve(result).catch(() => {});
+      throw new Error('transaction work must be synchronous');
+    }
     db.exec('COMMIT');
     return result;
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
   }
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
 }
