@@ -21,3 +21,4 @@ export type {
 } from './domain/permission.ts';
 export type { SessionRef } from './domain/session.ts';
 export { defineTool, type ToolDefinition, type ToolHints, type ToolOutput } from './domain/tool.ts';
+export { UsageTracker } from './domain/usage-tracker.ts';

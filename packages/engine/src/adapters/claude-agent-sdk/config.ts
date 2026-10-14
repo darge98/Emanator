@@ -5,6 +5,25 @@ export type EngineCredentials =
   | { kind: 'subscription-token'; token: string }
   | { kind: 'api-key'; key: string };
 
+/**
+ * Reads the Owner's credentials from `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`.
+ * Exactly one must be set: with both, Claude Code would silently bill the API key.
+ */
+export function engineCredentialsFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): EngineCredentials {
+  const token = env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
+  const key = env.ANTHROPIC_API_KEY?.trim();
+  if (token && key) {
+    throw new Error('Set only one of CLAUDE_CODE_OAUTH_TOKEN and ANTHROPIC_API_KEY.');
+  }
+  if (token) return { kind: 'subscription-token', token };
+  if (key) return { kind: 'api-key', key };
+  throw new Error(
+    'Set CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) or ANTHROPIC_API_KEY in .env.',
+  );
+}
+
 export interface ClaudeAgentSdkEngineConfig {
   credentials: EngineCredentials;
   /** Where the SDK keeps session transcripts (CLAUDE_CONFIG_DIR). Must survive restarts. */

@@ -20,7 +20,11 @@ import {
   type ToolDefinition,
   type TurnRequest,
 } from '../src/index.ts';
-import { ClaudeAgentSdkEngine, type ClaudeAgentSdkEngineConfig } from '../src/server.ts';
+import {
+  ClaudeAgentSdkEngine,
+  type ClaudeAgentSdkEngineConfig,
+  engineCredentialsFromEnv,
+} from '../src/server.ts';
 
 const FAST_MODEL = process.env.SMOKE_FAST_MODEL ?? 'haiku';
 const MAIN_MODEL = process.env.SMOKE_MAIN_MODEL ?? 'sonnet';
@@ -337,26 +341,13 @@ async function probePlan() {
 }
 
 async function loadConfig(): Promise<ClaudeAgentSdkEngineConfig> {
-  const token = process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (token && apiKey) {
-    throw new Error('Set only one of CLAUDE_CODE_OAUTH_TOKEN and ANTHROPIC_API_KEY in .env.');
-  }
-  if (!token && !apiKey) {
-    throw new Error(
-      'Set CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) or ANTHROPIC_API_KEY in .env.',
-    );
-  }
-
   const configDir = join(dataDir(), 'claude');
   const workingDirectory = join(dataDir(), 'workspace');
   await mkdir(configDir, { recursive: true });
   await mkdir(workingDirectory, { recursive: true });
 
   return {
-    credentials: token
-      ? { kind: 'subscription-token', token }
-      : { kind: 'api-key', key: apiKey as string },
+    credentials: engineCredentialsFromEnv(),
     configDir,
     defaultModel: MAIN_MODEL,
     defaultWorkingDirectory: workingDirectory,

@@ -97,8 +97,16 @@ The medium the Agent and the Owner exchange messages through, such as Telegram.
 _Avoid_: chat, integration, connector
 
 **Conversation** (it: *Conversazione*):
-A thread inside a Channel with its own continuous context, such as the "General" topic or a topic dedicated to one subject. Both the Owner and the Agent can open one. Each Routine says which Conversation it delivers its messages to. The context is reset only when the Owner asks for it.
+A thread inside a Channel with its own continuous context, such as the "General" topic or a topic dedicated to one subject. Both the Owner and the Agent can open one. Each Routine names the Conversation it delivers its messages to. The context is reset only when the Owner asks for it.
 _Avoid_: chat, topic, session, thread
+
+**General Conversation** (it: *Conversazione Generale*):
+The Conversation every Channel has from the start, where messages land when no other Conversation is chosen. It can be reset but never closed.
+_Avoid_: main chat, default chat, inbox
+
+**Pairing** (it: *Abbinamento*):
+Linking the Owner's identity on a Channel to the Harness, so that the Agent only talks to them on that Channel and ignores everyone else.
+_Avoid_: login, registration, binding
 
 **Turn** (it: *Turno*):
 A single exchange in a Conversation: a message from the Owner and the Agent's reply to it. Messages that arrive during a Turn wait for the next one.

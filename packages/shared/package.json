@@ -1,0 +1,8 @@
+{
+  "name": "@emanator/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts"
+  }
+}

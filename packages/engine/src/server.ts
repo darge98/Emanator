@@ -3,4 +3,5 @@ export {
   CLAUDE_AGENT_SDK_ENGINE_ID,
   type ClaudeAgentSdkEngineConfig,
   type EngineCredentials,
+  engineCredentialsFromEnv,
 } from './adapters/claude-agent-sdk/config.ts';

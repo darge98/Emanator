@@ -1,5 +1,15 @@
 services:
-  # End-to-end check of the Engine against your real account (step 1).
+  # The Harness itself: Telegram long polling, Conversations, Engine.
+  # Start: `docker compose up -d harness` · logs (pairing code): `docker compose logs -f harness`
+  harness:
+    build: .
+    command: ["./node_modules/.bin/tsx", "apps/server/src/main.ts"]
+    env_file: .env
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  # End-to-end check of the Engine against your real account.
   # Interactive: `docker compose run --rm engine-smoke`
   engine-smoke:
     build: .
@@ -9,3 +19,4 @@ services:
       - ./data:/data
     stdin_open: true
     tty: true
+    profiles: ["tools"]

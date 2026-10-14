@@ -1,0 +1,14 @@
+{
+  "name": "@emanator/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@emanator/channels": "workspace:*",
+    "@emanator/conversations": "workspace:*",
+    "@emanator/engine": "workspace:*",
+    "@emanator/shared": "workspace:*"
+  }
+}
