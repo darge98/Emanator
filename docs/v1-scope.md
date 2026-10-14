@@ -87,7 +87,7 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 - Handling overlapping Runs of the same Routine. In v1 they run in parallel, which is a known issue.
 - Restricting Capabilities per Routine.
 - Usage metrics panel: quota per window (five-hour, seven-day), turns, and estimated cost per Routine and Conversation, built on the Engine's `usage.limit` events.
-- UI authentication and deployment to a VPS.
+- UI authentication and deployment to a VPS. On Linux hosts the `./data` bind mount must be writable by the container's `node` user (uid 1000). Docker creates a missing `./data` as root, so the Harness would crash-loop; Docker Desktop on macOS hides this.
 - Multiple Agents, and project workflows with dedicated development containers.
 - The ideas carried over from the first prototype, in [legacy-ideas.md](legacy-ideas.md):
   - briefing behaviours, Action requests and commitments;

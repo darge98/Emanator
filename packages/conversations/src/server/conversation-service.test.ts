@@ -7,8 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ConversationService } from './conversation-service.ts';
 import { ConversationStore } from './conversation-store.ts';
 
-function setup(engine = new FakeEngine()) {
-  const channel = new FakeChannel();
+function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
   const store = new ConversationStore(openDatabase(':memory:'));
   const service = new ConversationService({
     channel,
@@ -239,6 +238,42 @@ describe('ConversationService', () => {
     expect(engine.requests).toHaveLength(2);
     expect(channel.sent.at(-1)?.markdown).toContain('overloaded');
     expect(store.findByThread('fake', undefined)?.session?.id).toBe('session-1');
+  });
+
+  it('tells the Owner when handling fails outside the Engine', async () => {
+    class NoTopics extends FakeChannel {
+      override async openThread(): Promise<string> {
+        throw new Error('Bad Request: the chat is not a forum');
+      }
+    }
+    const { channel, send } = setup(new FakeEngine(), new NoTopics());
+
+    await send(command('topic', 'Viaggio'));
+
+    expect(channel.sent).toEqual([
+      {
+        threadId: undefined,
+        markdown: '⚠️ Non sono riuscito a gestire il tuo messaggio, riprova tra poco.',
+      },
+    ]);
+  });
+
+  it('keeps handling messages when even the failure notice cannot be sent', async () => {
+    class Offline extends FakeChannel {
+      offline = true;
+      override async send(threadId: string | undefined, message: { markdown: string }) {
+        if (this.offline) throw new Error('network down');
+        return super.send(threadId, message);
+      }
+    }
+    const channel = new Offline();
+    const { send } = setup(new FakeEngine(), channel);
+
+    await send(message('uno'));
+    channel.offline = false;
+    await send(message('due'));
+
+    expect(channel.sent).toEqual([{ threadId: undefined, markdown: 'ok' }]);
   });
 
   it('tells the Owner when the quota is exhausted', async () => {

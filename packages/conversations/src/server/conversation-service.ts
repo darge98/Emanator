@@ -42,19 +42,34 @@ export class ConversationService {
 
   /** Returns at once; the event is processed in its thread's queue. */
   handle(event: InboundEvent): void {
-    this.queue
-      .run(event.threadId ?? '', () => this.process(event))
-      .catch((error: unknown) =>
-        this.deps.logger.error('Could not handle an inbound event', {
-          type: event.type,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
+    void this.queue.run(event.threadId ?? '', () => this.processSafely(event));
   }
 
   /** Resolves when everything received so far has been handled. */
   idle(): Promise<void> {
     return this.queue.idle();
+  }
+
+  /**
+   * A failure outside the Engine (opening a topic, sending, the database) is logged and
+   * the Owner gets a generic notice instead of silence. Never rejects, so the queue goes on.
+   */
+  private async processSafely(event: InboundEvent): Promise<void> {
+    try {
+      await this.process(event);
+    } catch (error) {
+      this.deps.logger.error('Could not handle an inbound event', {
+        type: event.type,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      try {
+        await this.deps.channel.send(event.threadId, { markdown: say.handlingFailed });
+      } catch (noticeError) {
+        this.deps.logger.error('Could not send the failure notice either', {
+          error: noticeError instanceof Error ? noticeError.message : String(noticeError),
+        });
+      }
+    }
   }
 
   private async process(event: InboundEvent): Promise<void> {

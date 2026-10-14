@@ -55,6 +55,8 @@ export const unsupported = (kind: string) =>
 
 export const thinking = '';
 
+export const handlingFailed = '⚠️ Non sono riuscito a gestire il tuo messaggio, riprova tra poco.';
+
 export const sessionLost = '⚠️ Avevo perso il contesto di questa conversazione: riparto da zero.';
 
 export const usingTool = (tool: string) => `🔧 ${tool}…`;
