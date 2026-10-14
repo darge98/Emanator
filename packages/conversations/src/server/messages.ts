@@ -55,6 +55,8 @@ export const unsupported = (kind: string) =>
 
 export const thinking = '';
 
+export const sessionLost = '⚠️ Avevo perso il contesto di questa conversazione: riparto da zero.';
+
 export const usingTool = (tool: string) => `🔧 ${tool}…`;
 
 export function status(
@@ -99,6 +101,8 @@ export function failure(
       return '🔑 Non riesco ad autenticarmi con il Motore: controlla il token nel file `.env`.';
     case 'model-unavailable':
       return `Il modello \`${model}\` non è disponibile con il tuo piano.`;
+    case 'session-not-found':
+      return sessionLost;
     case 'error':
       return `⚠️ Qualcosa è andato storto: ${event.message.slice(0, 500)}`;
   }

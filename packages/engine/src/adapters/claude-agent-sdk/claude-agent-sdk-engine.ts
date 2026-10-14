@@ -6,7 +6,7 @@ import { CLAUDE_AGENT_SDK_ENGINE_ID, type ClaudeAgentSdkEngineConfig } from './c
 import { buildQueryOptions } from './options.ts';
 import { fromSdkToolName } from './tool-names.ts';
 import { createHarnessToolServer } from './tool-server.ts';
-import { TurnTranslator } from './translate.ts';
+import { failureFromText, TurnTranslator } from './translate.ts';
 
 /** Engine backed by the Claude Agent SDK, which spawns one Claude Code process per turn. */
 export class ClaudeAgentSdkEngine implements Engine {
@@ -41,7 +41,8 @@ export class ClaudeAgentSdkEngine implements Engine {
     } catch (error) {
       if (!ended) {
         ended = true;
-        yield { type: 'turn.failed', reason: 'error', message: errorMessage(error) };
+        const message = errorMessage(error);
+        yield { type: 'turn.failed', reason: failureFromText(message), message };
       }
     } finally {
       request.signal?.removeEventListener('abort', abort);

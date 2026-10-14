@@ -108,15 +108,24 @@ export class TurnTranslator {
         durationMs: message.duration_ms,
       });
     } else {
+      const text = message.subtype === 'success' ? message.result : message.errors.join('\n');
       events.push({
         type: 'turn.failed',
         session,
-        reason: this.failure ?? 'error',
-        message: message.subtype === 'success' ? message.result : message.errors.join('\n'),
+        reason: this.failure ?? failureFromText(text),
+        message: text,
       });
     }
     return events;
   }
+}
+
+/**
+ * The SDK has no error code for a missing session, only this text. The smoke script
+ * checks it after every SDK upgrade.
+ */
+export function failureFromText(text: string): TurnFailureReason {
+  return /no conversation found with session id/i.test(text) ? 'session-not-found' : 'error';
 }
 
 function credentialSource(apiKeySource: string): CredentialSource {

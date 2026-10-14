@@ -238,4 +238,18 @@ describe('TurnTranslator', () => {
 
     expect(event).toMatchObject({ type: 'turn.failed', reason: 'error', message: 'boom\nagain' });
   });
+
+  it('recognises a session the Engine no longer has', () => {
+    // As returned by the SDK when resuming an unknown session id (smoke probe, 2026-10-15).
+    const [event] = new TurnTranslator().translate(
+      result({
+        subtype: 'error_during_execution',
+        is_error: true,
+        session_id: '00000000-0000-4000-8000-000000000000',
+        errors: ['No conversation found with session ID: 00000000-0000-4000-8000-000000000000'],
+      }),
+    );
+
+    expect(event).toMatchObject({ type: 'turn.failed', reason: 'session-not-found' });
+  });
 });

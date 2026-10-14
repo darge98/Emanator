@@ -84,4 +84,10 @@ export type CredentialSource = 'subscription' | 'api-key' | 'unknown';
 
 export type UsageStatus = 'ok' | 'warning' | 'exhausted';
 
-export type TurnFailureReason = 'usage-limit' | 'authentication' | 'model-unavailable' | 'error';
+export type TurnFailureReason =
+  | 'usage-limit'
+  | 'authentication'
+  | 'model-unavailable'
+  /** The session to resume no longer exists in the Engine; starting a new one works. */
+  | 'session-not-found'
+  | 'error';

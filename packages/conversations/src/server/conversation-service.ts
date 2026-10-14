@@ -70,41 +70,60 @@ export class ConversationService {
   }
 
   private async converse(conversation: Conversation, text: string): Promise<void> {
-    const { channel, engine, store, usage } = this.deps;
-    const model = this.modelOf(conversation);
+    const { channel, store } = this.deps;
     await channel.showProgress(conversation.threadId, say.thinking);
     try {
-      for await (const event of engine.runTurn({
-        prompt: text,
-        systemPrompt: this.deps.systemPrompt(),
-        model,
-        ...(conversation.session && { session: conversation.session }),
-        decidePermission: denyAllTools,
-      })) {
-        switch (event.type) {
-          case 'turn.started':
-            store.setSession(conversation.id, event.session);
-            break;
-          case 'tool.called':
-            await channel.showProgress(conversation.threadId, say.usingTool(event.tool));
-            break;
-          case 'usage.limit':
-            usage.record(event);
-            break;
-          case 'turn.completed':
-            await this.reply(conversation, event.text);
-            break;
-          case 'turn.failed':
-            await this.reply(
-              conversation,
-              say.failure(event, model, usage.latest(), this.deps.timeZone),
-            );
-            break;
-        }
+      const sessionLost = await this.turn(conversation, text);
+      if (sessionLost) {
+        // The Engine no longer has this session (e.g. its storage was wiped): start over, once.
+        store.setSession(conversation.id, undefined);
+        const { session: _lost, ...fresh } = conversation;
+        await this.turn(fresh, text, say.sessionLost);
       }
     } finally {
       await channel.showProgress(conversation.threadId, null);
     }
+  }
+
+  /**
+   * Runs one Engine turn and replies with its outcome, after `preface` if given.
+   * Returns true, without replying, when the session to resume no longer exists.
+   */
+  private async turn(conversation: Conversation, text: string, preface?: string): Promise<boolean> {
+    const { channel, engine, store, usage } = this.deps;
+    const model = this.modelOf(conversation);
+    const withPreface = (markdown: string) => (preface ? `${preface}\n\n${markdown}` : markdown);
+
+    for await (const event of engine.runTurn({
+      prompt: text,
+      systemPrompt: this.deps.systemPrompt(),
+      model,
+      ...(conversation.session && { session: conversation.session }),
+      decidePermission: denyAllTools,
+    })) {
+      switch (event.type) {
+        case 'turn.started':
+          store.setSession(conversation.id, event.session);
+          break;
+        case 'tool.called':
+          await channel.showProgress(conversation.threadId, say.usingTool(event.tool));
+          break;
+        case 'usage.limit':
+          usage.record(event);
+          break;
+        case 'turn.completed':
+          await this.reply(conversation, withPreface(event.text));
+          break;
+        case 'turn.failed':
+          if (event.reason === 'session-not-found' && conversation.session) return true;
+          await this.reply(
+            conversation,
+            withPreface(say.failure(event, model, usage.latest(), this.deps.timeZone)),
+          );
+          break;
+      }
+    }
+    return false;
   }
 
   private async command(conversation: Conversation, command: InboundCommand): Promise<void> {

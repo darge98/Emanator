@@ -199,6 +199,48 @@ describe('ConversationService', () => {
     expect(status).toContain('Quota 7 giorni: 51%');
   });
 
+  it('starts over, once, when the Engine has lost the session, and says so', async () => {
+    const lost: ScriptedTurn = (request) => [
+      {
+        type: 'turn.failed',
+        ...(request.session && { session: request.session }),
+        reason: 'session-not-found',
+        message: 'No conversation found with session ID: session-1',
+      },
+    ];
+    const engine = new FakeEngine().script(
+      replyWith('primo'),
+      lost,
+      replyWith('di nuovo', 'session-2'),
+    );
+    const { channel, store, send } = setup(engine);
+    await send(message('uno'));
+
+    await send(message('due'));
+
+    expect(engine.requests.slice(1).map((r) => r.session?.id)).toEqual(['session-1', undefined]);
+    expect(channel.sent.at(-1)?.markdown).toBe(
+      '⚠️ Avevo perso il contesto di questa conversazione: riparto da zero.\n\ndi nuovo',
+    );
+    expect(store.findByThread('fake', undefined)?.session?.id).toBe('session-2');
+  });
+
+  it('keeps the session when a turn fails for any other reason', async () => {
+    const broken: ScriptedTurn = () => [
+      { type: 'turn.failed', reason: 'error', message: 'overloaded' },
+    ];
+    const { channel, engine, store, send } = setup(
+      new FakeEngine().script(replyWith('ok'), broken),
+    );
+    await send(message('uno'));
+
+    await send(message('due'));
+
+    expect(engine.requests).toHaveLength(2);
+    expect(channel.sent.at(-1)?.markdown).toContain('overloaded');
+    expect(store.findByThread('fake', undefined)?.session?.id).toBe('session-1');
+  });
+
   it('tells the Owner when the quota is exhausted', async () => {
     const exhausted: ScriptedTurn = () => [
       { type: 'usage.limit', status: 'exhausted', resetsAt: new Date('2026-10-14T20:30:00Z') },

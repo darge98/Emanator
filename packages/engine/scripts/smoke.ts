@@ -7,6 +7,7 @@
  *
  * It uses tiny prompts and cheap models where possible, but every turn spends real quota.
  */
+import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
@@ -21,6 +22,7 @@ import {
   type TurnRequest,
 } from '../src/index.ts';
 import {
+  CLAUDE_AGENT_SDK_ENGINE_ID,
   ClaudeAgentSdkEngine,
   type ClaudeAgentSdkEngineConfig,
   engineCredentialsFromEnv,
@@ -218,6 +220,20 @@ async function checkSessionsAndModels(): Promise<Check[]> {
       ],
     },
   ];
+
+  // The adapter recognises a lost session only by the SDK's error text (see failureFromText).
+  const missing = await runTurn('session:missing', {
+    prompt: 'Reply with exactly: ok',
+    model: FAST_MODEL,
+    session: { engine: CLAUDE_AGENT_SDK_ENGINE_ID, id: randomUUID() },
+  });
+  checks.push({
+    name: 'Resuming a missing session reports session-not-found',
+    status: missing.failed?.reason === 'session-not-found' ? 'pass' : 'fail',
+    details: [
+      `outcome: ${missing.failed ? `${missing.failed.reason} — ${missing.failed.message}` : 'completed'}`,
+    ],
+  });
 
   for (const model of EXTRA_MODELS) {
     const turn = await runTurn(`model:${model}`, { prompt: 'Reply with exactly: ok', model });
