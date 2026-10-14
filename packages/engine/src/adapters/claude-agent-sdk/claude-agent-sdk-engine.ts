@@ -1,4 +1,5 @@
 import { type CanUseTool, query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { errorMessage } from '@emanator/shared/server';
 import type { Engine, TurnRequest } from '../../domain/engine.ts';
 import type { EngineEvent } from '../../domain/events.ts';
 import type { PermissionDecider } from '../../domain/permission.ts';
@@ -70,8 +71,4 @@ function bridgePermissions(decide: PermissionDecider): CanUseTool {
 
 async function* singleMessage(prompt: string): AsyncIterable<SDKUserMessage> {
   yield { type: 'user', message: { role: 'user', content: prompt }, parent_tool_use_id: null };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

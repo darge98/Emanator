@@ -1,4 +1,4 @@
-import { type Database, type Logger, runMigrations } from '@emanator/shared/server';
+import { type Database, errorMessage, type Logger, runMigrations } from '@emanator/shared/server';
 import { autoRetry } from '@grammyjs/auto-retry';
 import { Bot } from 'grammy';
 import type { Message } from 'grammy/types';
@@ -61,7 +61,7 @@ export class TelegramChannel implements Channel {
 
     this.bot.on('message', (ctx) => this.receive(ctx.message, onEvent));
     this.bot.catch((error) =>
-      this.logger.error('Update handling failed', { error: describe(error.error) }),
+      this.logger.error('Update handling failed', { error: errorMessage(error.error) }),
     );
 
     await new Promise<void>((resolve, reject) => {
@@ -79,7 +79,7 @@ export class TelegramChannel implements Channel {
         })
         .catch((error: unknown) => {
           if (!started) reject(error);
-          else this.logger.error('Polling stopped', { error: describe(error) });
+          else this.logger.error('Polling stopped', { error: errorMessage(error) });
         });
     });
   }
@@ -99,7 +99,7 @@ export class TelegramChannel implements Channel {
       if (isThreadNotFound(error)) throw new ThreadNotFoundError(threadId);
       if (!shouldFallBackToPlainText(error)) throw error;
       this.logger.warn('Telegram rejected the rich message, falling back to plain text', {
-        error: describe(error),
+        error: errorMessage(error),
       });
       for (const chunk of splitText(markdown)) {
         try {
@@ -166,7 +166,7 @@ export class TelegramChannel implements Channel {
     try {
       await this.bot.api.sendMessageDraft(owner.chatId, draftId, text, threadOptions(threadId));
     } catch (error) {
-      this.logger.warn('Could not show progress', { error: describe(error) });
+      this.logger.warn('Could not show progress', { error: errorMessage(error) });
     }
   }
 
@@ -179,8 +179,4 @@ export class TelegramChannel implements Channel {
 
 function threadOptions(threadId: string | undefined) {
   return threadId === undefined ? {} : { message_thread_id: Number(threadId) };
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

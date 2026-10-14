@@ -12,6 +12,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { errorMessage } from '@emanator/shared/server';
 import { z } from 'zod';
 import { buildQueryOptions } from '../src/adapters/claude-agent-sdk/options.ts';
 import {
@@ -342,15 +343,13 @@ async function probePlan() {
           found.subscription = usage.subscription_type;
           found.rateLimits = usage.rate_limits;
         } catch (error) {
-          console.log(
-            `  usage API unavailable: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          console.log(`  usage API unavailable: ${errorMessage(error)}`);
         }
       }
       if (message.type === 'rate_limit_event') found.rawRateLimitInfo.push(message.rate_limit_info);
     }
   } catch (error) {
-    console.log(`  probe failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.log(`  probe failed: ${errorMessage(error)}`);
   }
   console.log(`  ${JSON.stringify(found)}`);
   return found;

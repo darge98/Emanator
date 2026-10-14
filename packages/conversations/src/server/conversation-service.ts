@@ -5,7 +5,7 @@ import {
   ThreadNotFoundError,
 } from '@emanator/channels';
 import type { Engine, PermissionDecider, UsageTracker } from '@emanator/engine';
-import type { Logger } from '@emanator/shared/server';
+import { errorMessage, type Logger } from '@emanator/shared/server';
 import { type Conversation, GENERAL_CONVERSATION_NAME } from '../domain/conversation.ts';
 import { type ConversationStore, slugify } from './conversation-store.ts';
 import { KeyedQueue } from './keyed-queue.ts';
@@ -60,13 +60,13 @@ export class ConversationService {
     } catch (error) {
       this.deps.logger.error('Could not handle an inbound event', {
         type: event.type,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
       try {
         await this.deps.channel.send(event.threadId, { markdown: say.handlingFailed });
       } catch (noticeError) {
         this.deps.logger.error('Could not send the failure notice either', {
-          error: noticeError instanceof Error ? noticeError.message : String(noticeError),
+          error: errorMessage(noticeError),
         });
       }
     }

@@ -3,6 +3,7 @@ import {
   type McpSdkServerConfigWithInstance,
   tool,
 } from '@anthropic-ai/claude-agent-sdk';
+import { errorMessage } from '@emanator/shared/server';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolDefinition } from '../../domain/tool.ts';
 import { HARNESS_TOOL_SERVER } from './tool-names.ts';
@@ -36,9 +37,8 @@ async function runTool(definition: ToolDefinition, input: unknown): Promise<Call
     return { content: [{ type: 'text', text: output.text }], isError: output.isError ?? false };
   } catch (error) {
     // A Tool crash becomes an error result the model can react to, not a failed turn.
-    const message = error instanceof Error ? error.message : String(error);
     return {
-      content: [{ type: 'text', text: `Tool "${definition.name}" failed: ${message}` }],
+      content: [{ type: 'text', text: `Tool "${definition.name}" failed: ${errorMessage(error)}` }],
       isError: true,
     };
   }
