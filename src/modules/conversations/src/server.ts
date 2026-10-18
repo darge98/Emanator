@@ -1,4 +1,5 @@
 export {
+  type ConversationEvent,
   ConversationService,
   type ConversationServiceDeps,
 } from './server/conversation-service.ts';

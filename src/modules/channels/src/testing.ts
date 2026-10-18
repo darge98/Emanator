@@ -3,14 +3,24 @@ import {
   type CommandInfo,
   type InboundEvent,
   type InboundHandler,
+  type MessageAction,
   type OutboundMessage,
   ThreadNotFoundError,
 } from './domain/channel.ts';
 
-/** Channel double for tests: records what the Harness sends and can simulate deleted threads. */
+/**
+ * Channel double for tests: records what the Harness sends and can simulate deleted threads.
+ * A message's id is its position in `sent`, starting at 1.
+ */
 export class FakeChannel implements Channel {
   readonly id = 'fake';
-  readonly sent: { threadId: string | undefined; markdown: string }[] = [];
+  readonly sent: {
+    threadId: string | undefined;
+    markdown: string;
+    actions?: readonly MessageAction[];
+  }[] = [];
+  readonly edited: { messageId: string; markdown: string; actions?: readonly MessageAction[] }[] =
+    [];
   readonly progress: { threadId: string | undefined; status: string | null }[] = [];
   readonly opened: string[] = [];
   readonly renamed: { threadId: string; title: string }[] = [];
@@ -28,11 +38,19 @@ export class FakeChannel implements Channel {
     this.onEvent = undefined;
   }
 
-  async send(threadId: string | undefined, { markdown }: OutboundMessage): Promise<void> {
+  async send(
+    threadId: string | undefined,
+    { markdown, actions }: OutboundMessage,
+  ): Promise<string> {
     if (threadId !== undefined && this.deletedThreads.has(threadId)) {
       throw new ThreadNotFoundError(threadId);
     }
-    this.sent.push({ threadId, markdown });
+    this.sent.push({ threadId, markdown, ...(actions?.length && { actions }) });
+    return String(this.sent.length);
+  }
+
+  async editMessage(messageId: string, { markdown, actions }: OutboundMessage): Promise<void> {
+    this.edited.push({ messageId, markdown, ...(actions?.length && { actions }) });
   }
 
   async openThread(title: string): Promise<string> {
@@ -56,5 +74,17 @@ export class FakeChannel implements Channel {
   /** Simulates the Owner sending something. */
   receive(event: InboundEvent): void {
     this.onEvent?.(event);
+  }
+
+  /** Simulates the Owner pressing a button under the message sent with id `messageId`. */
+  press(actionId: string, messageId: string): void {
+    const threadId = this.sent[Number(messageId) - 1]?.threadId;
+    this.receive({
+      type: 'action',
+      actionId,
+      messageId,
+      receivedAt: new Date(),
+      ...(threadId !== undefined && { threadId }),
+    });
   }
 }

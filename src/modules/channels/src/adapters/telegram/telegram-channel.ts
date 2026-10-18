@@ -1,7 +1,7 @@
 import { type Database, errorMessage, type Logger, runMigrations } from '@emanator/shared/server';
 import { autoRetry } from '@grammyjs/auto-retry';
 import { Bot } from 'grammy';
-import type { Message } from 'grammy/types';
+import type { CallbackQuery, Message } from 'grammy/types';
 import {
   type Channel,
   type CommandInfo,
@@ -9,11 +9,17 @@ import {
   type OutboundMessage,
   ThreadNotFoundError,
 } from '../../domain/channel.ts';
-import { toInboundEvent } from './inbound.ts';
+import { toInboundAction, toInboundEvent } from './inbound.ts';
 import { telegramMigrations } from './migrations.ts';
 import { TelegramPairing } from './pairing.ts';
 import { ProgressDrafts } from './progress-drafts.ts';
-import { isThreadNotFound, isTopicNotModified, shouldFallBackToPlainText } from './send-errors.ts';
+import {
+  isMessageGone,
+  isMessageNotModified,
+  isThreadNotFound,
+  isTopicNotModified,
+  shouldFallBackToPlainText,
+} from './send-errors.ts';
 import { splitText } from './split-text.ts';
 
 export const TELEGRAM_CHANNEL_ID = 'telegram';
@@ -66,6 +72,7 @@ export class TelegramChannel implements Channel {
     }
 
     this.bot.on('message', (ctx) => this.receive(ctx.message, onEvent));
+    this.bot.on('callback_query:data', (ctx) => this.press(ctx.callbackQuery, onEvent));
     this.bot.catch((error) =>
       this.logger.error('Update handling failed', { error: errorMessage(error.error) }),
     );
@@ -76,7 +83,7 @@ export class TelegramChannel implements Channel {
         .start({
           // Messages sent while the Harness was down are kept by Telegram for 24 h: answer them.
           drop_pending_updates: false,
-          allowed_updates: ['message'],
+          allowed_updates: ['message', 'callback_query'],
           onStart: () => {
             started = true;
             this.logger.info(`Polling as @${me.username}`);
@@ -95,26 +102,61 @@ export class TelegramChannel implements Channel {
     await this.bot.stop();
   }
 
-  async send(threadId: string | undefined, { markdown }: OutboundMessage): Promise<void> {
+  async send(threadId: string | undefined, message: OutboundMessage): Promise<string> {
     const { chatId } = await this.requireOwner();
     await this.showProgress(threadId, null);
     const thread = threadOptions(threadId);
+    const markup = replyMarkup(message);
     try {
-      await this.bot.api.sendRichMessage(chatId, { markdown }, thread);
+      const sent = await this.bot.api.sendRichMessage(
+        chatId,
+        { markdown: message.markdown },
+        { ...thread, ...markup },
+      );
+      return String(sent.message_id);
     } catch (error) {
       if (isThreadNotFound(error)) throw new ThreadNotFoundError(threadId);
       if (!shouldFallBackToPlainText(error)) throw error;
       this.logger.warn('Telegram rejected the rich message, falling back to plain text', {
         error: errorMessage(error),
       });
-      for (const chunk of splitText(markdown)) {
+      const chunks = splitText(message.markdown);
+      let lastId = '';
+      for (const [index, chunk] of chunks.entries()) {
+        // Buttons go under the last chunk, where the message ends.
+        const last = index === chunks.length - 1;
         try {
-          await this.bot.api.sendMessage(chatId, chunk, thread);
+          const sent = await this.bot.api.sendMessage(chatId, chunk, {
+            ...thread,
+            ...(last && markup),
+          });
+          lastId = String(sent.message_id);
         } catch (plainError) {
           if (isThreadNotFound(plainError)) throw new ThreadNotFoundError(threadId);
           throw plainError;
         }
       }
+      return lastId;
+    }
+  }
+
+  async editMessage(messageId: string, message: OutboundMessage): Promise<void> {
+    const { chatId } = await this.requireOwner();
+    // Without a reply_markup Telegram removes the buttons, which is what no actions means.
+    const markup = replyMarkup(message);
+    try {
+      await this.bot.api.editMessageText(
+        chatId,
+        Number(messageId),
+        { markdown: message.markdown },
+        markup,
+      );
+    } catch (error) {
+      // Nothing left to change: the edit already applied, or the message is gone.
+      if (isMessageNotModified(error) || isMessageGone(error)) return;
+      if (!shouldFallBackToPlainText(error)) throw error;
+      const [first = ''] = splitText(message.markdown);
+      await this.bot.api.editMessageText(chatId, Number(messageId), first, markup);
     }
   }
 
@@ -160,6 +202,20 @@ export class TelegramChannel implements Channel {
     if (event) onEvent(event);
   }
 
+  private async press(query: CallbackQuery, onEvent: InboundHandler): Promise<void> {
+    // Telegram keeps the button spinning until the press is answered, whoever pressed it.
+    try {
+      await this.bot.api.answerCallbackQuery(query.id);
+    } catch (error) {
+      this.logger.warn('Could not answer a button press', { error: errorMessage(error) });
+    }
+    const owner = await this.pairing.owner();
+    if (!owner || query.from.id !== owner.userId) return;
+
+    const event = toInboundAction(query, new Date());
+    if (event) onEvent(event);
+  }
+
   private async tryPairing(message: Message): Promise<void> {
     const event = toInboundEvent(message);
     if (event?.type !== 'command' || event.name !== 'start' || !message.from) return;
@@ -200,6 +256,15 @@ export class TelegramChannel implements Channel {
     if (!owner) throw new Error('Telegram is not paired with the Owner yet.');
     return owner;
   }
+}
+
+function replyMarkup({ actions }: OutboundMessage) {
+  if (!actions?.length) return {};
+  return {
+    reply_markup: {
+      inline_keyboard: [actions.map(({ id, label }) => ({ text: label, callback_data: id }))],
+    },
+  };
 }
 
 function threadOptions(threadId: string | undefined) {

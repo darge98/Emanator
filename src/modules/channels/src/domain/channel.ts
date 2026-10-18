@@ -9,8 +9,16 @@ export interface Channel {
   /** Starts receiving; inbound events are delivered to `onEvent` from the Paired Owner only. */
   start(onEvent: InboundHandler): Promise<void>;
   stop(): Promise<void>;
-  /** Throws `ThreadNotFoundError` when the thread no longer exists. */
-  send(threadId: string | undefined, message: OutboundMessage): Promise<void>;
+  /**
+   * Returns the id of the last message sent, which carries the actions when there are any.
+   * Throws `ThreadNotFoundError` when the thread no longer exists.
+   */
+  send(threadId: string | undefined, message: OutboundMessage): Promise<string>;
+  /**
+   * Replaces the text and actions of a message sent earlier; no actions removes the buttons.
+   * A message that no longer exists is left alone.
+   */
+  editMessage(messageId: string, message: OutboundMessage): Promise<void>;
   /** Opens a new thread (e.g. a Telegram topic) and returns its id. */
   openThread(title: string): Promise<string>;
   /** Renames a thread the Channel opened. Throws `ThreadNotFoundError` when it no longer exists. */
@@ -32,7 +40,7 @@ export interface CommandInfo {
 
 export type InboundHandler = (event: InboundEvent) => void;
 
-export type InboundEvent = InboundMessage | InboundCommand | InboundUnsupported;
+export type InboundEvent = InboundMessage | InboundCommand | InboundUnsupported | InboundAction;
 
 interface InboundBase {
   threadId?: string;
@@ -57,9 +65,24 @@ export interface InboundUnsupported extends InboundBase {
   kind: string;
 }
 
+/** The Owner pressed a button the Harness attached to a message. */
+export interface InboundAction extends InboundBase {
+  type: 'action';
+  actionId: string;
+  messageId: string;
+}
+
 export interface OutboundMessage {
   /** Markdown; the Channel renders it as richly as it can. */
   markdown: string;
+  /** Buttons shown under the message, in one row. */
+  actions?: readonly MessageAction[];
+}
+
+export interface MessageAction {
+  /** Comes back in the `InboundAction`; at most 64 bytes, Telegram's limit. */
+  id: string;
+  label: string;
 }
 
 export class ThreadNotFoundError extends Error {

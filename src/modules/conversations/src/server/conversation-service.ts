@@ -1,5 +1,6 @@
 import {
   type Channel,
+  type InboundAction,
   type InboundCommand,
   type InboundEvent,
   ThreadNotFoundError,
@@ -37,6 +38,12 @@ const denyAllTools: PermissionDecider = async () => ({
 
 const routineTopicName = (routineName: string) => `${slugify(routineName)}${ROUTINE_TOPIC_SUFFIX}`;
 
+/**
+ * What the Owner sends into a Conversation. Button presses are left out: they answer a
+ * turn that may be holding the Conversation's queue, so they must not wait in it.
+ */
+export type ConversationEvent = Exclude<InboundEvent, InboundAction>;
+
 /** Routine messages kept for one turn at most; older ones are dropped. */
 const MAX_HANDOFFS = 10;
 
@@ -51,7 +58,7 @@ export class ConversationService {
   constructor(private readonly deps: ConversationServiceDeps) {}
 
   /** Returns at once; the event is processed in its thread's queue. */
-  handle(event: InboundEvent): void {
+  handle(event: ConversationEvent): void {
     void this.queue.run(event.threadId ?? '', () => this.processSafely(event));
   }
 
@@ -128,7 +135,7 @@ export class ConversationService {
    * A failure outside the Engine (opening a topic, sending, the database) is logged and
    * the Owner gets a generic notice instead of silence. Never rejects, so the queue goes on.
    */
-  private async processSafely(event: InboundEvent): Promise<void> {
+  private async processSafely(event: ConversationEvent): Promise<void> {
     try {
       await this.process(event);
     } catch (error) {
@@ -146,7 +153,7 @@ export class ConversationService {
     }
   }
 
-  private async process(event: InboundEvent): Promise<void> {
+  private async process(event: ConversationEvent): Promise<void> {
     const conversation = await this.resolve(event.threadId);
     switch (event.type) {
       case 'message':

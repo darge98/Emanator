@@ -1,5 +1,5 @@
-import type { Message } from 'grammy/types';
-import type { InboundEvent } from '../../domain/channel.ts';
+import type { CallbackQuery, Message } from 'grammy/types';
+import type { InboundAction, InboundEvent } from '../../domain/channel.ts';
 
 // Content kinds the Owner may send that the Harness can't handle yet.
 const UNSUPPORTED_KINDS = [
@@ -48,4 +48,23 @@ function parseCommand(message: Message): { name: string; args: string } | undefi
   // "/topic@my_bot Trip to Japan" -> name "topic", args "Trip to Japan"
   const name = text.slice(1, entity.length).split('@')[0]?.toLowerCase() ?? '';
   return { name, args: text.slice(entity.length).trim() };
+}
+
+/**
+ * Maps a button press to an inbound event. Returns undefined when the press carries no
+ * data or comes from a message the bot can no longer see.
+ */
+export function toInboundAction(query: CallbackQuery, receivedAt: Date): InboundAction | undefined {
+  const message = query.message;
+  if (query.data === undefined || !message) return undefined;
+  // An inaccessible message (date 0) has no topic information left.
+  const inTopic =
+    message.date !== 0 && message.is_topic_message && message.message_thread_id !== undefined;
+  return {
+    type: 'action',
+    actionId: query.data,
+    messageId: String(message.message_id),
+    receivedAt,
+    ...(inTopic && { threadId: String(message.message_thread_id) }),
+  };
 }

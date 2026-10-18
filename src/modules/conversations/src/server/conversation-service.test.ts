@@ -1,10 +1,9 @@
-import type { InboundEvent } from '@emanator/channels';
 import { FakeChannel } from '@emanator/channels/testing';
 import { type EngineEvent, UsageTracker } from '@emanator/engine';
 import { FakeEngine, replyWith, type ScriptedTurn } from '@emanator/engine/testing';
 import { createTestDatabase, silentLogger } from '@emanator/shared/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConversationService } from './conversation-service.ts';
+import { type ConversationEvent, ConversationService } from './conversation-service.ts';
 import { ConversationStore } from './conversation-store.ts';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -28,7 +27,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     timeZone: 'Europe/Rome',
     logger: silentLogger,
   });
-  const send = async (...events: InboundEvent[]) => {
+  const send = async (...events: ConversationEvent[]) => {
     for (const event of events) service.handle(event);
     await service.idle();
   };
@@ -45,13 +44,13 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
 }
 
 const at = new Date('2026-10-14T10:00:00Z');
-const message = (text: string, threadId?: string): InboundEvent => ({
+const message = (text: string, threadId?: string): ConversationEvent => ({
   type: 'message',
   text,
   receivedAt: at,
   ...(threadId !== undefined && { threadId }),
 });
-const command = (name: string, args = '', threadId?: string): InboundEvent => ({
+const command = (name: string, args = '', threadId?: string): ConversationEvent => ({
   type: 'command',
   name,
   args,
@@ -161,9 +160,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
       override async send(
         threadId: string | undefined,
         message: { markdown: string },
-      ): Promise<void> {
-        await super.send(threadId, message);
+      ): Promise<string> {
+        const id = await super.send(threadId, message);
         if (threadId === '42') this.markFastReply();
+        return id;
       }
     }
     const channel = new WatchingChannel();

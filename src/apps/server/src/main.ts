@@ -96,7 +96,11 @@ async function start() {
   try {
     await dashboard.listen({ host: config.httpHost, port: config.httpPort });
     await channel.setCommands(CONVERSATION_COMMANDS);
-    await channel.start((event) => conversations.handle(event));
+    await channel.start((event) => {
+      // Nothing sends buttons yet; Approvals will answer their presses here, outside the queues.
+      if (event.type === 'action') return;
+      conversations.handle(event);
+    });
     await routines.start();
     logger.info('Emanator is running', {
       model: config.defaultModel,
