@@ -35,3 +35,16 @@ export function runInstructions(routine: Routine, origin: RunOrigin): string {
     `Se non c'è nulla che valga la pena comunicarle, rispondi esattamente ${SILENT_REPLY} e non le arriverà nulla.`,
   ].join('\n');
 }
+
+/** Sent once per quota exhaustion, whatever the number of Runs waiting. */
+export function quotaExhausted(resumesAt: Date, timeZone: string): string {
+  const when = resumesAt.toLocaleString('it-IT', {
+    timeZone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `⏳ La quota di utilizzo è esaurita: le Routine riprendono ${when}.`;
+}

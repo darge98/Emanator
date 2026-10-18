@@ -35,6 +35,8 @@ const denyAllTools: PermissionDecider = async () => ({
   reason: 'No Tools are enabled yet.',
 });
 
+const routineTopicName = (routineName: string) => `${slugify(routineName)}${ROUTINE_TOPIC_SUFFIX}`;
+
 /** Routine messages handed to one turn at most; older ones are dropped. */
 const MAX_HANDOFFS = 10;
 
@@ -74,13 +76,30 @@ export class ConversationService {
     const { channel, store } = this.deps;
     const threadId = await channel.openThread(title);
     return store.create({
-      name: `${slugify(routineName)}${ROUTINE_TOPIC_SUFFIX}`,
+      name: routineTopicName(routineName),
       title,
       channel: channel.id,
       threadId,
       openedBy: 'harness',
       routineTopic: true,
     });
+  }
+
+  /**
+   * Follows a Routine rename: the topic and its Conversation take the new name.
+   * A topic found deleted is archived instead, so the next Run opens a new one.
+   */
+  async renameRoutineTopic(id: string, routineName: string, title: string): Promise<void> {
+    const conversation = await this.findLive(id);
+    if (!conversation?.threadId) return;
+    try {
+      await this.deps.channel.renameThread(conversation.threadId, title);
+    } catch (error) {
+      if (!(error instanceof ThreadNotFoundError)) throw error;
+      await this.deps.store.archive(id);
+      return;
+    }
+    await this.deps.store.rename(id, routineTopicName(routineName), title);
   }
 
   /**
@@ -91,6 +110,11 @@ export class ConversationService {
     if (!(await this.trySend(conversation, markdown))) return false;
     await this.deps.store.addHandoff(conversation.id, markdown);
     return true;
+  }
+
+  /** Sends a notice from the Harness itself, which stays out of the Conversation's context. */
+  async notify(conversation: Conversation, markdown: string): Promise<boolean> {
+    return this.trySend(conversation, markdown);
   }
 
   async archive(id: string): Promise<void> {

@@ -98,6 +98,7 @@ const copy = {
     tools: 'Strumenti',
     status: {
       running: 'In corso',
+      waiting: 'In attesa della quota',
       delivered: 'Inviata',
       silent: 'Silenziosa',
       failed: 'Fallita',
@@ -165,6 +166,7 @@ const copy = {
     tools: 'Tools',
     status: {
       running: 'Running',
+      waiting: 'Waiting for quota',
       delivered: 'Delivered',
       silent: 'Silent',
       failed: 'Failed',
@@ -817,7 +819,7 @@ function RunHistory({
 }) {
   const [runs, setRuns] = useState<RunDto[]>();
   const [failed, setFailed] = useState(false);
-  const running = runs?.some(({ status }) => status === 'running') ?? false;
+  const running = runs?.some(({ status }) => status === 'running' || status === 'waiting') ?? false;
 
   useEffect(() => {
     let alive = true;
@@ -855,7 +857,9 @@ function RunHistory({
       {runs.map((run) => (
         <li key={run.id} className={styles.run}>
           <span className={`${styles['run-status']} ${styles[run.status]}`}>
-            {run.status === 'running' && <span className={styles['button-spinner']} />}
+            {(run.status === 'running' || run.status === 'waiting') && (
+              <span className={styles['button-spinner']} />
+            )}
             {t.status[run.status]}
           </span>
           <span className={styles['run-when']}>

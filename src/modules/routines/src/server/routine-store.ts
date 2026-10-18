@@ -15,7 +15,7 @@ export class RoutineNameTakenError extends Error {
 }
 
 export interface RunOutcome {
-  status: Exclude<RunStatus, 'running'>;
+  status: Exclude<RunStatus, 'running' | 'waiting'>;
   session?: SessionRef;
   tools: string[];
   conversationId?: string;
@@ -101,6 +101,10 @@ export class RoutineStore {
     return run;
   }
 
+  async setRunStatus(id: string, status: 'running' | 'waiting'): Promise<void> {
+    await this.db.query('UPDATE routine_runs SET status = $2 WHERE id = $1', [id, status]);
+  }
+
   async finishRun(id: string, outcome: RunOutcome): Promise<void> {
     await this.db.query(
       `UPDATE routine_runs SET status = $2, finished_at = $3, session_engine = $4, session_id = $5,
@@ -119,10 +123,11 @@ export class RoutineStore {
     );
   }
 
-  /** Runs left `running` by a Harness that stopped mid-Run can never finish. */
+  /** Runs left unfinished by a Harness that stopped mid-Run can never finish. */
   async failInterruptedRuns(): Promise<void> {
     await this.db.query(
-      `UPDATE routine_runs SET status = 'failed', finished_at = $1, error = $2 WHERE status = 'running'`,
+      `UPDATE routine_runs SET status = 'failed', finished_at = $1, error = $2
+       WHERE status IN ('running', 'waiting')`,
       [new Date(), 'The Harness stopped during the Run.'],
     );
   }

@@ -13,6 +13,8 @@ export interface Channel {
   send(threadId: string | undefined, message: OutboundMessage): Promise<void>;
   /** Opens a new thread (e.g. a Telegram topic) and returns its id. */
   openThread(title: string): Promise<string>;
+  /** Renames a thread the Channel opened. Throws `ThreadNotFoundError` when it no longer exists. */
+  renameThread(threadId: string, title: string): Promise<void>;
   /**
    * Shows a transient status while the Agent works (`''` for a generic "thinking" state);
    * `null` stops showing it. Best-effort: failures are swallowed.

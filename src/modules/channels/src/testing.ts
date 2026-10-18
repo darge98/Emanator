@@ -13,6 +13,7 @@ export class FakeChannel implements Channel {
   readonly sent: { threadId: string | undefined; markdown: string }[] = [];
   readonly progress: { threadId: string | undefined; status: string | null }[] = [];
   readonly opened: string[] = [];
+  readonly renamed: { threadId: string; title: string }[] = [];
   /** Threads the Owner deleted: sending there throws ThreadNotFoundError. */
   readonly deletedThreads = new Set<string>();
   commands: readonly CommandInfo[] = [];
@@ -37,6 +38,11 @@ export class FakeChannel implements Channel {
   async openThread(title: string): Promise<string> {
     this.opened.push(title);
     return String(this.nextThreadId++);
+  }
+
+  async renameThread(threadId: string, title: string): Promise<void> {
+    if (this.deletedThreads.has(threadId)) throw new ThreadNotFoundError(threadId);
+    this.renamed.push({ threadId, title });
   }
 
   async showProgress(threadId: string | undefined, status: string | null): Promise<void> {

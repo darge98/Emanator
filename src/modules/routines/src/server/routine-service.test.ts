@@ -14,7 +14,13 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((close) => close()));
 });
 
-async function setup(engine = new FakeEngine()) {
+interface SetupOptions {
+  /** Replaces the quota wait; resolves at once by default. */
+  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+}
+
+async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
+  const sleeps: number[] = [];
   const fixture = await createTestDatabase();
   const channel = new FakeChannel();
   const conversationStore = new ConversationStore(fixture.db);
@@ -39,7 +45,12 @@ async function setup(engine = new FakeEngine()) {
     usage,
     systemPrompt: () => 'You are a test agent.',
     defaultModel: 'sonnet',
+    timeZone: 'Europe/Rome',
     logger: silentLogger,
+    sleep: (ms, signal) => {
+      sleeps.push(ms);
+      return options.sleep ? options.sleep(ms, signal) : Promise.resolve();
+    },
   });
   const routines = new RoutineService({
     store,
@@ -59,7 +70,17 @@ async function setup(engine = new FakeEngine()) {
     await runner.idle();
     return run;
   };
-  return { channel, engine, conversations, conversationStore, store, routines, runner, runNow };
+  return {
+    channel,
+    engine,
+    conversations,
+    conversationStore,
+    store,
+    routines,
+    runner,
+    runNow,
+    sleeps,
+  };
 }
 
 const input = (overrides: Partial<RoutineInput> = {}): RoutineInput => ({
@@ -162,17 +183,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
 
   it('records a failed Run and tells the Owner', async () => {
     const failed: ScriptedTurn = () =>
-      [{ type: 'turn.failed', reason: 'usage-limit', message: 'limit reached' }] as EngineEvent[];
+      [{ type: 'turn.failed', reason: 'authentication', message: 'bad token' }] as EngineEvent[];
     const { channel, routines, runNow } = await setup(new FakeEngine(failed));
     const routine = await routines.create(input());
 
     await runNow(routine.id);
 
     expect(channel.sent[0]?.markdown).toContain('**⏰ Briefing**');
-    expect(channel.sent[0]?.markdown).toContain('quota');
+    expect(channel.sent[0]?.markdown).toContain('credenziali');
     expect((await routines.runs(routine.id))?.[0]).toMatchObject({
       status: 'failed',
-      error: 'limit reached',
+      error: 'bad token',
     });
   });
 
@@ -214,5 +235,146 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
     await routines.start();
 
     expect((await routines.runs(routine.id))?.[0]).toMatchObject({ status: 'failed' });
+  });
+
+  describe('renaming', () => {
+    it('renames the topic and its Conversation with the Routine', async () => {
+      const { channel, conversationStore, routines, runNow } = await setup();
+      const routine = await routines.create(input({ dedicatedTopic: true }));
+      await runNow(routine.id);
+
+      await routines.update(routine.id, input({ name: 'Buongiorno', dedicatedTopic: true }));
+
+      expect(channel.renamed).toEqual([{ threadId: '100', title: 'Buongiorno · routine' }]);
+      expect(await conversationStore.findByName('buongiorno-routine')).toMatchObject({
+        threadId: '100',
+        title: 'Buongiorno · routine',
+      });
+      expect(await conversationStore.findByName('briefing-routine')).toBeUndefined();
+    });
+
+    it('archives a topic deleted meanwhile, so the next Run opens one with the new name', async () => {
+      const { channel, conversationStore, routines, runNow } = await setup();
+      const routine = await routines.create(input({ dedicatedTopic: true }));
+      await runNow(routine.id);
+      channel.deletedThreads.add('100');
+
+      await routines.update(routine.id, input({ name: 'Buongiorno', dedicatedTopic: true }));
+      await runNow(routine.id);
+
+      expect(channel.opened).toEqual(['Briefing · routine', 'Buongiorno · routine']);
+      expect(await conversationStore.findByName('buongiorno-routine')).toMatchObject({
+        threadId: '101',
+      });
+    });
+
+    it('leaves the topic alone when the name does not change', async () => {
+      const { channel, routines, runNow } = await setup();
+      const routine = await routines.create(input({ dedicatedTopic: true }));
+      await runNow(routine.id);
+
+      await routines.update(routine.id, input({ dedicatedTopic: true, prompt: 'Altro.' }));
+
+      expect(channel.renamed).toEqual([]);
+    });
+  });
+
+  describe('quota', () => {
+    const exhausted =
+      (resetsAt: Date): ScriptedTurn =>
+      () =>
+        [
+          { type: 'usage.limit', status: 'exhausted', window: 'five_hour', resetsAt },
+          { type: 'turn.failed', reason: 'usage-limit', message: 'limit reached' },
+        ] as EngineEvent[];
+
+    it('waits for the reset, retries, and tells the Owner once', async () => {
+      const resetsAt = new Date(Date.now() + 2 * 3_600_000);
+      const engine = new FakeEngine(replyWith('Fatto.')).script(exhausted(resetsAt));
+      const { channel, routines, runNow, sleeps } = await setup(engine);
+      const routine = await routines.create(input());
+
+      await runNow(routine.id);
+
+      expect(sleeps).toHaveLength(1);
+      expect(sleeps[0]).toBeGreaterThan(2 * 3_600_000 - 5_000);
+      expect(sleeps[0]).toBeLessThanOrEqual(2 * 3_600_000 + 60_000);
+      expect(channel.sent.map(({ markdown }) => markdown)).toEqual([
+        expect.stringContaining('⏳ La quota di utilizzo è esaurita'),
+        '**⏰ Briefing**\n\nFatto.',
+      ]);
+      expect((await routines.runs(routine.id))?.[0]?.status).toBe('delivered');
+    });
+
+    it('holds later Runs until the reset without calling the Engine, with no second notice', async () => {
+      const resetsAt = new Date(Date.now() + 3_600_000);
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const engine = new FakeEngine(replyWith('Fatto.')).script(exhausted(resetsAt));
+      const {
+        channel,
+        engine: fake,
+        routines,
+        runner,
+        store,
+      } = await setup(engine, {
+        sleep: () => gate,
+      });
+      const routine = await routines.create(input());
+
+      await routines.runNow(routine.id);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await routines.runNow(routine.id);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(fake.requests).toHaveLength(1);
+      expect((await store.runs(routine.id)).map(({ status }) => status)).toEqual([
+        'waiting',
+        'waiting',
+      ]);
+      release();
+      await runner.idle();
+
+      expect(channel.sent.filter(({ markdown }) => markdown.startsWith('⏳'))).toHaveLength(1);
+      expect((await store.runs(routine.id)).map(({ status }) => status)).toEqual([
+        'delivered',
+        'delivered',
+      ]);
+    });
+
+    it('fails a waiting Run at once when the Harness stops', async () => {
+      const engine = new FakeEngine().script(exhausted(new Date(Date.now() + 3_600_000)));
+      const { routines, store } = await setup(engine, {
+        sleep: (_ms, signal) =>
+          new Promise((_resolve, reject) =>
+            signal.addEventListener('abort', () => reject(new Error('The Harness stopped.'))),
+          ),
+      });
+      const routine = await routines.create(input());
+      await routines.runNow(routine.id);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      await routines.stop();
+
+      expect((await store.runs(routine.id))[0]).toMatchObject({
+        status: 'failed',
+        error: 'The Harness stopped.',
+      });
+    });
+
+    it('gives up after several resets and reports the failure', async () => {
+      const resetsAt = new Date(Date.now() + 60_000);
+      const engine = new FakeEngine(exhausted(resetsAt));
+      const { channel, routines, runNow, sleeps } = await setup(engine);
+      const routine = await routines.create(input());
+
+      await runNow(routine.id);
+
+      expect(sleeps).toHaveLength(3);
+      expect(channel.sent.at(-1)?.markdown).toContain('Esecuzione non riuscita');
+      expect((await routines.runs(routine.id))?.[0]?.status).toBe('failed');
+    });
   });
 });

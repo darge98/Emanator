@@ -144,6 +144,15 @@ export class ConversationStore {
     }
   }
 
+  /** Throws if a live Conversation already holds `name`. */
+  async rename(id: string, name: string, title: string): Promise<void> {
+    await this.db.query('UPDATE conversations SET name = $2, title = $3 WHERE id = $1', [
+      id,
+      name,
+      title,
+    ]);
+  }
+
   async archive(id: string): Promise<void> {
     await this.db.query('UPDATE conversations SET archived_at = $1 WHERE id = $2', [
       new Date(),

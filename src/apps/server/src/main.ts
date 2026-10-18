@@ -80,6 +80,7 @@ async function start() {
       usage,
       systemPrompt: agentPrompt,
       defaultModel: config.defaultModel,
+      timeZone: config.timeZone,
       logger: routineLogger,
     }),
     conversations,

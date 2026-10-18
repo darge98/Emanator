@@ -68,7 +68,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 ### Engine and quota
 - The Claude Agent SDK runs with the Owner's subscription token (`claude setup-token`) or an API key, supplied via `.env`.
 - There is a default model, and Routines and Conversations can override it.
-- When the usage limit is hit, Runs wait for the reset and the Owner gets one notice.
+- When the usage limit is hit, Runs wait for the reset and the Owner gets one notice in General with the time Runs resume. Runs started meanwhile wait without calling the Engine. A Run gives up after three resets, and stopping the Harness fails the Runs still waiting.
 
 ### UI
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
@@ -129,6 +129,6 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 ## Risks to check first
 
 - **Subscription token with the Agent SDK:** it works end to end (smoke run on 2026-10-14, see ADR 0001), but it remains a grey area in Anthropic's terms.
-- **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics, and that the bot can rename them (Routine renames).
+- **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics, and that the bot can rename them (Routine renames; the Bot API documents `editForumTopic` for private chats).
 - **Google official MCP servers:** they are in Developer Preview, and it is unverified whether a personal @gmail.com account is accepted. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
 - **Built-in Personas named after real characters** (Jarvis, Cortana, Joi): trademark and copyright risk once the project is public.

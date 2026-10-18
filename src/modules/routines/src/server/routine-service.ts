@@ -2,14 +2,15 @@ import type { ConversationService } from '@emanator/conversations/server';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import { type Routine, validateRoutineInput } from '../domain/routine.ts';
 import type { RoutineRun } from '../domain/run.ts';
+import { topicTitle } from './messages.ts';
 import type { RoutineRunner } from './routine-runner.ts';
 import { RoutineScheduler } from './routine-scheduler.ts';
 import type { RoutineStore } from './routine-store.ts';
 
 export interface RoutineServiceDeps {
   store: RoutineStore;
-  runner: Pick<RoutineRunner, 'start' | 'idle'>;
-  conversations: Pick<ConversationService, 'archive'>;
+  runner: Pick<RoutineRunner, 'start' | 'stop'>;
+  conversations: Pick<ConversationService, 'archive' | 'renameRoutineTopic'>;
   /** IANA zone cron expressions are read in. */
   timeZone: string;
   logger: Logger;
@@ -42,10 +43,10 @@ export class RoutineService {
     for (const routine of await this.deps.store.list()) this.scheduler.schedule(routine);
   }
 
-  /** Stops firing new Runs and waits for the ones in progress. */
+  /** Stops firing new Runs, ends quota waits and waits for the Runs in progress. */
   async stop(): Promise<void> {
     this.scheduler.stop();
-    await this.deps.runner.idle();
+    await this.deps.runner.stop();
   }
 
   async list(): Promise<RoutineView[]> {
@@ -66,9 +67,14 @@ export class RoutineService {
 
   /** Undefined when the Routine doesn't exist; throws like `create`. */
   async update(id: string, input: unknown): Promise<RoutineView | undefined> {
-    const routine = await this.deps.store.update(id, validateRoutineInput(input));
+    const valid = validateRoutineInput(input);
+    const before = await this.deps.store.get(id);
+    const routine = await this.deps.store.update(id, valid);
     if (!routine) return undefined;
     this.scheduler.schedule(routine);
+    if (before && before.name !== routine.name && routine.conversationId) {
+      await this.renameTopic(routine.conversationId, routine.name);
+    }
     return this.view(routine);
   }
 
@@ -89,6 +95,18 @@ export class RoutineService {
   async runs(id: string): Promise<RoutineRun[] | undefined> {
     if (!(await this.deps.store.get(id))) return undefined;
     return this.deps.store.runs(id);
+  }
+
+  /** Best-effort: the rename is saved even if Telegram can't follow it right now. */
+  private async renameTopic(conversationId: string, name: string): Promise<void> {
+    try {
+      await this.deps.conversations.renameRoutineTopic(conversationId, name, topicTitle(name));
+    } catch (error) {
+      this.deps.logger.warn('Could not rename the Routine topic', {
+        name,
+        error: errorMessage(error),
+      });
+    }
   }
 
   private fire(routineId: string): void {

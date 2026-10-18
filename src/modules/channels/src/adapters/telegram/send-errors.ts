@@ -5,6 +5,11 @@ export function isThreadNotFound(error: unknown): boolean {
   return error instanceof GrammyError && /thread not found/i.test(error.description);
 }
 
+/** Renaming a topic to the name it already has. */
+export function isTopicNotModified(error: unknown): boolean {
+  return error instanceof GrammyError && /TOPIC_NOT_MODIFIED/i.test(error.description);
+}
+
 /**
  * Plain text is a fallback for one case only: Telegram rejected the rich message itself
  * (400 Bad Request, e.g. Markdown it can't parse or a message too long). Network errors,

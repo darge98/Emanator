@@ -13,7 +13,7 @@ import { toInboundEvent } from './inbound.ts';
 import { telegramMigrations } from './migrations.ts';
 import { TelegramPairing } from './pairing.ts';
 import { ProgressDrafts } from './progress-drafts.ts';
-import { isThreadNotFound, shouldFallBackToPlainText } from './send-errors.ts';
+import { isThreadNotFound, isTopicNotModified, shouldFallBackToPlainText } from './send-errors.ts';
 import { splitText } from './split-text.ts';
 
 export const TELEGRAM_CHANNEL_ID = 'telegram';
@@ -122,6 +122,17 @@ export class TelegramChannel implements Channel {
     const { chatId } = await this.requireOwner();
     const topic = await this.bot.api.createForumTopic(chatId, title.slice(0, 128));
     return String(topic.message_thread_id);
+  }
+
+  async renameThread(threadId: string, title: string): Promise<void> {
+    const { chatId } = await this.requireOwner();
+    try {
+      await this.bot.api.editForumTopic(chatId, Number(threadId), { name: title.slice(0, 128) });
+    } catch (error) {
+      if (isThreadNotFound(error)) throw new ThreadNotFoundError(threadId);
+      if (isTopicNotModified(error)) return;
+      throw error;
+    }
   }
 
   async showProgress(threadId: string | undefined, status: string | null): Promise<void> {

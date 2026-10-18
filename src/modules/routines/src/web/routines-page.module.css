@@ -481,6 +481,11 @@
   color: #1c7258;
 }
 
+.run-status.waiting {
+  color: #a07a2c;
+  min-width: 150px;
+}
+
 .run-status.silent {
   color: #7d8781;
 }

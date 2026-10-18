@@ -21,5 +21,8 @@ export interface RoutineRun {
 /** `schedule`: a Trigger fired; `manual`: "run now" from the dashboard. */
 export type RunOrigin = 'schedule' | 'manual';
 
-/** `delivered`: the Owner got a message; `silent`: the Agent chose to say nothing. */
-export type RunStatus = 'running' | 'delivered' | 'silent' | 'failed';
+/**
+ * `waiting`: the quota is exhausted and the Run resumes after its reset;
+ * `delivered`: the Owner got a message; `silent`: the Agent chose to say nothing.
+ */
+export type RunStatus = 'running' | 'waiting' | 'delivered' | 'silent' | 'failed';
