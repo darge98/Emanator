@@ -27,14 +27,20 @@ export interface ConversationServiceDeps {
   defaultModel: string;
   /** IANA time zone used when showing times to the Owner, e.g. `Europe/Rome`. */
   timeZone: string;
+  /** The PermissionDecider of each turn, from Policies. */
+  permissions: PermissionsFor;
   logger: Logger;
 }
 
-// No Tools are exposed yet, so nothing should ever ask; Policies arrive with their own module.
-const denyAllTools: PermissionDecider = async () => ({
-  behavior: 'deny',
-  reason: 'No Tools are enabled yet.',
-});
+/** Builds the PermissionDecider of one turn. */
+export type PermissionsFor = (context: TurnContext) => PermissionDecider;
+
+export interface TurnContext {
+  /** The thread to ask the Owner in; may open it. Undefined is General. */
+  thread: () => Promise<string | undefined>;
+  /** Called while the turn waits for the Owner's answer. */
+  onWaiting?: (waiting: boolean) => void | Promise<void>;
+}
 
 const routineTopicName = (routineName: string) => `${slugify(routineName)}${ROUTINE_TOPIC_SUFFIX}`;
 
@@ -215,7 +221,7 @@ export class ConversationService {
       systemPrompt,
       model,
       ...(conversation.session && { session: conversation.session }),
-      decidePermission: denyAllTools,
+      decidePermission: this.deps.permissions({ thread: async () => conversation.threadId }),
     })) {
       switch (event.type) {
         case 'turn.started':

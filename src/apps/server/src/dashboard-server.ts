@@ -2,6 +2,7 @@ import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type PersonaStore, personaRoutes } from '@emanator/personas/server';
+import { type PolicyService, policyRoutes } from '@emanator/policies/server';
 import { type RoutineService, routineRoutes } from '@emanator/routines/server';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import fastifyStatic from '@fastify/static';
@@ -10,6 +11,7 @@ import Fastify, { type FastifyError } from 'fastify';
 interface DashboardDeps {
   personas: Pick<PersonaStore, 'get' | 'save'>;
   routines?: RoutineService;
+  policies?: PolicyService;
   logger: Logger;
   webRoot?: string;
 }
@@ -18,6 +20,7 @@ interface DashboardDeps {
 export async function createDashboardServer({
   personas,
   routines,
+  policies,
   logger,
   webRoot,
 }: DashboardDeps) {
@@ -50,6 +53,7 @@ export async function createDashboardServer({
 
   app.register(personaRoutes, { prefix: '/api/persona', personas });
   if (routines) app.register(routineRoutes, { prefix: '/api/routines', routines });
+  if (policies) app.register(policyRoutes, { prefix: '/api/policies', policies });
 
   const root = webRoot ?? fileURLToPath(new URL('../../web/dist/', import.meta.url));
   const built = await access(join(root, 'index.html')).then(

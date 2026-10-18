@@ -13,6 +13,7 @@ import {
 import { UsageTracker } from '@emanator/engine';
 import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
 import { PersonaStore } from '@emanator/personas/server';
+import { ApprovalService, PolicyService, PolicyStore } from '@emanator/policies/server';
 import { RoutineRunner, RoutineService, RoutineStore } from '@emanator/routines/server';
 import { consoleLogger, openDatabase } from '@emanator/shared/server';
 import { loadConfig } from './config.ts';
@@ -52,6 +53,23 @@ async function start() {
   const store = new ConversationStore(db);
   await store.init();
 
+  const policyStore = new PolicyStore(db);
+  await policyStore.init();
+  const approvals = new ApprovalService({
+    channel,
+    store: policyStore,
+    logger: consoleLogger('approvals'),
+  });
+  await approvals.init();
+  // No Tools are declared yet, so every Tool is denied; Faculties are next.
+  const policies = new PolicyService({
+    store: policyStore,
+    approvals,
+    tools: () => [],
+    logger: consoleLogger('policies'),
+  });
+  const permissions = policies.decider.bind(policies);
+
   const usage = new UsageTracker();
   const agentPrompt = async () => {
     const persona = await personas.get();
@@ -62,6 +80,7 @@ async function start() {
     engine,
     store,
     usage,
+    permissions,
     systemPrompt: agentPrompt,
     defaultModel: config.defaultModel,
     timeZone: config.timeZone,
@@ -78,6 +97,7 @@ async function start() {
       conversations,
       store: routineStore,
       usage,
+      permissions,
       systemPrompt: agentPrompt,
       defaultModel: config.defaultModel,
       timeZone: config.timeZone,
@@ -91,15 +111,16 @@ async function start() {
   const dashboard = await createDashboardServer({
     personas,
     routines,
+    policies,
     logger: consoleLogger('dashboard'),
   });
   try {
     await dashboard.listen({ host: config.httpHost, port: config.httpPort });
     await channel.setCommands(CONVERSATION_COMMANDS);
     await channel.start((event) => {
-      // Nothing sends buttons yet; Approvals will answer their presses here, outside the queues.
-      if (event.type === 'action') return;
-      conversations.handle(event);
+      // Presses answer turns that may hold their Conversation's queue: they skip it.
+      if (event.type === 'action') void approvals.answer(event);
+      else conversations.handle(event);
     });
     await routines.start();
     logger.info('Emanator is running', {
@@ -118,6 +139,8 @@ async function start() {
     stopping = true;
     logger.info(`${signal} received, stopping`);
     await dashboard.close();
+    // Pending Approvals expire first, or their turns would keep the steps below waiting.
+    await approvals.stop();
     await routines.stop();
     await channel.stop();
     await conversations.idle();

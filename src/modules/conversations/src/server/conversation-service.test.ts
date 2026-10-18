@@ -25,6 +25,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     systemPrompt: () => prompt,
     defaultModel: 'sonnet',
     timeZone: 'Europe/Rome',
+    permissions: () => async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
     logger: silentLogger,
   });
   const send = async (...events: ConversationEvent[]) => {

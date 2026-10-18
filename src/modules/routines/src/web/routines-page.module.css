@@ -579,7 +579,8 @@
   color: #1c7258;
 }
 
-.run-status.waiting {
+.run-status.waiting,
+.run-status.approval {
   color: #a07a2c;
   min-width: 150px;
 }

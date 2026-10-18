@@ -23,6 +23,7 @@ export type RunOrigin = 'schedule' | 'manual';
 
 /**
  * `waiting`: the quota is exhausted and the Run resumes after its reset;
+ * `approval`: the Run waits for the Owner to answer an Approval;
  * `delivered`: the Owner got a message; `silent`: the Agent chose to say nothing.
  */
-export type RunStatus = 'running' | 'waiting' | 'delivered' | 'silent' | 'failed';
+export type RunStatus = 'running' | 'waiting' | 'approval' | 'delivered' | 'silent' | 'failed';

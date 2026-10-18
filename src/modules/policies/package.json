@@ -1,0 +1,15 @@
+{
+  "name": "@emanator/policies",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts"
+  },
+  "dependencies": {
+    "@emanator/channels": "workspace:*",
+    "@emanator/engine": "workspace:*",
+    "@emanator/shared": "workspace:*",
+    "fastify": "^5.0.0"
+  }
+}

@@ -1,12 +1,6 @@
 import type { Conversation } from '@emanator/conversations';
-import type { ConversationService } from '@emanator/conversations/server';
-import type {
-  Engine,
-  PermissionDecider,
-  SessionRef,
-  TurnFailed,
-  UsageTracker,
-} from '@emanator/engine';
+import type { ConversationService, PermissionsFor } from '@emanator/conversations/server';
+import type { Engine, SessionRef, TurnFailed, UsageTracker } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import { type Routine, SILENT_REPLY } from '../domain/routine.ts';
 import type { RoutineRun, RunOrigin } from '../domain/run.ts';
@@ -18,6 +12,8 @@ export interface RoutineRunnerDeps {
   conversations: Pick<ConversationService, 'findLive' | 'openRoutineTopic' | 'deliver' | 'notify'>;
   store: RoutineStore;
   usage: UsageTracker;
+  /** The PermissionDecider of each Run, from Policies. */
+  permissions: PermissionsFor;
   /** The Agent's system prompt, built fresh for every Run. */
   systemPrompt: () => Promise<string> | string;
   defaultModel: string;
@@ -58,12 +54,6 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
     signal.addEventListener('abort', onAbort, { once: true });
   });
 }
-
-// No Tools are exposed yet, so nothing should ever ask; Policies arrive with their own module.
-const denyAllTools: PermissionDecider = async () => ({
-  behavior: 'deny',
-  reason: 'No Tools are enabled yet.',
-});
 
 type TurnResult =
   | { ok: true; text: string; session?: SessionRef; tools: string[] }
@@ -149,7 +139,7 @@ export class RoutineRunner {
     let result: TurnResult;
     for (let waits = 0; ; waits++) {
       await this.waitForQuota(routine, run);
-      result = await this.turn(routine, run.origin);
+      result = await this.turn(routine, run);
       if (result.ok || result.failure.reason !== 'usage-limit' || waits >= MAX_QUOTA_WAITS) break;
       this.blockForQuota();
     }
@@ -241,12 +231,24 @@ export class RoutineRunner {
     this.blockedUntil = next;
   }
 
-  private async turn(routine: Routine, origin: RunOrigin): Promise<TurnResult> {
-    const { engine, usage } = this.deps;
+  private async turn(routine: Routine, run: RoutineRun): Promise<TurnResult> {
+    const { engine, store, usage } = this.deps;
     const systemPrompt = [
       await this.deps.systemPrompt(),
-      say.runInstructions(routine, origin),
+      say.runInstructions(routine, run.origin),
     ].join('\n');
+    // Approvals go to the Routine's own topic, opened now if the Run is the first to need it.
+    // Parallel Tool calls may wait together: the Run waits until the last one is answered.
+    let pendingApprovals = 0;
+    const decidePermission = this.deps.permissions({
+      thread: async () => (await this.topic(routine)).threadId,
+      onWaiting: async (waiting) => {
+        pendingApprovals += waiting ? 1 : -1;
+        if (pendingApprovals === (waiting ? 1 : 0)) {
+          await store.setRunStatus(run.id, waiting ? 'approval' : 'running');
+        }
+      },
+    });
     const tools: string[] = [];
     let session: SessionRef | undefined;
 
@@ -254,7 +256,7 @@ export class RoutineRunner {
       prompt: routine.prompt,
       systemPrompt,
       model: routine.model ?? this.deps.defaultModel,
-      decidePermission: denyAllTools,
+      decidePermission,
     })) {
       switch (event.type) {
         case 'turn.started':

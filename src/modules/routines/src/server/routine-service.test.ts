@@ -54,6 +54,7 @@ async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
     systemPrompt: () => 'You are a test agent.',
     defaultModel: 'sonnet',
     timeZone: 'Europe/Rome',
+    permissions: () => async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
     logger: silentLogger,
   });
   const store = new RoutineStore(fixture.db);
@@ -66,6 +67,7 @@ async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
     systemPrompt: () => 'You are a test agent.',
     defaultModel: 'sonnet',
     timeZone: 'Europe/Rome',
+    permissions: () => async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
     logger: options.logger ?? silentLogger,
     ...(options.now && { now: options.now }),
     sleep: (ms, signal) => {

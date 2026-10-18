@@ -10,6 +10,7 @@
     "@emanator/conversations": "workspace:*",
     "@emanator/engine": "workspace:*",
     "@emanator/personas": "workspace:*",
+    "@emanator/policies": "workspace:*",
     "@emanator/routines": "workspace:*",
     "@emanator/shared": "workspace:*",
     "@fastify/static": "^8.0.0",

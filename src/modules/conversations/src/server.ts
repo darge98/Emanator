@@ -2,6 +2,8 @@ export {
   type ConversationEvent,
   ConversationService,
   type ConversationServiceDeps,
+  type PermissionsFor,
+  type TurnContext,
 } from './server/conversation-service.ts';
 export {
   ConversationStore,

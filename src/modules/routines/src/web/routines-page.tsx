@@ -36,7 +36,7 @@ interface Draft {
 }
 
 /** Statuses of a Run that hasn't finished yet. */
-const UNFINISHED: readonly RunStatus[] = ['running', 'waiting'];
+const UNFINISHED: readonly RunStatus[] = ['running', 'waiting', 'approval'];
 
 const copy = {
   it: {
@@ -92,6 +92,7 @@ const copy = {
     status: {
       running: 'In corso',
       waiting: 'In attesa della quota',
+      approval: 'In attesa di approvazione',
       delivered: 'Inviata',
       silent: 'Silenziosa',
       failed: 'Fallita',
@@ -150,6 +151,7 @@ const copy = {
     status: {
       running: 'Running',
       waiting: 'Waiting for quota',
+      approval: 'Waiting for approval',
       delivered: 'Delivered',
       silent: 'Silent',
       failed: 'Failed',
@@ -723,7 +725,7 @@ function RunHistory({
 }) {
   const [runs, setRuns] = useState<RunDto[]>();
   const [failed, setFailed] = useState(false);
-  const running = runs?.some(({ status }) => status === 'running' || status === 'waiting') ?? false;
+  const running = runs?.some(({ status }) => UNFINISHED.includes(status)) ?? false;
 
   useEffect(() => {
     let alive = true;
@@ -761,9 +763,7 @@ function RunHistory({
       {runs.map((run) => (
         <li key={run.id} className={styles.run}>
           <span className={`${styles['run-status']} ${styles[run.status]}`}>
-            {(run.status === 'running' || run.status === 'waiting') && (
-              <span className={styles['button-spinner']} />
-            )}
+            {UNFINISHED.includes(run.status) && <span className={styles['button-spinner']} />}
             {t.status[run.status]}
           </span>
           <span className={styles['run-when']}>
