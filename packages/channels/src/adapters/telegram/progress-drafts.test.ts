@@ -72,6 +72,48 @@ describe('ProgressDrafts', () => {
     expect(cleared).toBe(true);
   });
 
+  it('does not overlap refreshes and waits for the in-flight refresh before clearing', async () => {
+    const pushes: Push[] = [];
+    let release = () => {};
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    let holdNextPush = false;
+    const push = vi.fn(async (threadId: string | undefined, draftId: number, text: string) => {
+      pushes.push({ threadId, draftId, text });
+      concurrent += 1;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      if (holdNextPush) {
+        holdNextPush = false;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      concurrent -= 1;
+    });
+    const drafts = new ProgressDrafts(push, 20_000);
+    await drafts.show(undefined, 'working');
+    holdNextPush = true;
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(pushes).toHaveLength(2);
+    expect(maxConcurrent).toBe(1);
+
+    let cleared = false;
+    const clearing = drafts.show(undefined, null).then(() => {
+      cleared = true;
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(cleared).toBe(false);
+    expect(pushes).toHaveLength(2);
+
+    release();
+    await clearing;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(cleared).toBe(true);
+    expect(pushes).toHaveLength(2);
+  });
+
   it('keeps separate drafts per thread', async () => {
     const { pushes, push } = recorder();
     const drafts = new ProgressDrafts(push, 20_000);

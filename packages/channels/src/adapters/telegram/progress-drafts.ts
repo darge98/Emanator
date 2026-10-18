@@ -16,6 +16,7 @@ interface Draft {
   timer: NodeJS.Timeout;
   /** The last push sent to Telegram, possibly still awaiting its answer. */
   inFlight: Promise<void>;
+  sending: boolean;
 }
 
 /**
@@ -61,6 +62,7 @@ export class ProgressDrafts {
       status,
       timer: setInterval(() => void this.send(threadId, draft), this.refreshMs),
       inFlight: Promise.resolve(),
+      sending: false,
     };
     draft.timer.unref();
     this.drafts.set(key, draft);
@@ -68,7 +70,14 @@ export class ProgressDrafts {
   }
 
   private send(threadId: string | undefined, draft: Draft): Promise<void> {
-    draft.inFlight = this.push(threadId, draft.id, draft.status).catch(() => {});
+    if (draft.sending) return draft.inFlight;
+
+    draft.sending = true;
+    draft.inFlight = this.push(threadId, draft.id, draft.status)
+      .catch(() => {})
+      .finally(() => {
+        draft.sending = false;
+      });
     return draft.inFlight;
   }
 }
