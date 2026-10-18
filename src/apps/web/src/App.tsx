@@ -1,6 +1,7 @@
 import { PersonaPage } from '@emanator/personas/web';
 import { RoutinesPage } from '@emanator/routines/web';
-import { useEffect, useState } from 'react';
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { LeaveDialog } from './leave-dialog.tsx';
 
 type Page = 'persona' | 'routines';
 
@@ -16,12 +17,45 @@ export default function App() {
   });
 
   const [page, setPage] = useState<Page>(pageFromHash);
+  /** The page the Owner tried to open while the current one has unsaved edits. */
+  const [pending, setPending] = useState<Page>();
+  const dirty = useRef(false);
+  const current = useRef(page);
+  current.current = page;
+  const onDirtyChange = useCallback((value: boolean) => {
+    dirty.current = value;
+  }, []);
 
   useEffect(() => {
-    const follow = () => setPage(pageFromHash());
+    // Back and forward: put the address back and ask before leaving unsaved edits.
+    const follow = () => {
+      const target = pageFromHash();
+      if (target === current.current) return;
+      if (dirty.current) {
+        window.history.replaceState(null, '', `#${current.current}`);
+        setPending(target);
+        return;
+      }
+      setPage(target);
+    };
     window.addEventListener('hashchange', follow);
     return () => window.removeEventListener('hashchange', follow);
   }, []);
+
+  /** Sidebar links ask first, without touching the history, when edits would be lost. */
+  function navigate(target: Page, event: MouseEvent) {
+    if (target === page || !dirty.current) return;
+    event.preventDefault();
+    setPending(target);
+  }
+
+  const stay = useCallback(() => setPending(undefined), []);
+  function leave() {
+    if (!pending) return;
+    dirty.current = false;
+    setPending(undefined);
+    window.location.hash = pending;
+  }
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -67,26 +101,36 @@ export default function App() {
         className="sidebar"
         aria-label={language === 'it' ? 'Navigazione principale' : 'Main navigation'}
       >
-        <a className="brand" href="#persona" aria-label="Emanator">
+        {/* biome-ignore lint/a11y/useValidAnchor: real links; the click only asks before losing unsaved edits */}
+        <a
+          className="brand"
+          href="#persona"
+          aria-label="Emanator"
+          onClick={(event) => navigate('persona', event)}
+        >
           <img src="/assets/emanator.svg" alt="" />
           <span>emanator</span>
         </a>
         <div className="nav-label">{language === 'it' ? 'PERSONALE' : 'PERSONAL'}</div>
         <nav className="nav">
+          {/* biome-ignore lint/a11y/useValidAnchor: as above */}
           <a
             className={`nav-item ${page === 'persona' ? 'active' : ''}`}
             href="#persona"
             aria-current={page === 'persona' ? 'page' : undefined}
+            onClick={(event) => navigate('persona', event)}
           >
             <span className="nav-icon" aria-hidden="true">
               ◉
             </span>
             Persona
           </a>
+          {/* biome-ignore lint/a11y/useValidAnchor: as above */}
           <a
             className={`nav-item ${page === 'routines' ? 'active' : ''}`}
             href="#routines"
             aria-current={page === 'routines' ? 'page' : undefined}
+            onClick={(event) => navigate('routines', event)}
           >
             <span className="nav-icon" aria-hidden="true">
               ◷
@@ -102,11 +146,22 @@ export default function App() {
       </aside>
       <main className="main">
         {page === 'routines' ? (
-          <RoutinesPage language={language} languageControl={languageControl} footer={footer} />
+          <RoutinesPage
+            language={language}
+            languageControl={languageControl}
+            footer={footer}
+            onDirtyChange={onDirtyChange}
+          />
         ) : (
-          <PersonaPage language={language} languageControl={languageControl} footer={footer} />
+          <PersonaPage
+            language={language}
+            languageControl={languageControl}
+            footer={footer}
+            onDirtyChange={onDirtyChange}
+          />
         )}
       </main>
+      {pending && <LeaveDialog language={language} onStay={stay} onLeave={leave} />}
     </div>
   );
 }

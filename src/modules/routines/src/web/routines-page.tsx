@@ -1,10 +1,16 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import type { RoutineInput } from '../domain/routine.ts';
 import type { RoutineRun, RunStatus } from '../domain/run.ts';
-import type { Trigger } from '../domain/trigger.ts';
 import styles from './routines-page.module.css';
-
-type Language = 'it' | 'en';
+import {
+  describeSchedule,
+  isComplete,
+  type Language,
+  type ScheduleDraft,
+  toSchedule,
+  toTrigger,
+} from './schedule.ts';
+import { ScheduleEditor } from './schedule-editor.tsx';
 
 /** A Routine as the API sends it: dates are ISO strings. */
 interface RoutineDto extends RoutineInput {
@@ -25,15 +31,12 @@ interface Draft {
   name: string;
   prompt: string;
   model: string;
-  dedicatedTopic: boolean;
   enabled: boolean;
-  triggers: TriggerDraft[];
+  schedules: ScheduleDraft[];
 }
 
-type TriggerDraft =
-  | { type: 'once'; local: string }
-  | { type: 'interval'; minutes: string }
-  | { type: 'cron'; expression: string };
+/** Statuses of a Run that hasn't finished yet. */
+const UNFINISHED: readonly RunStatus[] = ['running', 'waiting'];
 
 const copy = {
   it: {
@@ -52,8 +55,6 @@ const copy = {
     saved: 'Modifiche salvate',
     enabled: 'Attiva',
     disabled: 'In pausa',
-    general: 'Topic Generale',
-    dedicated: 'Topic dedicato',
     next: 'Prossima',
     never: 'nessuna esecuzione in programma',
     runNow: 'Esegui ora',
@@ -72,19 +73,11 @@ const copy = {
     model: 'Modello',
     modelHint: 'Predefinito',
     modelHelp: 'Vuoto per il modello predefinito. Alias: haiku, sonnet, opus.',
-    dedicatedLabel: 'Topic dedicato su Telegram',
-    dedicatedHelp:
-      'Scrive in un topic tutto suo, con il nome della Routine. Altrimenti scrive nel topic Generale.',
+    topicHint: (name: string) =>
+      `Scrive sempre nel suo topic su Telegram, «${name} · routine», che si apre alla prima esecuzione.`,
+    runningNow: 'In esecuzione…',
     enabledLabel: 'Attiva',
     enabledHelp: 'In pausa non parte da sola, ma puoi sempre eseguirla a mano.',
-    triggers: 'Quando parte',
-    addTrigger: 'Aggiungi un orario',
-    remove: 'Rimuovi',
-    once: 'Una volta',
-    interval: 'Ogni',
-    cron: 'Cron',
-    minutes: 'minuti',
-    cronHelp: 'minuto ora giorno mese giorno-settimana, es. 0 8 * * 1-5',
     cancel: 'Annulla',
     save: 'Salva Routine',
     delete: 'Elimina',
@@ -120,8 +113,6 @@ const copy = {
     saved: 'Changes saved',
     enabled: 'Active',
     disabled: 'Paused',
-    general: 'General topic',
-    dedicated: 'Dedicated topic',
     next: 'Next',
     never: 'nothing scheduled',
     runNow: 'Run now',
@@ -140,19 +131,11 @@ const copy = {
     model: 'Model',
     modelHint: 'Default',
     modelHelp: 'Leave empty for the default model. Aliases: haiku, sonnet, opus.',
-    dedicatedLabel: 'Dedicated Telegram topic',
-    dedicatedHelp:
-      'Writes in a topic of its own, named after the Routine. Otherwise it writes in the General topic.',
+    topicHint: (name: string) =>
+      `Always writes in its own Telegram topic, “${name} · routine”, opened on the first Run.`,
+    runningNow: 'Running…',
     enabledLabel: 'Active',
     enabledHelp: 'When paused it never starts by itself, but you can still run it by hand.',
-    triggers: 'When it runs',
-    addTrigger: 'Add a time',
-    remove: 'Remove',
-    once: 'Once',
-    interval: 'Every',
-    cron: 'Cron',
-    minutes: 'minutes',
-    cronHelp: 'minute hour day month weekday, e.g. 0 8 * * 1-5',
     cancel: 'Cancel',
     save: 'Save Routine',
     delete: 'Delete',
@@ -198,9 +181,8 @@ const emptyDraft = (): Draft => ({
   name: '',
   prompt: '',
   model: '',
-  dedicatedTopic: false,
   enabled: true,
-  triggers: [{ type: 'cron', expression: '0 8 * * *' }],
+  schedules: [{ kind: 'weekly', days: [1, 2, 3, 4, 5], time: '08:00' }],
 });
 
 function toDraft(routine: RoutineDto): Draft {
@@ -208,21 +190,9 @@ function toDraft(routine: RoutineDto): Draft {
     name: routine.name,
     prompt: routine.prompt,
     model: routine.model ?? '',
-    dedicatedTopic: routine.dedicatedTopic,
     enabled: routine.enabled,
-    triggers: routine.triggers.map(triggerToDraft),
+    schedules: routine.triggers.map(toSchedule),
   };
-}
-
-function triggerToDraft(trigger: Trigger): TriggerDraft {
-  switch (trigger.type) {
-    case 'once':
-      return { type: 'once', local: toLocalInput(new Date(trigger.at)) };
-    case 'interval':
-      return { type: 'interval', minutes: String(trigger.everyMinutes) };
-    case 'cron':
-      return { type: 'cron', expression: trigger.expression };
-  }
 }
 
 /** What the API receives; the server does the real validation. */
@@ -231,29 +201,9 @@ function toInput(draft: Draft): unknown {
     name: draft.name,
     prompt: draft.prompt,
     ...(draft.model.trim() && { model: draft.model.trim() }),
-    dedicatedTopic: draft.dedicatedTopic,
     enabled: draft.enabled,
-    triggers: draft.triggers.map(draftToTrigger),
+    triggers: draft.schedules.map(toTrigger),
   };
-}
-
-function draftToTrigger(trigger: TriggerDraft): unknown {
-  switch (trigger.type) {
-    case 'once': {
-      const at = new Date(trigger.local);
-      return { type: 'once', at: Number.isNaN(at.getTime()) ? '' : at.toISOString() };
-    }
-    case 'interval':
-      return { type: 'interval', everyMinutes: Number(trigger.minutes) };
-    case 'cron':
-      return { type: 'cron', expression: trigger.expression };
-  }
-}
-
-/** `YYYY-MM-DDTHH:mm` in the browser's zone, as `<input type="datetime-local">` wants. */
-function toLocalInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function formatDate(iso: string, language: Language): string {
@@ -263,31 +213,23 @@ function formatDate(iso: string, language: Language): string {
   });
 }
 
-function describeTrigger(trigger: Trigger, language: Language, t: Copy): string {
-  switch (trigger.type) {
-    case 'once':
-      return `${t.once}: ${formatDate(trigger.at, language)}`;
-    case 'interval': {
-      const { everyMinutes: m } = trigger;
-      if (m % 1440 === 0) return `${t.interval} ${m / 1440} ${language === 'it' ? 'g' : 'd'}`;
-      if (m % 60 === 0) return `${t.interval} ${m / 60} h`;
-      return `${t.interval} ${m} min`;
-    }
-    case 'cron':
-      return `cron ${trigger.expression}`;
-  }
-}
-
 interface RoutinesPageProps {
   language: Language;
   languageControl: ReactNode;
   footer: ReactNode;
+  /** Told whenever unsaved edits appear or go away, so the app can guard navigation. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 type Editing = { mode: 'new' } | { mode: 'edit'; id: string } | undefined;
 
 /** Routine management: list, edit, run now and Run history. */
-export function RoutinesPage({ language, languageControl, footer }: RoutinesPageProps) {
+export function RoutinesPage({
+  language,
+  languageControl,
+  footer,
+  onDirtyChange,
+}: RoutinesPageProps) {
   const t = copy[language];
   const [routines, setRoutines] = useState<RoutineDto[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -299,6 +241,8 @@ export function RoutinesPage({ language, languageControl, footer }: RoutinesPage
   const [historyOf, setHistoryOf] = useState<string>();
   /** Bumped by "run now" to reload the open history. */
   const [runsVersion, setRunsVersion] = useState(0);
+  /** Routines whose "run now" hasn't finished: their button stays disabled. */
+  const [activeRuns, setActiveRuns] = useState<ReadonlySet<string>>(new Set());
   const dirty = editing !== undefined && JSON.stringify(draft) !== JSON.stringify(pristine);
 
   const load = useCallback(async () => {
@@ -306,13 +250,44 @@ export function RoutinesPage({ language, languageControl, footer }: RoutinesPage
       setRoutines(await request<RoutineDto[]>('/api/routines'));
       setLoadState('ready');
     } catch {
-      setLoadState('error');
+      // A failed refresh keeps the list already shown.
+      setLoadState((state) => (state === 'loading' ? 'error' : state));
     }
   }, []);
 
   useEffect(() => {
     void load();
+    // Keeps "next Run" current while the page stays open.
+    const timer = window.setInterval(() => void load(), 60_000);
+    return () => window.clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+
+  // Follows the Runs started here until they finish, then re-enables "run now" and
+  // refreshes the list, whose next Run may have changed.
+  useEffect(() => {
+    if (!activeRuns.size) return;
+    const timer = window.setInterval(async () => {
+      const finished: string[] = [];
+      for (const id of activeRuns) {
+        try {
+          const [latest] = await request<RunDto[]>(`/api/routines/${id}/runs`);
+          if (!latest || !UNFINISHED.includes(latest.status)) finished.push(id);
+        } catch {
+          finished.push(id);
+        }
+      }
+      if (!finished.length) return;
+      setActiveRuns((current) => new Set([...current].filter((id) => !finished.includes(id))));
+      void load();
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [activeRuns, load]);
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
@@ -375,12 +350,14 @@ export function RoutinesPage({ language, languageControl, footer }: RoutinesPage
   }
 
   async function runNow(id: string) {
+    setActiveRuns((current) => new Set(current).add(id));
     try {
       await request(`/api/routines/${id}/runs`, { method: 'POST' });
       setHistoryOf(id);
       setRunsVersion((version) => version + 1);
       setMessage({ kind: 'success', text: t.started });
     } catch (error) {
+      setActiveRuns((current) => new Set([...current].filter((active) => active !== id)));
       setMessage({ kind: 'error', text: `${t.actionError} ${(error as Error).message}` });
     }
   }
@@ -445,6 +422,7 @@ export function RoutinesPage({ language, languageControl, footer }: RoutinesPage
               <RoutineEditor
                 t={t}
                 title={editing.mode === 'new' ? t.newTitle : t.editTitle}
+                language={language}
                 draft={draft}
                 onChange={setDraft}
                 saving={saving}
@@ -468,6 +446,7 @@ export function RoutinesPage({ language, languageControl, footer }: RoutinesPage
                       language={language}
                       t={t}
                       editing={editing?.mode === 'edit' && editing.id === routine.id}
+                      running={activeRuns.has(routine.id)}
                       historyOpen={historyOf === routine.id}
                       onEdit={() => open({ mode: 'edit', id: routine.id })}
                       onRun={() => void runNow(routine.id)}
@@ -500,6 +479,7 @@ interface RoutineRowProps {
   language: Language;
   t: Copy;
   editing: boolean;
+  running: boolean;
   historyOpen: boolean;
   onEdit: () => void;
   onRun: () => void;
@@ -511,6 +491,7 @@ function RoutineRow({
   language,
   t,
   editing,
+  running,
   historyOpen,
   onEdit,
   onRun,
@@ -530,10 +511,9 @@ function RoutineRow({
           {routine.triggers.map((trigger, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: triggers have no identity
             <span key={index} className={styles.chip}>
-              {describeTrigger(trigger, language, t)}
+              {describeSchedule(toSchedule(trigger), language)}
             </span>
           ))}
-          <span className={styles.chip}>{routine.dedicatedTopic ? t.dedicated : t.general}</span>
           {routine.model && <span className={styles.chip}>{routine.model}</span>}
         </div>
         <div className={styles.next}>
@@ -541,9 +521,18 @@ function RoutineRow({
         </div>
       </div>
       <div className={styles['row-actions']}>
-        <button type="button" className={`${styles.button} ${styles.secondary}`} onClick={onRun}>
-          <span aria-hidden="true">▶</span>
-          {t.runNow}
+        <button
+          type="button"
+          className={`${styles.button} ${styles.secondary}`}
+          onClick={onRun}
+          disabled={running}
+        >
+          {running ? (
+            <span className={`${styles['button-spinner']} ${styles.dark}`} />
+          ) : (
+            <span aria-hidden="true">▶</span>
+          )}
+          {running ? t.runningNow : t.runNow}
         </button>
         <button
           type="button"
@@ -568,6 +557,7 @@ function RoutineRow({
 
 interface RoutineEditorProps {
   t: Copy;
+  language: Language;
   title: string;
   draft: Draft;
   onChange: (draft: Draft) => void;
@@ -581,6 +571,7 @@ interface RoutineEditorProps {
 
 function RoutineEditor({
   t,
+  language,
   title,
   draft,
   onChange,
@@ -591,18 +582,6 @@ function RoutineEditor({
   onCancel,
   onDelete,
 }: RoutineEditorProps) {
-  const setTrigger = (index: number, trigger: TriggerDraft) =>
-    onChange({
-      ...draft,
-      triggers: draft.triggers.map((current, i) => (i === index ? trigger : current)),
-    });
-  const blankTrigger = (type: TriggerDraft['type']): TriggerDraft =>
-    type === 'once'
-      ? { type, local: toLocalInput(new Date(Date.now() + 3_600_000)) }
-      : type === 'interval'
-        ? { type, minutes: '60' }
-        : { type, expression: '0 8 * * *' };
-
   return (
     <form
       className={`${styles.panel} ${styles.editor}`}
@@ -658,98 +637,17 @@ function RoutineEditor({
         />
       </div>
 
-      <fieldset className={styles.triggers}>
-        <legend>{t.triggers}</legend>
-        {draft.triggers.map((trigger, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: triggers have no identity
-          <div key={index} className={styles['trigger-row']}>
-            <select
-              aria-label={t.triggers}
-              value={trigger.type}
-              onChange={(e) =>
-                setTrigger(index, blankTrigger(e.target.value as TriggerDraft['type']))
-              }
-              disabled={saving}
-            >
-              <option value="once">{t.once}</option>
-              <option value="interval">{t.interval}</option>
-              <option value="cron">{t.cron}</option>
-            </select>
-            {trigger.type === 'once' && (
-              <input
-                type="datetime-local"
-                aria-label={t.once}
-                value={trigger.local}
-                onChange={(e) => setTrigger(index, { type: 'once', local: e.target.value })}
-                disabled={saving}
-              />
-            )}
-            {trigger.type === 'interval' && (
-              <span className={styles['interval-input']}>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  aria-label={t.minutes}
-                  value={trigger.minutes}
-                  onChange={(e) => setTrigger(index, { type: 'interval', minutes: e.target.value })}
-                  disabled={saving}
-                />
-                {t.minutes}
-              </span>
-            )}
-            {trigger.type === 'cron' && (
-              <span className={styles['cron-input']}>
-                <input
-                  aria-label={t.cron}
-                  value={trigger.expression}
-                  onChange={(e) => setTrigger(index, { type: 'cron', expression: e.target.value })}
-                  spellCheck={false}
-                  disabled={saving}
-                />
-                <small>{t.cronHelp}</small>
-              </span>
-            )}
-            <button
-              type="button"
-              className={styles['icon-button']}
-              onClick={() =>
-                onChange({ ...draft, triggers: draft.triggers.filter((_, i) => i !== index) })
-              }
-              disabled={saving || draft.triggers.length === 1}
-              aria-label={t.remove}
-              title={t.remove}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        {draft.triggers.length < 10 && (
-          <button
-            type="button"
-            className={styles['text-button']}
-            onClick={() =>
-              onChange({ ...draft, triggers: [...draft.triggers, blankTrigger('cron')] })
-            }
-            disabled={saving}
-          >
-            ＋ {t.addTrigger}
-          </button>
-        )}
-      </fieldset>
+      <ScheduleEditor
+        schedules={draft.schedules}
+        onChange={(schedules) => onChange({ ...draft, schedules })}
+        language={language}
+        disabled={saving}
+      />
 
-      <label className={styles.toggle}>
-        <input
-          type="checkbox"
-          checked={draft.dedicatedTopic}
-          onChange={(e) => onChange({ ...draft, dedicatedTopic: e.target.checked })}
-          disabled={saving}
-        />
-        <span>
-          <strong>{t.dedicatedLabel}</strong>
-          <small>{t.dedicatedHelp}</small>
-        </span>
-      </label>
+      <p className={styles['topic-hint']}>
+        <span aria-hidden="true">ⓘ</span>
+        {t.topicHint(draft.name.trim() || t.nameHint)}
+      </p>
       <label className={styles.toggle}>
         <input
           type="checkbox"
@@ -788,7 +686,13 @@ function RoutineEditor({
           <button
             type="submit"
             className={`${styles.button} ${styles.primary}`}
-            disabled={saving || !dirty || !draft.name.trim() || !draft.prompt.trim()}
+            disabled={
+              saving ||
+              !dirty ||
+              !draft.name.trim() ||
+              !draft.prompt.trim() ||
+              !draft.schedules.every(isComplete)
+            }
           >
             {saving ? (
               <span className={styles['button-spinner']} />

@@ -213,7 +213,6 @@
 }
 
 .field small,
-.cron-input small,
 .toggle small {
   display: block;
   font-size: 10px;
@@ -223,9 +222,7 @@
 }
 
 .field input,
-.field textarea,
-.trigger-row input,
-.trigger-row select {
+.field textarea {
   width: 100%;
   border: 1px solid #e0e5df;
   border-radius: 7px;
@@ -244,9 +241,7 @@
 }
 
 .field input:focus,
-.field textarea:focus,
-.trigger-row input:focus,
-.trigger-row select:focus {
+.field textarea:focus {
   outline: 0;
   border-color: #70a98f;
   box-shadow: 0 0 0 3px #daeee3;
@@ -275,32 +270,135 @@
   min-inline-size: 0;
 }
 
-.trigger-row {
-  display: grid;
-  grid-template-columns: 130px minmax(0, 1fr) 32px;
-  align-items: start;
-  gap: 8px;
-  margin-bottom: 8px;
+.schedule {
+  min-inline-size: 0;
+  margin: 0 0 8px;
+  padding: 12px;
+  border: 1px solid #eceeea;
+  border-radius: 9px;
+  background: var(--soft);
 }
 
-.interval-input {
-  display: flex;
+.schedule-row {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 37px;
   align-items: center;
   gap: 8px;
+}
+
+.schedule-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.schedule-row select,
+.schedule-fields input,
+.schedule-fields select {
+  border: 1px solid #e0e5df;
+  border-radius: 7px;
+  background: #fff;
+  padding: 9px 10px;
+  color: #2c3831;
+  font-size: 12px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.schedule-row select:focus,
+.schedule-fields input:focus,
+.schedule-fields select:focus {
+  outline: 0;
+  border-color: #70a98f;
+  box-shadow: 0 0 0 3px #daeee3;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.schedule-fields input[type="datetime-local"],
+.schedule-fields .mono {
+  flex: 1;
+  min-width: 0;
+}
+
+.narrow {
+  width: 72px;
+}
+
+.inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 12px;
   color: #6f7a73;
 }
 
-.interval-input input {
-  max-width: 110px;
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.cron-input input {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.day {
+  min-width: 40px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #dfe4de;
+  border-radius: 16px;
+  background: #fff;
+  color: #6f7a73;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.day-on {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+
+.day:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.schedule-summary {
+  margin: 9px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #39765d;
+}
+
+.schedule-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #929a94;
+}
+
+.topic-hint {
+  display: flex;
+  gap: 7px;
+  margin: 0 0 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #6f7a73;
+}
+
+.topic-hint span {
+  color: #81a18e;
 }
 
 .icon-button {
   height: 37px;
+  width: 37px;
   border: 1px solid #e2e7e2;
   border-radius: 7px;
   background: #fff;
@@ -532,6 +630,11 @@
   border-top-color: #388765;
 }
 
+.button-spinner.dark {
+  border-color: #dce7de;
+  border-top-color: #388765;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -592,11 +695,11 @@
     gap: 0;
   }
 
-  .trigger-row {
-    grid-template-columns: minmax(0, 1fr) 32px;
+  .schedule-row {
+    grid-template-columns: minmax(0, 1fr) 37px;
   }
 
-  .trigger-row > :nth-child(2) {
+  .schedule-row > .schedule-fields {
     grid-column: 1 / -1;
     grid-row: 2;
   }

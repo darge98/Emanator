@@ -89,10 +89,17 @@ interface PersonaPageProps {
   language: Language;
   languageControl: ReactNode;
   footer: ReactNode;
+  /** Told whenever unsaved edits appear or go away, so the app can guard navigation. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 /** Persona configuration owns its loading, editing and persistence behaviour. */
-export function PersonaPage({ language, languageControl, footer }: PersonaPageProps) {
+export function PersonaPage({
+  language,
+  languageControl,
+  footer,
+  onDirtyChange,
+}: PersonaPageProps) {
   const [saved, setSaved] = useState<Persona>({ name: '', personality: '' });
   const [draft, setDraft] = useState<Persona>({ name: '', personality: '' });
   const [presets, setPresets] = useState<PersonaPreset[]>([]);
@@ -122,6 +129,12 @@ export function PersonaPage({ language, languageControl, footer }: PersonaPagePr
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {

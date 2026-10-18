@@ -18,7 +18,7 @@ In *Blade Runner 2049*, the emanator is the device that projects Joi. This proje
 
 - 💬 **Conversation on Telegram.** Write in the General topic or open a dedicated one with `/topic`. Each Conversation keeps its own context until you reset it with `/new`. While the agent works you see a live status; replies arrive as rich Markdown.
 - 🔐 **Talks only to you.** A one-time pairing code links your Telegram account; everyone else is ignored.
-- ☀️ **Routines.** Give the agent goals to pursue on a schedule (a date, an interval or a cron expression), such as a morning briefing or a heartbeat that writes only when there is something worth saying. Each Routine writes in General or in a topic of its own, and you can reply there with its context. Manage them, run them now and see their history from the dashboard; changes apply without a restart.
+- ☀️ **Routines.** Give the agent goals to pursue on a schedule (days of the week, day of the month, a date, an interval or a cron expression), such as a morning briefing or a heartbeat that writes only when there is something worth saying. Each Routine writes in a Telegram topic of its own, where you can reply with its context. Manage them, run them now and see their history from the dashboard; changes apply without a restart.
 - 🎭 **Shape its Persona.** Set the Agent's name and personality from the Italian/English dashboard at `http://127.0.0.1:3000`. Presets copy their values into editable fields; saving takes effect from the next turn.
 - 🧠 **Your Claude, your quota.** It runs on your Claude Pro/Max subscription or an Anthropic API key.
 - 🧩 **Swappable parts.** The model engine and the channel sit behind interfaces. The agent is isolated from your own Claude Code setup and gets no built-in tools you didn't choose.

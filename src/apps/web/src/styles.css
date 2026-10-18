@@ -191,6 +191,75 @@ textarea:focus-visible {
   color: #808c83;
 }
 
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #18291d4d;
+}
+
+.dialog {
+  width: min(420px, 100%);
+  padding: 22px 22px 18px;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 18px 50px #18291d33;
+}
+
+.dialog h2 {
+  margin: 0 0 8px;
+  font:
+    700 16px "Manrope",
+    sans-serif;
+  letter-spacing: -0.2px;
+}
+
+.dialog p {
+  margin: 0 0 20px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6f7a73;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-button {
+  height: 35px;
+  padding: 0 14px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dialog-button.primary {
+  background: var(--green);
+  color: #fff;
+}
+
+.dialog-button.primary:hover {
+  background: var(--green-dark);
+}
+
+.dialog-button.danger {
+  border-color: #f0dcd9;
+  background: #fff;
+  color: #ad5148;
+}
+
+.dialog-button.danger:hover {
+  background: #fdf5f4;
+}
+
 @media (max-width: 800px) {
   .sidebar {
     width: 205px;
