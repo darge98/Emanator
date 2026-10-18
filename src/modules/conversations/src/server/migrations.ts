@@ -33,4 +33,18 @@ export const conversationMigrations: Migration[] = [
         WHERE archived_at IS NULL;
     `,
   },
+  {
+    // Routine messages waiting to enter the Conversation's context on its next turn.
+    id: '003-handoffs',
+    sql: `
+      CREATE TABLE conversation_handoffs (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES conversations (id) ON DELETE CASCADE,
+        markdown TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL
+      );
+      CREATE INDEX conversation_handoffs_conversation
+        ON conversation_handoffs (conversation_id, created_at);
+    `,
+  },
 ];

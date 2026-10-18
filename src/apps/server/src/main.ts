@@ -13,6 +13,7 @@ import {
 import { UsageTracker } from '@emanator/engine';
 import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
 import { PersonaStore } from '@emanator/personas/server';
+import { RoutineRunner, RoutineService, RoutineStore } from '@emanator/routines/server';
 import { consoleLogger, openDatabase } from '@emanator/shared/server';
 import { loadConfig } from './config.ts';
 import { createDashboardServer } from './dashboard-server.ts';
@@ -51,25 +52,51 @@ async function start() {
   const store = new ConversationStore(db);
   await store.init();
 
+  const usage = new UsageTracker();
+  const agentPrompt = async () => {
+    const persona = await personas.get();
+    return systemPrompt(new Date(), config.timeZone, persona);
+  };
   const conversations = new ConversationService({
     channel,
     engine,
     store,
-    usage: new UsageTracker(),
-    systemPrompt: async () => {
-      const persona = await personas.get();
-      return systemPrompt(new Date(), config.timeZone, persona);
-    },
+    usage,
+    systemPrompt: agentPrompt,
     defaultModel: config.defaultModel,
     timeZone: config.timeZone,
     logger: consoleLogger('conversations'),
   });
 
-  const dashboard = await createDashboardServer({ personas, logger: consoleLogger('dashboard') });
+  const routineStore = new RoutineStore(db);
+  await routineStore.init();
+  const routineLogger = consoleLogger('routines');
+  const routines = new RoutineService({
+    store: routineStore,
+    runner: new RoutineRunner({
+      engine,
+      conversations,
+      store: routineStore,
+      usage,
+      systemPrompt: agentPrompt,
+      defaultModel: config.defaultModel,
+      logger: routineLogger,
+    }),
+    conversations,
+    timeZone: config.timeZone,
+    logger: routineLogger,
+  });
+
+  const dashboard = await createDashboardServer({
+    personas,
+    routines,
+    logger: consoleLogger('dashboard'),
+  });
   try {
     await dashboard.listen({ host: config.httpHost, port: config.httpPort });
     await channel.setCommands(CONVERSATION_COMMANDS);
     await channel.start((event) => conversations.handle(event));
+    await routines.start();
     logger.info('Emanator is running', {
       model: config.defaultModel,
       timeZone: config.timeZone,
@@ -86,6 +113,7 @@ async function start() {
     stopping = true;
     logger.info(`${signal} received, stopping`);
     await dashboard.close();
+    await routines.stop();
     await channel.stop();
     await conversations.idle();
     await db.end();

@@ -5,6 +5,7 @@ import {
   type Conversation,
   GENERAL_CONVERSATION_NAME,
   type OpenedBy,
+  ROUTINE_TOPIC_SUFFIX,
 } from '../domain/conversation.ts';
 import { conversationMigrations } from './migrations.ts';
 
@@ -15,6 +16,15 @@ export interface NewConversation {
   channel: string;
   threadId?: string;
   openedBy: OpenedBy;
+  /** Only a Routine's own topic may take a name ending in `-routine`. */
+  routineTopic?: boolean;
+}
+
+/** A message a Routine delivered, to be handed to the Conversation on its next turn. */
+export interface Handoff {
+  id: string;
+  markdown: string;
+  createdAt: Date;
 }
 
 /** Conversations are runtime state in PostgreSQL, not definitions (ADR 0007). */
@@ -39,6 +49,14 @@ export class ConversationStore {
     return row ? toConversation(row) : undefined;
   }
 
+  /** Any Conversation by id, archived ones included. */
+  async get(id: string): Promise<Conversation | undefined> {
+    const {
+      rows: [row],
+    } = await this.db.query('SELECT * FROM conversations WHERE id = $1', [id]);
+    return row ? toConversation(row) : undefined;
+  }
+
   /** The live Conversation with this name. */
   async findByName(name: string): Promise<Conversation | undefined> {
     const {
@@ -51,17 +69,19 @@ export class ConversationStore {
 
   /**
    * Atomically claims `name`, or `name-2`, `name-3`, … if a live Conversation holds it.
-   * Only the General thread may be called `general`.
+   * Only the General thread may be called `general`, and only Routine topics end in `-routine`.
    */
   async create(input: NewConversation): Promise<Conversation> {
+    const { routineTopic, ...fields } = input;
     const conversation: Conversation = {
       id: randomUUID(),
-      ...input,
+      ...fields,
       createdAt: new Date(),
     };
     for (let n = 1; ; n++) {
       const name = n === 1 ? input.name : `${input.name}-${n}`;
       if (name === GENERAL_CONVERSATION_NAME && input.threadId !== undefined) continue;
+      if (name.endsWith(ROUTINE_TOPIC_SUFFIX) && !routineTopic) continue;
       const { rows } = await this.db.query(
         `INSERT INTO conversations (id, name, title, channel, thread_id, opened_by, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -90,25 +110,46 @@ export class ConversationStore {
     );
   }
 
+  async addHandoff(conversationId: string, markdown: string): Promise<void> {
+    await this.db.query(
+      'INSERT INTO conversation_handoffs (id, conversation_id, markdown, created_at) VALUES ($1, $2, $3, $4)',
+      [randomUUID(), conversationId, markdown, new Date()],
+    );
+  }
+
+  /** Handoffs not yet given to the Engine, oldest first. */
+  async pendingHandoffs(conversationId: string): Promise<Handoff[]> {
+    const { rows } = await this.db.query(
+      'SELECT id, markdown, created_at FROM conversation_handoffs WHERE conversation_id = $1 ORDER BY created_at, id',
+      [conversationId],
+    );
+    return rows.map((row) => ({
+      id: String(row.id),
+      markdown: String(row.markdown),
+      createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+    }));
+  }
+
+  /** Drops the given handoffs, or all of the Conversation's when `ids` is omitted. */
+  async clearHandoffs(conversationId: string, ids?: readonly string[]): Promise<void> {
+    if (ids) {
+      await this.db.query(
+        'DELETE FROM conversation_handoffs WHERE conversation_id = $1 AND id = ANY($2)',
+        [conversationId, ids],
+      );
+    } else {
+      await this.db.query('DELETE FROM conversation_handoffs WHERE conversation_id = $1', [
+        conversationId,
+      ]);
+    }
+  }
+
   async archive(id: string): Promise<void> {
     await this.db.query('UPDATE conversations SET archived_at = $1 WHERE id = $2', [
       new Date(),
       id,
     ]);
   }
-}
-
-/** Turns a title into a stable name: `Viaggio in Giappone` -> `viaggio-in-giappone`. */
-export function slugify(title: string): string {
-  const slug = title
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-    .replace(/-+$/g, '');
-  return slug || 'topic';
 }
 
 function toConversation(row: Record<string, unknown>): Conversation {

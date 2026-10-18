@@ -1,0 +1,77 @@
+import { slugify } from '@emanator/conversations';
+import { RoutineValidationError } from './errors.ts';
+import { type Trigger, validateTrigger } from './trigger.ts';
+
+export { RoutineValidationError };
+
+/** A prompt run whenever one of its Triggers fires (see CONTEXT.md). */
+export interface Routine extends RoutineInput {
+  id: string;
+  /** The Routine's own topic, once its first Run has opened it. Kept even when the option is off. */
+  conversationId?: string;
+  createdAt: Date;
+  /** Also the anchor of interval Triggers, so editing a Routine restarts its intervals. */
+  updatedAt: Date;
+}
+
+/** What the Owner edits. */
+export interface RoutineInput {
+  /** Unique, compared by its slug: `Briefing` and `briefing!` are the same name. */
+  name: string;
+  prompt: string;
+  /** Overrides the default model for this Routine's Runs. */
+  model?: string;
+  /** Deliver to the Routine's own topic instead of General. */
+  dedicatedTopic: boolean;
+  enabled: boolean;
+  triggers: Trigger[];
+}
+
+/** A Run that ends with exactly this reply sends nothing to the Owner. */
+export const SILENT_REPLY = '[silent]';
+
+export const MAX_TRIGGERS = 10;
+
+/** Names compare by slug, which also names the Routine's topic. */
+export function routineSlug(name: string): string {
+  return slugify(name);
+}
+
+/** Checks and normalizes what the dashboard sends; throws RoutineValidationError. */
+export function validateRoutineInput(input: unknown): RoutineInput {
+  if (!input || typeof input !== 'object') throw new RoutineValidationError('Invalid Routine.');
+  const value = input as Record<string, unknown>;
+  const name = text(value.name, 'name', 100);
+  if (!/[\p{L}\p{N}]/u.test(name)) {
+    throw new RoutineValidationError('The name must contain at least one letter or digit.');
+  }
+  const prompt = text(value.prompt, 'prompt', 20_000);
+  const model =
+    value.model === undefined || value.model === null ? '' : text(value.model, 'model', 100, true);
+  if (typeof value.dedicatedTopic !== 'boolean' || typeof value.enabled !== 'boolean') {
+    throw new RoutineValidationError('dedicatedTopic and enabled must be true or false.');
+  }
+  if (!Array.isArray(value.triggers) || value.triggers.length === 0) {
+    throw new RoutineValidationError('A Routine needs at least one Trigger.');
+  }
+  if (value.triggers.length > MAX_TRIGGERS) {
+    throw new RoutineValidationError(`A Routine has at most ${MAX_TRIGGERS} Triggers.`);
+  }
+  return {
+    name,
+    prompt,
+    ...(model && { model }),
+    dedicatedTopic: value.dedicatedTopic,
+    enabled: value.enabled,
+    triggers: value.triggers.map(validateTrigger),
+  };
+}
+
+function text(value: unknown, field: string, max: number, allowEmpty = false): string {
+  if (typeof value !== 'string') throw new RoutineValidationError(`${field} must be text.`);
+  const trimmed = value.trim();
+  if ((!allowEmpty && !trimmed) || trimmed.length > max) {
+    throw new RoutineValidationError(`${field} must contain 1 to ${max} characters.`);
+  }
+  return trimmed;
+}

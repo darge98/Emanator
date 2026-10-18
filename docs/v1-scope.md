@@ -29,7 +29,8 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Each Routine message starts with a header naming the Routine. It then still makes sense if it lands in General because the Owner deleted the target topic (see Conversations).
 - Creating, editing or deleting a Routine applies immediately, without restarting the Harness: the scheduler updates its Triggers. A Run already in progress completes.
 - Conversation names follow one rule: a name identifies a *live* Conversation. Archiving a Conversation frees its name, so a reopened `briefing-routine` keeps it, and `general` is reserved for the General Conversation.
-- A Run may finish without messaging the Owner. A Heartbeat is just a Routine.
+- A Run may finish without messaging the Owner: its final reply is delivered unless it is exactly `[silent]`. A Heartbeat is just a Routine.
+- Each Run has its own Engine session (ADR 0006). What it delivers is handed to the target Conversation on the Owner's next turn there, so replies have that context without the Routine's prompt and Tools entering the Conversation.
 - Runs, including Runs of the same Routine, execute in parallel.
 - Events that fire while the Harness is down are skipped.
 

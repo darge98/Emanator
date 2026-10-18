@@ -1,6 +1,7 @@
 import type { CommandInfo } from '@emanator/channels';
 import type { TurnFailed, UsageLimitChanged } from '@emanator/engine';
 import type { Conversation } from '../domain/conversation.ts';
+import type { Handoff } from './conversation-store.ts';
 
 // What the Harness itself says to the Owner. Italian for now; the UI will bring it/en.
 
@@ -132,4 +133,17 @@ function when(date: Date, timeZone: string, now = new Date()): string {
     month: 'short',
   });
   return `${dayLabel} alle ${time}`;
+}
+
+/** The Owner's message, preceded by what Routines sent here since the last turn. */
+export function withHandoffs(handoffs: readonly Handoff[], text: string, timeZone: string): string {
+  if (!handoffs.length) return text;
+  return [
+    "[Dall'ultimo turno hai inviato in questa conversazione questi messaggi delle Routine:]",
+    ...handoffs.map(
+      ({ markdown, createdAt }) => `--- ${when(createdAt, timeZone)} ---\n${markdown}`,
+    ),
+    '[Messaggio della persona:]',
+    text,
+  ].join('\n\n');
 }

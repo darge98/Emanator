@@ -196,6 +196,9 @@ importers:
       '@emanator/personas':
         specifier: workspace:*
         version: link:../../modules/personas
+      '@emanator/routines':
+        specifier: workspace:*
+        version: link:../../modules/routines
       '@emanator/shared':
         specifier: workspace:*
         version: link:../../modules/shared
@@ -288,6 +291,28 @@ importers:
       '@types/react':
         specifier: ^19.1.0
         version: 19.3.0
+
+  src/modules/routines:
+    dependencies:
+      '@emanator/conversations':
+        specifier: workspace:*
+        version: link:../conversations
+      '@emanator/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@emanator/shared':
+        specifier: workspace:*
+        version: link:../shared
+      croner:
+        specifier: ^10.0.1
+        version: 10.0.1
+      fastify:
+        specifier: ^5.0.0
+        version: 5.12.7
+    devDependencies:
+      '@emanator/channels':
+        specifier: workspace:*
+        version: link:../channels
 
   src/modules/shared:
     dependencies:
@@ -1435,6 +1460,10 @@ packages:
   cors@2.8.6:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
+
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+    engines: {node: '>=18.0'}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -3170,6 +3199,8 @@ snapshots:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
+
+  croner@10.0.1: {}
 
   cross-spawn@7.0.6:
     dependencies:

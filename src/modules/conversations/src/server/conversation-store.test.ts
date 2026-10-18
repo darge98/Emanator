@@ -1,6 +1,7 @@
 import { createTestDatabase } from '@emanator/shared/server';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ConversationStore, slugify } from './conversation-store.ts';
+import { slugify } from '../domain/conversation.ts';
+import { ConversationStore } from './conversation-store.ts';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -77,6 +78,29 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationStore', () => {
       openedBy: 'harness',
     });
     expect(general.name).toBe('general');
+  });
+
+  it('reserves the `-routine` suffix for Routine topics', async () => {
+    const conversations = await store();
+    const owned = await conversations.create({
+      name: 'briefing-routine',
+      title: 'Briefing routine',
+      channel: 'telegram',
+      threadId: '42',
+      openedBy: 'owner',
+    });
+    expect(owned.name).toBe('briefing-routine-2');
+
+    const routine = await conversations.create({
+      name: 'briefing-routine',
+      title: 'Briefing · routine',
+      channel: 'telegram',
+      threadId: '43',
+      openedBy: 'harness',
+      routineTopic: true,
+    });
+    expect(routine.name).toBe('briefing-routine');
+    expect(routine).not.toHaveProperty('routineTopic');
   });
 
   it('claims unique names concurrently and skips suffixes that are already reserved', async () => {

@@ -21,3 +21,19 @@ export interface Conversation {
 export type OpenedBy = 'owner' | 'agent' | 'harness';
 
 export const GENERAL_CONVERSATION_NAME = 'general';
+
+/** Reserved for Routine topics: `briefing-routine`. Other Conversations never end with it. */
+export const ROUTINE_TOPIC_SUFFIX = '-routine';
+
+/** Turns a title into a stable name: `Viaggio in Giappone` -> `viaggio-in-giappone`. */
+export function slugify(title: string): string {
+  const slug = title
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/g, '');
+  return slug || 'topic';
+}

@@ -411,4 +411,65 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
 
     expect(channel.sent[0]?.markdown).toContain('/help');
   });
+
+  describe('Routine deliveries', () => {
+    it('opens a Routine topic named after the Routine', async () => {
+      const { channel, service } = await setup();
+
+      const topic = await service.openRoutineTopic('Briefing del mattino', 'Briefing · routine');
+
+      expect(channel.opened).toEqual(['Briefing · routine']);
+      expect(topic).toMatchObject({
+        name: 'briefing-del-mattino-routine',
+        title: 'Briefing · routine',
+        openedBy: 'harness',
+      });
+    });
+
+    it('hands delivered messages to the next turn of that Conversation only once', async () => {
+      const { channel, engine, service, send } = await setup();
+      const general = await service.general();
+
+      expect(await service.deliver(general, '**⏰ Briefing**\n\nPioverà.')).toBe(true);
+      await send(message('Prendo l’ombrello?'), message('Grazie'));
+
+      expect(channel.sent[0]).toEqual({
+        threadId: undefined,
+        markdown: '**⏰ Briefing**\n\nPioverà.',
+      });
+      expect(engine.requests[0]?.prompt).toContain('**⏰ Briefing**\n\nPioverà.');
+      expect(engine.requests[0]?.prompt).toMatch(/Prendo l’ombrello\?$/);
+      expect(engine.requests[1]?.prompt).toBe('Grazie');
+    });
+
+    it('keeps handoffs for the next attempt when the Engine does not start the turn', async () => {
+      const failed: ScriptedTurn = () => [
+        { type: 'turn.failed', reason: 'authentication', message: 'no' },
+      ];
+      const { engine, service, send } = await setup(new FakeEngine().script(failed));
+      await service.deliver(await service.general(), 'Promemoria');
+
+      await send(message('uno'), message('due'));
+
+      expect(engine.requests[1]?.prompt).toContain('Promemoria');
+    });
+
+    it('/new drops pending handoffs with the session', async () => {
+      const { engine, service, send } = await setup();
+      await service.deliver(await service.general(), 'Promemoria');
+
+      await send(command('new'), message('Ciao'));
+
+      expect(engine.requests[0]?.prompt).toBe('Ciao');
+    });
+
+    it('reports a delivery to a deleted thread and archives its Conversation', async () => {
+      const { channel, service } = await setup();
+      const topic = await service.openRoutineTopic('Briefing', 'Briefing · routine');
+      channel.deletedThreads.add(topic.threadId ?? '');
+
+      expect(await service.deliver(topic, 'Ciao')).toBe(false);
+      expect(await service.findLive(topic.id)).toBeUndefined();
+    });
+  });
 });

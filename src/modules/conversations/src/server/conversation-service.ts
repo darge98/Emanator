@@ -6,8 +6,13 @@ import {
 } from '@emanator/channels';
 import type { Engine, PermissionDecider, UsageTracker } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
-import { type Conversation, GENERAL_CONVERSATION_NAME } from '../domain/conversation.ts';
-import { type ConversationStore, slugify } from './conversation-store.ts';
+import {
+  type Conversation,
+  GENERAL_CONVERSATION_NAME,
+  ROUTINE_TOPIC_SUFFIX,
+  slugify,
+} from '../domain/conversation.ts';
+import type { ConversationStore } from './conversation-store.ts';
 import { KeyedQueue } from './keyed-queue.ts';
 import * as say from './messages.ts';
 
@@ -30,6 +35,9 @@ const denyAllTools: PermissionDecider = async () => ({
   reason: 'No Tools are enabled yet.',
 });
 
+/** Routine messages handed to one turn at most; older ones are dropped. */
+const MAX_HANDOFFS = 10;
+
 /**
  * Where a Channel meets the Engine: every thread maps to a Conversation whose
  * Engine session is resumed turn after turn. Messages of one Conversation are
@@ -48,6 +56,45 @@ export class ConversationService {
   /** Resolves when everything received so far has been handled. */
   idle(): Promise<void> {
     return this.queue.idle();
+  }
+
+  /** The live General Conversation, created if needed. */
+  general(): Promise<Conversation> {
+    return this.resolve(undefined);
+  }
+
+  /** The Conversation with this id while it is live. */
+  async findLive(id: string): Promise<Conversation | undefined> {
+    const conversation = await this.deps.store.get(id);
+    return conversation && !conversation.archivedAt ? conversation : undefined;
+  }
+
+  /** Opens the topic of the Routine called `routineName`, named `<slug>-routine`. */
+  async openRoutineTopic(routineName: string, title: string): Promise<Conversation> {
+    const { channel, store } = this.deps;
+    const threadId = await channel.openThread(title);
+    return store.create({
+      name: `${slugify(routineName)}${ROUTINE_TOPIC_SUFFIX}`,
+      title,
+      channel: channel.id,
+      threadId,
+      openedBy: 'harness',
+      routineTopic: true,
+    });
+  }
+
+  /**
+   * Sends a message the Owner didn't ask for, such as a Routine's, and hands it to the
+   * Conversation's next turn. Returns false, after archiving it, if the thread is gone.
+   */
+  async deliver(conversation: Conversation, markdown: string): Promise<boolean> {
+    if (!(await this.trySend(conversation, markdown))) return false;
+    await this.deps.store.addHandoff(conversation.id, markdown);
+    return true;
+  }
+
+  async archive(id: string): Promise<void> {
+    await this.deps.store.archive(id);
   }
 
   /**
@@ -91,12 +138,22 @@ export class ConversationService {
       // Resolve once before entering the Engine. A persona change during this turn
       // takes effect on the next queued turn, including after a lost-session retry.
       const prompt = await this.deps.systemPrompt();
-      const sessionLost = await this.turn(conversation, text, prompt);
+      const handoffs = await store.pendingHandoffs(conversation.id);
+      const input = say.withHandoffs(handoffs.slice(-MAX_HANDOFFS), text, this.deps.timeZone);
+      const handedOff = async () => {
+        if (handoffs.length) {
+          await store.clearHandoffs(
+            conversation.id,
+            handoffs.map(({ id }) => id),
+          );
+        }
+      };
+      const sessionLost = await this.turn(conversation, input, prompt, handedOff);
       if (sessionLost) {
         // The Engine no longer has this session (e.g. its storage was wiped): start over, once.
         await store.setSession(conversation.id, undefined);
         const { session: _lost, ...fresh } = conversation;
-        await this.turn(fresh, text, prompt, say.sessionLost);
+        await this.turn(fresh, input, prompt, handedOff, say.sessionLost);
       }
     } finally {
       await channel.showProgress(conversation.threadId, null);
@@ -105,12 +162,14 @@ export class ConversationService {
 
   /**
    * Runs one Engine turn and replies with its outcome, after `preface` if given.
+   * `started` runs once the Engine has accepted the prompt.
    * Returns true, without replying, when the session to resume no longer exists.
    */
   private async turn(
     conversation: Conversation,
     text: string,
     systemPrompt: string,
+    started: () => Promise<void>,
     preface?: string,
   ): Promise<boolean> {
     const { channel, engine, store, usage } = this.deps;
@@ -127,6 +186,7 @@ export class ConversationService {
       switch (event.type) {
         case 'turn.started':
           await store.setSession(conversation.id, event.session);
+          await started();
           break;
         case 'tool.called':
           await channel.showProgress(conversation.threadId, say.usingTool(event.tool));
@@ -153,6 +213,7 @@ export class ConversationService {
     switch (command.name) {
       case 'new':
         await this.deps.store.setSession(conversation.id, undefined);
+        await this.deps.store.clearHandoffs(conversation.id);
         return this.reply(conversation, say.contextReset);
       case 'topic':
         return this.openTopic(conversation, command.args);
@@ -192,12 +253,19 @@ export class ConversationService {
 
   /** Sends to the Conversation's thread; a thread deleted by the Owner archives it. */
   private async reply(conversation: Conversation, markdown: string): Promise<void> {
+    await this.trySend(conversation, markdown);
+  }
+
+  /** Like `reply`, returning whether the message was sent. */
+  private async trySend(conversation: Conversation, markdown: string): Promise<boolean> {
     try {
       await this.deps.channel.send(conversation.threadId, { markdown });
+      return true;
     } catch (error) {
       if (!(error instanceof ThreadNotFoundError)) throw error;
       await this.deps.store.archive(conversation.id);
       this.deps.logger.warn('Thread is gone, Conversation archived', { name: conversation.name });
+      return false;
     }
   }
 
