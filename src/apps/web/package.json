@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
+    "@emanator/personas": "workspace:*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

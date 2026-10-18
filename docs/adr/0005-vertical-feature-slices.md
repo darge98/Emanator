@@ -1,8 +1,8 @@
 # Modular monolith organised as vertical feature slices
 
-The code is a pnpm monorepo where each feature is a package named after a glossary term: `engine`, `capabilities`, `routines`, `conversations`, `channels`, and so on. Each package is a complete vertical slice: domain, server API and UI pages for that feature, exposed as separate entry points (`@emanator/<feature>/server` and `@emanator/<feature>/web`) so server code never ends up in the browser bundle.
+The code is a pnpm monorepo. Application entry points live under `src/apps`, and feature modules live under `src/modules`. Each module is a workspace package named after a glossary term: `engine`, `capabilities`, `routines`, `conversations`, `channels`, and so on. Each module is a complete vertical slice: domain, server API and UI pages for that feature, exposed as separate entry points (`@emanator/<feature>/server` and `@emanator/<feature>/web`) so server code never ends up in the browser bundle.
 
-Ports and adapters live inside their feature, for example `engine/adapters/claude-agent-sdk` and `channels/adapters/telegram`. Each feature owns its PostgreSQL tables and migrations. Skills and Memory remain files. Features talk to each other only through their public API and in-process domain events. `apps/server` and `apps/web` compose the features, and `shared` holds only infrastructure (PostgreSQL connection, file helpers, event bus).
+Ports and adapters live inside their feature, for example `engine/adapters/claude-agent-sdk` and `channels/adapters/telegram`. Each feature owns its PostgreSQL tables and migrations. Skills and Memory remain files. Features talk to each other only through their public API and in-process domain events. `src/apps/server` and `src/apps/web` compose the features, and `shared` holds only infrastructure (PostgreSQL connection, file helpers, event bus).
 
 The goal is that anything about a concept, such as the Engine, can be found in a single folder.
 

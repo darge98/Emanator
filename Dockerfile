@@ -7,13 +7,13 @@ RUN npm install --global pnpm@12.9.1
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/server/package.json apps/server/
-COPY apps/web/package.json apps/web/
-COPY packages/channels/package.json packages/channels/
-COPY packages/conversations/package.json packages/conversations/
-COPY packages/engine/package.json packages/engine/
-COPY packages/shared/package.json packages/shared/
-COPY packages/personas/package.json packages/personas/
+COPY src/apps/server/package.json src/apps/server/
+COPY src/apps/web/package.json src/apps/web/
+COPY src/modules/channels/package.json src/modules/channels/
+COPY src/modules/conversations/package.json src/modules/conversations/
+COPY src/modules/engine/package.json src/modules/engine/
+COPY src/modules/shared/package.json src/modules/shared/
+COPY src/modules/personas/package.json src/modules/personas/
 # Install as the runtime user so pnpm's store and workspace modules have matching ownership.
 RUN mkdir -p /data && chown -R node:node /app /data
 USER node

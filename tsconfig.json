@@ -15,5 +15,11 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["apps/server/src", "packages/*/src", "packages/*/scripts", "vitest.config.ts"]
+  "include": [
+    "src/apps/server/src",
+    "src/modules/*/src",
+    "src/modules/*/scripts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["src/modules/*/src/web.ts", "src/modules/*/src/web/**"]
 }

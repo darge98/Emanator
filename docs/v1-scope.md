@@ -81,7 +81,7 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 
 ## Architecture
 
-- **Modular monolith** in a pnpm TypeScript monorepo, organised as vertical feature slices named after glossary terms. Each slice holds domain, server API and UI ([ADR 0005](adr/0005-vertical-feature-slices.md)).
+- **Modular monolith** in a pnpm TypeScript monorepo, with application entry points under `src/apps` and modules under `src/modules`, organised as vertical feature slices named after glossary terms. Each module holds domain, server API and UI ([ADR 0005](adr/0005-vertical-feature-slices.md)).
 - **Process:** one Fastify Node process runs the API, scheduler and Telegram bot, and serves the built Vite + React SPA.
 - **Engine:** a swappable port; the first adapter is the Claude Agent SDK ([ADR 0001](adr/0001-swappable-engine-agent-sdk-with-owner-subscription.md)).
 - **Portable abilities:** Faculties, Capabilities (MCP) and Skills. Plugins are only packaging ([ADR 0002](adr/0002-portable-agent-abilities-plugins-are-packaging.md)).

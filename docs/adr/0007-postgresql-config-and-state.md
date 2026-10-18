@@ -15,5 +15,5 @@ The Owner chose a database-backed configuration UI and accepted PostgreSQL's add
 ## Consequences
 
 - PostgreSQL is required for development, tests and deployment; its Compose volume is the durable store.
-- Migrations are owned and applied by feature packages.
+- Migrations are owned and applied by feature modules.
 - PostgreSQL is backed up as the structured configuration and runtime store. Skills and Memory are backed up as files, while Claude transcripts and workspaces remain in the Harness data directory.

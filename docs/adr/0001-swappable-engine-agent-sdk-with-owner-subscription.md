@@ -16,7 +16,7 @@ The Engine is an interface (a port), and the rest of the Harness does not know w
 
 ## Verification (2026-10-14)
 
-Run with Agent SDK 0.3.296 and Claude Code 2.1.296 on a Pro plan, using `packages/engine/scripts/smoke.ts` in a clean Linux container that had only the `setup-token` token and no host login. Every check passed:
+Run with Agent SDK 0.3.296 and Claude Code 2.1.296 on a Pro plan, using `src/modules/engine/scripts/smoke.ts` in a clean Linux container that had only the `setup-token` token and no host login. Every check passed:
 
 - **Authentication.** Turns run on the subscription token alone; the SDK reports `apiKeySource: "none"`, as it does for OAuth.
 - **Isolation.** With `settingSources: []` and `tools: []`, the model sees no built-in tools, only the Harness's own.

@@ -182,23 +182,23 @@ importers:
         specifier: ^5.0.4
         version: 5.0.4(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(tsx@4.23.15))
 
-  apps/server:
+  src/apps/server:
     dependencies:
       '@emanator/channels':
         specifier: workspace:*
-        version: link:../../packages/channels
+        version: link:../../modules/channels
       '@emanator/conversations':
         specifier: workspace:*
-        version: link:../../packages/conversations
+        version: link:../../modules/conversations
       '@emanator/engine':
         specifier: workspace:*
-        version: link:../../packages/engine
+        version: link:../../modules/engine
       '@emanator/personas':
         specifier: workspace:*
-        version: link:../../packages/personas
+        version: link:../../modules/personas
       '@emanator/shared':
         specifier: workspace:*
-        version: link:../../packages/shared
+        version: link:../../modules/shared
       '@fastify/static':
         specifier: ^8.0.0
         version: 8.3.0
@@ -206,8 +206,11 @@ importers:
         specifier: ^5.0.0
         version: 5.12.7
 
-  apps/web:
+  src/apps/web:
     dependencies:
+      '@emanator/personas':
+        specifier: workspace:*
+        version: link:../../modules/personas
       react:
         specifier: ^19.1.0
         version: 19.3.1
@@ -228,7 +231,7 @@ importers:
         specifier: ^6.3.5
         version: 6.4.4(@types/node@24.19.2)(lightningcss@1.33.0)(tsx@4.23.15)
 
-  packages/channels:
+  src/modules/channels:
     dependencies:
       '@emanator/shared':
         specifier: workspace:*
@@ -240,7 +243,7 @@ importers:
         specifier: ^1.46.0
         version: 1.46.0
 
-  packages/conversations:
+  src/modules/conversations:
     dependencies:
       '@emanator/channels':
         specifier: workspace:*
@@ -252,7 +255,7 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
-  packages/engine:
+  src/modules/engine:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.296
@@ -270,13 +273,23 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
 
-  packages/personas:
+  src/modules/personas:
     dependencies:
       '@emanator/shared':
         specifier: workspace:*
         version: link:../shared
+      fastify:
+        specifier: ^5.0.0
+        version: 5.12.7
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
 
-  packages/shared:
+  src/modules/shared:
     dependencies:
       pg:
         specifier: ^8.16.3

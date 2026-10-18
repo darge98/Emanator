@@ -1,8 +1,7 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PERSONA_PRESETS, type Persona, validatePersona } from '@emanator/personas';
-import type { PersonaStore } from '@emanator/personas/server';
+import { type PersonaStore, personaRoutes } from '@emanator/personas/server';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyError } from 'fastify';
@@ -36,43 +35,13 @@ export async function createDashboardServer({ personas, logger, webRoot }: Dashb
 
   app.setErrorHandler<FastifyError>((error, _request, reply) => {
     if (error.validation || (error.statusCode && error.statusCode < 500)) {
-      return reply
-        .code(error.statusCode ?? 400)
-        .send({ error: 'Invalid request. Check the name and personality.' });
+      return reply.code(error.statusCode ?? 400).send({ error: 'Invalid request.' });
     }
     logger.error('Dashboard request failed', { error: errorMessage(error) });
     return reply.code(500).send({ error: 'Could not access the configuration. Please try again.' });
   });
 
-  app.get('/api/persona', () => personas.get());
-  app.get('/api/persona/presets', async () => PERSONA_PRESETS);
-  app.put<{ Body: Persona }>(
-    '/api/persona',
-    {
-      schema: {
-        body: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['name', 'personality'],
-          properties: {
-            name: { type: 'string', minLength: 1, maxLength: 100 },
-            personality: { type: 'string', minLength: 1, maxLength: 20_000 },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      let persona: Persona;
-      try {
-        persona = validatePersona(request.body);
-      } catch {
-        return reply
-          .code(400)
-          .send({ error: 'Name and personality must contain text within the allowed limits.' });
-      }
-      return personas.save(persona);
-    },
-  );
+  app.register(personaRoutes, { prefix: '/api/persona', personas });
 
   const root = webRoot ?? fileURLToPath(new URL('../../web/dist/', import.meta.url));
   const built = await access(join(root, 'index.html')).then(

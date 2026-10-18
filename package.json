@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "node --env-file=.env --import tsx apps/server/src/main.ts",
+    "dev": "node --env-file=.env --import tsx src/apps/server/src/main.ts",
     "dev:web": "pnpm --filter @emanator/web dev",
     "build": "pnpm --filter @emanator/web build",
     "check": "biome check .",

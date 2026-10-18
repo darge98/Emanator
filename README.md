@@ -107,17 +107,17 @@ Don't run two instances against the same bot: they would compete for the same up
 
 ## Architecture
 
-A modular monolith in a pnpm workspace. Each feature is a package named after a glossary term, holding its domain, its server side and, later, its UI ([ADR 0005](docs/adr/0005-vertical-feature-slices.md)).
+A modular monolith in a pnpm workspace. Application entry points live under `src/apps`; feature modules live under `src/modules`. Each module is a workspace package named after a glossary term, holding its domain, its server side and its UI ([ADR 0005](docs/adr/0005-vertical-feature-slices.md)).
 
-| Package | What it does |
+| App / module | What it does |
 |---|---|
-| [`packages/engine`](packages/engine) | The Engine port and its Claude Agent SDK adapter: one process per turn, sessions resumed by reference. |
-| [`packages/channels`](packages/channels) | The Channel port and the Telegram adapter (grammY, long polling). |
-| [`packages/conversations`](packages/conversations) | Conversations: one per thread, with a queue and commands. |
-| [`packages/personas`](packages/personas) | Persona storage, preset catalog and configuration API. |
-| [`packages/shared`](packages/shared) | PostgreSQL connection and migrations, logging. |
-| [`apps/server`](apps/server) | The composition root that runs the Harness. |
-| [`apps/web`](apps/web) | Vite + React dashboard served by the Harness. |
+| [`src/modules/engine`](src/modules/engine) | The Engine port and its Claude Agent SDK adapter: one process per turn, sessions resumed by reference. |
+| [`src/modules/channels`](src/modules/channels) | The Channel port and the Telegram adapter (grammY, long polling). |
+| [`src/modules/conversations`](src/modules/conversations) | Conversations: one per thread, with a queue and commands. |
+| [`src/modules/personas`](src/modules/personas) | Persona storage, preset catalog, prompt instructions, configuration API and editor UI. |
+| [`src/modules/shared`](src/modules/shared) | PostgreSQL connection and migrations, logging. |
+| [`src/apps/server`](src/apps/server) | The composition root that runs the Harness. |
+| [`src/apps/web`](src/apps/web) | Vite + React dashboard served by the Harness. |
 
 PostgreSQL is the sole application database for structured configuration and runtime state, stored on its durable named volume. The Claude Agent SDK keeps transcripts under `./data/claude`, and the Engine's working folder is `./data/workspace`. Skills and Memory remain file based.
 

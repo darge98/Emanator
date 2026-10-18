@@ -20,7 +20,7 @@ services:
   # Start: `docker compose up -d harness` · logs (pairing code): `docker compose logs -f harness`
   harness:
     build: .
-    command: ["./node_modules/.bin/tsx", "apps/server/src/main.ts"]
+    command: ["./node_modules/.bin/tsx", "src/apps/server/src/main.ts"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql://emanator:${POSTGRES_PASSWORD:-emanator}@postgres:5432/emanator
@@ -39,7 +39,7 @@ services:
   # Interactive: `docker compose run --rm engine-smoke`
   engine-smoke:
     build: .
-    command: ["./node_modules/.bin/tsx", "packages/engine/scripts/smoke.ts"]
+    command: ["./node_modules/.bin/tsx", "src/modules/engine/scripts/smoke.ts"]
     env_file: .env
     volumes:
       - ./data:/data
