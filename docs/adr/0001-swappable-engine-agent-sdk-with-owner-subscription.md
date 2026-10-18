@@ -24,6 +24,7 @@ Run with Agent SDK 0.3.296 and Claude Code 2.1.296 on a Pro plan, using `src/mod
   - In-process Tools work.
   - `canUseTool` waits for an asynchronous decision; a 3-second simulated Approval held the turn open.
   - A denial reaches the model as an error result, the turn completes normally, and the denial is listed in `permission_denials`.
+  - The built-in WebSearch and WebFetch work on the subscription token and go through `canUseTool` on every call, so web Faculties are governed by Policies like Harness Tools (rechecked on 2026-10-19).
 - **Sessions and models.** A session resumed under the same id with a different model per turn (Haiku 5.5, then Sonnet 5.5) and kept its context. Opus 5.5 is available on Pro.
 - **Quota signals.**
   - A `rate_limit_event` arrives on every turn. Its status and five-hour window reset time (epoch seconds) are enough for the "wait for reset and notify" rule.

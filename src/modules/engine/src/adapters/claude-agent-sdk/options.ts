@@ -1,7 +1,7 @@
 import type { CanUseTool, McpServerConfig, Options } from '@anthropic-ai/claude-agent-sdk';
 import type { TurnRequest } from '../../domain/engine.ts';
 import type { ClaudeAgentSdkEngineConfig } from './config.ts';
-import { HARNESS_TOOL_SERVER } from './tool-names.ts';
+import { HARNESS_TOOL_SERVER, sdkToolOfFaculty } from './tool-names.ts';
 
 export interface QueryOptionsInput {
   request: TurnRequest;
@@ -14,7 +14,8 @@ export interface QueryOptionsInput {
 
 /**
  * Translates a turn request into SDK options. The SDK is isolated from the host's
- * Claude Code setup: no filesystem settings, no built-in tools, a minimal environment.
+ * Claude Code setup: no filesystem settings, no built-in tools beyond the requested
+ * Faculties, a minimal environment.
  */
 export function buildQueryOptions({
   request,
@@ -27,7 +28,7 @@ export function buildQueryOptions({
     // Without this the SDK loads ~/.claude and project settings, i.e. the Owner's personal Claude Code setup.
     settingSources: [],
     // Built-in tools only arrive through Faculties (ADR 0002).
-    tools: [],
+    tools: (request.faculties ?? []).map(sdkToolOfFaculty),
     mcpServers: toolServer ? { [HARNESS_TOOL_SERVER]: toolServer } : {},
     canUseTool,
     permissionMode: 'default',

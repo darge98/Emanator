@@ -38,6 +38,13 @@ describe('buildQueryOptions', () => {
     expect(options.mcpServers).toEqual({});
   });
 
+  it('enables only the built-in tools behind the requested Faculties', () => {
+    expect(build({ faculties: ['web_search', 'web_fetch'] }).tools).toEqual([
+      'WebSearch',
+      'WebFetch',
+    ]);
+  });
+
   it('passes only the base environment, the credential and the config dir', () => {
     expect(build().env).toEqual({
       PATH: '/usr/bin',

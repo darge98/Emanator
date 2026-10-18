@@ -56,9 +56,14 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 
 ### Control
 - Each Tool has a Policy: *allow*, *ask* or *deny*.
+  - One Policy per Tool, shared by Conversations and Routines.
   - Defaults come from MCP tool annotations: read-only starts as *allow*, write or destructive as *ask*.
-  - The Owner can change Policies in the UI.
-- Approvals arrive on Telegram as Yes/No buttons. Each is repeated once, and when it expires it counts as a denial.
+  - Faculties have no annotations, so their defaults are fixed: web search, web fetch, reading files and opening Conversations start as *allow*; writing files as *ask*. Web fetch on *allow* can leak data; that risk is accepted until a Capability holds private data, and is reviewed when Google arrives.
+  - The Owner can change Policies only in the UI.
+- Approvals arrive on Telegram as Yes/No buttons, with no "always" option, in the topic of the turn that asked: the Conversation's, or the Routine's for a Run.
+  - Each is repeated once after 15 minutes and expires 15 minutes later; expiry counts as a denial.
+  - While one is pending, the Owner's new messages in that topic wait in the queue.
+  - Approvals still pending when the Harness stops become expired, because their turn ended with the process; their buttons then answer that the request expired.
 
 ### Google (Gmail and Calendar)
 - Start with Google's official remote MCP servers, read-only.
@@ -117,7 +122,8 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - Cancelling a turn (a Stop button, cancelling a Run). The Engine must first check for a signal that was aborted before the turn started, which it currently ignores, and report a dedicated `cancelled` failure.
 - Catching up on Events missed while the Harness was down.
 - Handling overlapping Runs of the same Routine. In v1 they run in parallel, which is a known issue.
-- Restricting Capabilities per Routine.
+- Restricting Capabilities per Routine, and Policies that a Routine overrides.
+- Approvals for Tools that execute real actions, with the patterns in [legacy-ideas.md](legacy-ideas.md#approvals-patterns-to-adopt): binding to a hash of the content shown, atomic *pending* → *executing*, idempotent ids, ETag preconditions, and *uncertain outcome* at startup.
 - Usage metrics panel: quota per window (five-hour, seven-day), turns, and estimated cost per Routine and Conversation, built on the Engine's `usage.limit` events.
 - UI authentication and deployment to a VPS. On Linux hosts the `./data` bind mount must be writable by the container's `node` user (uid 1000). Docker creates a missing `./data` as root, so the Harness would crash-loop; Docker Desktop on macOS hides this.
 - Multiple Agents, and project workflows with dedicated development containers.

@@ -14,6 +14,7 @@ export type {
   UsageStatus,
   UsageWindow,
 } from './domain/events.ts';
+export { ENGINE_FACULTIES, type EngineFaculty } from './domain/faculty.ts';
 export type {
   PermissionDecider,
   PermissionDecision,

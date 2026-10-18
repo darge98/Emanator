@@ -18,6 +18,7 @@ import { buildQueryOptions } from '../src/adapters/claude-agent-sdk/options.ts';
 import {
   defineTool,
   type EngineEvent,
+  type EngineFaculty,
   type PermissionDecider,
   type ToolDefinition,
   type TurnRequest,
@@ -57,6 +58,7 @@ const checks: Check[] = [];
 const plan = await probePlan();
 checks.push(await checkAuthAndIsolation());
 checks.push(...(await checkFacultiesAndApprovals()));
+checks.push(...(await checkWebFaculties()));
 checks.push(...(await checkSessionsAndModels()));
 checks.push(checkUsageSignals());
 checks.push(checkUsageWindows());
@@ -194,6 +196,83 @@ async function approvalScenario(prompt: string, mode: 'ask-owner' | 'allow' | 'd
       `reply: ${JSON.stringify(turn.completed?.text ?? turn.failed?.message ?? null)}`,
     ],
   };
+}
+
+/**
+ * Web search and fetch are the SDK's built-in tools. Policies only hold if every call
+ * reaches canUseTool under the Harness name, and a denial must not end the turn.
+ */
+async function checkWebFaculties(): Promise<Check[]> {
+  const prompt =
+    'Use web_search to find the official website of the Rust programming language, then use ' +
+    'web_fetch on https://example.com and tell me its page title. Answer in one short sentence.';
+  const faculties = ['web_search', 'web_fetch'] as const;
+
+  const allowed = await webScenario(prompt, faculties, () => true);
+  const denied = await webScenario(prompt, faculties, (tool) => tool !== 'web_fetch');
+
+  return [
+    {
+      name: 'Web Faculties go through canUseTool under Harness names',
+      status:
+        allowed.turn.completed !== undefined &&
+        sameItems(allowed.turn.started?.tools ?? [], faculties) &&
+        allowed.asked.includes('web_search') &&
+        allowed.asked.includes('web_fetch') &&
+        allowed.called.every((tool) => allowed.asked.includes(tool))
+          ? 'pass'
+          : 'fail',
+      details: allowed.details,
+    },
+    {
+      name: 'A denied web_fetch reaches the model as an error, and the turn completes',
+      status:
+        denied.turn.completed !== undefined &&
+        denied.asked.includes('web_fetch') &&
+        denied.denied.includes('web_fetch')
+          ? 'pass'
+          : 'fail',
+      details: denied.details,
+    },
+  ];
+}
+
+async function webScenario(
+  prompt: string,
+  faculties: readonly EngineFaculty[],
+  allows: (tool: string) => boolean,
+) {
+  const asked: string[] = [];
+  const turn = await runTurn(`web:${allows('web_fetch') ? 'allow' : 'deny-fetch'}`, {
+    prompt,
+    model: FAST_MODEL,
+    faculties,
+    decidePermission: async ({ tool }) => {
+      asked.push(tool);
+      return allows(tool)
+        ? { behavior: 'allow' }
+        : { behavior: 'deny', reason: 'The Owner did not allow this.' };
+    },
+  });
+  const called = turn.events.flatMap((e) => (e.type === 'tool.called' ? [e.tool] : []));
+  const denied = turn.events.flatMap((e) => (e.type === 'tool.denied' ? [e.tool] : []));
+  return {
+    turn,
+    asked,
+    called,
+    denied,
+    details: [
+      `tools visible to the model: ${JSON.stringify(turn.started?.tools ?? null)} (expected ${JSON.stringify(faculties)})`,
+      `permission asked for: ${JSON.stringify(asked)}`,
+      `tools called: ${JSON.stringify(called)}`,
+      `denials reported: ${JSON.stringify(denied)}`,
+      `reply: ${JSON.stringify(turn.completed?.text ?? turn.failed?.message ?? null)}`,
+    ],
+  };
+}
+
+function sameItems(actual: readonly string[], expected: readonly string[]): boolean {
+  return actual.length === expected.length && expected.every((item) => actual.includes(item));
 }
 
 async function checkSessionsAndModels(): Promise<Check[]> {
