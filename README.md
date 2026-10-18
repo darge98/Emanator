@@ -12,12 +12,13 @@ An always-on, proactive personal AI agent that lives on Telegram, built on the C
 
 In *Blade Runner 2049*, the emanator is the device that projects Joi. This project does the same: it gives a body to the personality you choose, and lets it act for you on a schedule as well as when you talk to it. It serves one person only, and you run it yourself.
 
-> **Status: early.** The local dashboard currently lets you configure the Agent's Persona. Telegram conversations are also available; Routines and Capabilities remain on the roadmap. See the [v1 scope](docs/v1-scope.md). The vocabulary used throughout the code and docs is defined in [`CONTEXT.md`](CONTEXT.md).
+> **Status: early.** The local dashboard lets you configure the Agent's Persona and its Routines. Telegram conversations are also available; Capabilities remain on the roadmap. See the [v1 scope](docs/v1-scope.md). The vocabulary used throughout the code and docs is defined in [`CONTEXT.md`](CONTEXT.md).
 
 ## What works today
 
 - 💬 **Conversation on Telegram.** Write in the General topic or open a dedicated one with `/topic`. Each Conversation keeps its own context until you reset it with `/new`. While the agent works you see a live status; replies arrive as rich Markdown.
 - 🔐 **Talks only to you.** A one-time pairing code links your Telegram account; everyone else is ignored.
+- ☀️ **Routines.** Give the agent goals to pursue on a schedule (a date, an interval or a cron expression), such as a morning briefing or a heartbeat that writes only when there is something worth saying. Each Routine writes in General or in a topic of its own, and you can reply there with its context. Manage them, run them now and see their history from the dashboard; changes apply without a restart.
 - 🎭 **Shape its Persona.** Set the Agent's name and personality from the Italian/English dashboard at `http://127.0.0.1:3000`. Presets copy their values into editable fields; saving takes effect from the next turn.
 - 🧠 **Your Claude, your quota.** It runs on your Claude Pro/Max subscription or an Anthropic API key.
 - 🧩 **Swappable parts.** The model engine and the channel sit behind interfaces. The agent is isolated from your own Claude Code setup and gets no built-in tools you didn't choose.
@@ -26,7 +27,6 @@ In *Blade Runner 2049*, the emanator is the device that projects Joi. This proje
 
 The v1 scope is in [`docs/v1-scope.md`](docs/v1-scope.md). In short:
 
-- ☀️ **Routines** started by schedules, such as a morning briefing or a heartbeat that decides on its own whether you need to know something.
 - 🔌 **Capabilities**: any remote MCP server with OAuth (Gmail, Calendar, …), one per account, grouped by Area (Personal, Work, …).
 - 🛠️ **Faculties and Skills**: web, files and know-how packages, in the same formats as Claude Code.
 - ✋ **Approvals**: every Tool has a Policy (*allow*, *ask*, *deny*); *ask* becomes Yes/No buttons on Telegram.

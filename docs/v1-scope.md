@@ -72,13 +72,17 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 
 ### UI
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
-- Currently covers Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel. The language choice is stored locally in the browser.
+- Currently covers:
+  - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel;
+  - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error). Run transcripts are still to come.
+
+  The language choice is stored locally in the browser.
 - Remaining v1 pages:
   - Areas;
   - Capabilities, including the OAuth "Connect" button;
   - Skills;
   - Faculties and Policies;
-  - Routines, with "run now" and Run history including transcripts and Tools used;
+  - Run transcripts in the Routine history;
   - Conversations;
   - Telegram pairing.
 - The dashboard language is Italian or English.

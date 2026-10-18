@@ -229,9 +229,25 @@ textarea:focus-visible {
   }
 
   .nav-label,
-  .nav-item,
   .sidebar-bottom {
     display: none;
+  }
+
+  .nav {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .nav-item {
+    height: 34px;
+    padding: 0 10px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .nav-icon {
+    font-size: 14px;
   }
 
   .main {

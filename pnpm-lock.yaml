@@ -214,6 +214,9 @@ importers:
       '@emanator/personas':
         specifier: workspace:*
         version: link:../../modules/personas
+      '@emanator/routines':
+        specifier: workspace:*
+        version: link:../../modules/routines
       react:
         specifier: ^19.1.0
         version: 19.3.1
@@ -309,10 +312,16 @@ importers:
       fastify:
         specifier: ^5.0.0
         version: 5.12.7
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
     devDependencies:
       '@emanator/channels':
         specifier: workspace:*
         version: link:../channels
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
 
   src/modules/shared:
     dependencies:
