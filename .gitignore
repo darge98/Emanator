@@ -11,3 +11,7 @@ data/
 !.env.example
 
 .DS_Store
+
+.agents
+.claude
+skills-lock.json

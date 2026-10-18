@@ -150,10 +150,16 @@ export class TelegramChannel implements Channel {
       return;
 
     this.logger.info('Paired with the Owner', { userId: message.from.id });
-    await this.bot.api.sendMessage(
-      message.chat.id,
-      '✅ Abbinamento completato: da ora rispondo solo a te. Scrivi /help per vedere cosa posso fare.',
-    );
+    try {
+      await this.bot.api.sendMessage(
+        message.chat.id,
+        '✅ Abbinamento completato: da ora rispondo solo a te. Scrivi /help per vedere cosa posso fare.',
+      );
+    } catch (error) {
+      this.logger.error('Could not send Telegram pairing confirmation', {
+        error: errorMessage(error),
+      });
+    }
   }
 
   private async sendDraft(
