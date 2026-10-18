@@ -4,7 +4,6 @@ import { RoutineValidationError, validateRoutineInput } from './routine.ts';
 const valid = {
   name: '  Briefing  ',
   prompt: 'Riassumi la giornata.',
-  dedicatedTopic: true,
   enabled: true,
   triggers: [{ type: 'cron', expression: '0 8 * * *' }],
 };

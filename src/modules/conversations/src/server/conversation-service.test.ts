@@ -428,13 +428,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
 
     it('hands delivered messages to the next turn of that Conversation only once', async () => {
       const { channel, engine, service, send } = await setup();
-      const general = await service.general();
+      const topic = await service.openRoutineTopic('Briefing', 'Briefing · routine');
 
-      expect(await service.deliver(general, '**⏰ Briefing**\n\nPioverà.')).toBe(true);
-      await send(message('Prendo l’ombrello?'), message('Grazie'));
+      expect(await service.deliver(topic, '**⏰ Briefing**\n\nPioverà.')).toBe(true);
+      await send(message('Prendo l’ombrello?', '100'), message('Grazie', '100'));
 
       expect(channel.sent[0]).toEqual({
-        threadId: undefined,
+        threadId: '100',
         markdown: '**⏰ Briefing**\n\nPioverà.',
       });
       expect(engine.requests[0]?.prompt).toContain('**⏰ Briefing**\n\nPioverà.');
@@ -447,20 +447,35 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
         { type: 'turn.failed', reason: 'authentication', message: 'no' },
       ];
       const { engine, service, send } = await setup(new FakeEngine().script(failed));
-      await service.deliver(await service.general(), 'Promemoria');
+      await service.deliver(await service.openRoutineTopic('B', 'B · routine'), 'Promemoria');
 
-      await send(message('uno'), message('due'));
+      await send(message('uno', '100'), message('due', '100'));
 
       expect(engine.requests[1]?.prompt).toContain('Promemoria');
     });
 
     it('/new drops pending handoffs with the session', async () => {
       const { engine, service, send } = await setup();
-      await service.deliver(await service.general(), 'Promemoria');
+      await service.deliver(await service.openRoutineTopic('B', 'B · routine'), 'Promemoria');
 
-      await send(command('new'), message('Ciao'));
+      await send(command('new', '', '100'), message('Ciao', '100'));
 
       expect(engine.requests[0]?.prompt).toBe('Ciao');
+    });
+
+    it('keeps only the newest handoffs, and notices stay out of the context', async () => {
+      const { engine, service, send } = await setup();
+      const topic = await service.openRoutineTopic('B', 'B · routine');
+      for (let n = 1; n <= 12; n++) await service.deliver(topic, `Messaggio ${n}`);
+      await service.notify(topic, 'Avviso del Harness');
+
+      await send(message('Ciao', '100'));
+
+      const prompt = engine.requests[0]?.prompt ?? '';
+      expect(prompt).not.toContain('Messaggio 2\n');
+      expect(prompt).toContain('Messaggio 3');
+      expect(prompt).toContain('Messaggio 12');
+      expect(prompt).not.toContain('Avviso');
     });
 
     it('reports a delivery to a deleted thread and archives its Conversation', async () => {

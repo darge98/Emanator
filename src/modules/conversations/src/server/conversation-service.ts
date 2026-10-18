@@ -37,7 +37,7 @@ const denyAllTools: PermissionDecider = async () => ({
 
 const routineTopicName = (routineName: string) => `${slugify(routineName)}${ROUTINE_TOPIC_SUFFIX}`;
 
-/** Routine messages handed to one turn at most; older ones are dropped. */
+/** Routine messages kept for one turn at most; older ones are dropped. */
 const MAX_HANDOFFS = 10;
 
 /**
@@ -58,11 +58,6 @@ export class ConversationService {
   /** Resolves when everything received so far has been handled. */
   idle(): Promise<void> {
     return this.queue.idle();
-  }
-
-  /** The live General Conversation, created if needed. */
-  general(): Promise<Conversation> {
-    return this.resolve(undefined);
   }
 
   /** The Conversation with this id while it is live. */
@@ -108,7 +103,15 @@ export class ConversationService {
    */
   async deliver(conversation: Conversation, markdown: string): Promise<boolean> {
     if (!(await this.trySend(conversation, markdown))) return false;
-    await this.deps.store.addHandoff(conversation.id, markdown);
+    try {
+      await this.deps.store.addHandoff(conversation.id, markdown, MAX_HANDOFFS);
+    } catch (error) {
+      // The Owner has the message already; only its context for the next turn is lost.
+      this.deps.logger.error('Could not hand a delivered message to its Conversation', {
+        name: conversation.name,
+        error: errorMessage(error),
+      });
+    }
     return true;
   }
 
@@ -163,7 +166,7 @@ export class ConversationService {
       // takes effect on the next queued turn, including after a lost-session retry.
       const prompt = await this.deps.systemPrompt();
       const handoffs = await store.pendingHandoffs(conversation.id);
-      const input = say.withHandoffs(handoffs.slice(-MAX_HANDOFFS), text, this.deps.timeZone);
+      const input = say.withHandoffs(handoffs, text, this.deps.timeZone);
       const handedOff = async () => {
         if (handoffs.length) {
           await store.clearHandoffs(

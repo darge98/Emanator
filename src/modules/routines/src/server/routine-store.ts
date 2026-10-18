@@ -47,8 +47,8 @@ export class RoutineStore {
     const id = randomUUID();
     await this.write(input, () =>
       this.db.query(
-        `INSERT INTO routines (id, name, slug, prompt, model, dedicated_topic, enabled, triggers, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+        `INSERT INTO routines (id, name, slug, prompt, model, enabled, triggers, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
         [id, ...columns(input), now],
       ),
     );
@@ -59,8 +59,8 @@ export class RoutineStore {
   async update(id: string, input: RoutineInput): Promise<Routine | undefined> {
     const { rows } = await this.write(input, () =>
       this.db.query(
-        `UPDATE routines SET name = $2, slug = $3, prompt = $4, model = $5, dedicated_topic = $6,
-           enabled = $7, triggers = $8, updated_at = $9
+        `UPDATE routines SET name = $2, slug = $3, prompt = $4, model = $5, enabled = $6,
+           triggers = $7, updated_at = $8
          WHERE id = $1 RETURNING *`,
         [id, ...columns(input), new Date()],
       ),
@@ -159,7 +159,6 @@ function columns(input: RoutineInput): unknown[] {
     routineSlug(input.name),
     input.prompt,
     input.model ?? null,
-    input.dedicatedTopic,
     input.enabled,
     JSON.stringify(input.triggers),
   ];
@@ -173,7 +172,6 @@ function toRoutine(row: Record<string, unknown>): Routine {
     name: String(row.name),
     prompt: String(row.prompt),
     ...(row.model !== null && { model: String(row.model) }),
-    dedicatedTopic: Boolean(row.dedicated_topic),
     enabled: Boolean(row.enabled),
     triggers: row.triggers as Trigger[],
     ...(row.conversation_id !== null && { conversationId: String(row.conversation_id) }),

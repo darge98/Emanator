@@ -29,12 +29,10 @@ export function validateTrigger(input: unknown): Trigger {
   switch (value.type) {
     case 'once': {
       const at = value.at;
-      if (
-        typeof at !== 'string' ||
-        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(at) ||
-        Number.isNaN(Date.parse(at))
-      ) {
-        throw new RoutineValidationError('A date Trigger needs an ISO date and time with offset.');
+      if (typeof at !== 'string' || !isRealDateTime(at)) {
+        throw new RoutineValidationError(
+          'A date Trigger needs a real ISO date and time with offset.',
+        );
       }
       return { type: 'once', at };
     }
@@ -66,6 +64,29 @@ export function validateTrigger(input: unknown): Trigger {
     default:
       throw new RoutineValidationError('A Trigger is a date, an interval or a cron expression.');
   }
+}
+
+/** ISO 8601 with offset whose fields exist: `Date.parse` would roll 30 February into March. */
+function isRealDateTime(value: string): boolean {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.exec(
+      value,
+    );
+  if (!match || Number.isNaN(Date.parse(value))) return false;
+  const [year, month, day, hour, minute, second] = match
+    .slice(1, 7)
+    .map((part) => Number(part ?? 0));
+  const date = new Date(0);
+  date.setUTCFullYear(year as number, (month as number) - 1, day);
+  date.setUTCHours(hour as number, minute, second);
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === (month as number) - 1 &&
+    date.getUTCDate() === day &&
+    date.getUTCHours() === hour &&
+    date.getUTCMinutes() === minute &&
+    date.getUTCSeconds() === second
+  );
 }
 
 /**

@@ -15,10 +15,7 @@ import type { RoutineStore, RunOutcome } from './routine-store.ts';
 
 export interface RoutineRunnerDeps {
   engine: Engine;
-  conversations: Pick<
-    ConversationService,
-    'general' | 'findLive' | 'openRoutineTopic' | 'deliver' | 'notify'
-  >;
+  conversations: Pick<ConversationService, 'findLive' | 'openRoutineTopic' | 'deliver' | 'notify'>;
   store: RoutineStore;
   usage: UsageTracker;
   /** The Agent's system prompt, built fresh for every Run. */
@@ -73,8 +70,8 @@ type TurnResult =
   | { ok: false; failure: TurnFailed; session?: SessionRef; tools: string[] };
 
 /**
- * Executes Runs: one Engine turn in a fresh session, whose reply is delivered to
- * General or to the Routine's own topic. Runs execute in parallel, even of one Routine.
+ * Executes Runs: one Engine turn in a fresh session, whose reply is delivered to the
+ * Routine's own topic. Runs execute in parallel, even of one Routine.
  * When the quota is exhausted, Runs wait for its reset and the Owner gets one notice.
  */
 export class RoutineRunner {
@@ -98,7 +95,14 @@ export class RoutineRunner {
   async start(routineId: string, origin: RunOrigin): Promise<RoutineRun | undefined> {
     const routine = await this.deps.store.get(routineId);
     if (!routine) return undefined;
-    const run = await this.deps.store.startRun(routine.id, origin);
+    let run: RoutineRun;
+    try {
+      run = await this.deps.store.startRun(routine.id, origin);
+    } catch (error) {
+      // Deleted between the read and the insert.
+      if ((error as { code?: string }).code === '23503') return undefined;
+      throw error;
+    }
     const execution = this.execute(routine, run).finally(() => this.inFlight.delete(execution));
     this.inFlight.add(execution);
     return run;
@@ -115,20 +119,27 @@ export class RoutineRunner {
     await this.idle();
   }
 
-  /** Never rejects: whatever happens ends up in the Run history. */
+  /** Never rejects: whatever happens ends up in the Run history, and every failure in the log. */
   private async execute(routine: Routine, run: RoutineRun): Promise<void> {
     let outcome: RunOutcome;
     try {
       outcome = await this.perform(routine, run);
     } catch (error) {
       outcome = { status: 'failed', tools: [], error: errorMessage(error) };
-      this.deps.logger.error('Routine Run failed', { routine: routine.name, error: outcome.error });
+    }
+    if (outcome.status === 'failed') {
+      this.deps.logger.error('Routine Run failed', {
+        routine: routine.name,
+        run: run.id,
+        error: outcome.error,
+      });
     }
     try {
       await this.deps.store.finishRun(run.id, outcome);
     } catch (error) {
       this.deps.logger.error('Could not record the end of a Run', {
         routine: routine.name,
+        run: run.id,
         error: errorMessage(error),
       });
     }
@@ -137,21 +148,27 @@ export class RoutineRunner {
   private async perform(routine: Routine, run: RoutineRun): Promise<RunOutcome> {
     let result: TurnResult;
     for (let waits = 0; ; waits++) {
-      await this.waitForQuota(run);
+      await this.waitForQuota(routine, run);
       result = await this.turn(routine, run.origin);
       if (result.ok || result.failure.reason !== 'usage-limit' || waits >= MAX_QUOTA_WAITS) break;
-      this.blockedUntil = this.resetTime();
+      this.blockForQuota();
     }
     const { session, tools } = result;
     const base = { tools, ...(session && { session }) };
 
+    // The Routine may have been renamed or deleted while the Run worked or waited.
+    const current = await this.deps.store.get(routine.id);
+    if (!current) {
+      return { ...base, status: 'failed', error: 'The Routine was deleted during the Run.' };
+    }
+
     if (!result.ok) {
       const delivered = await this.deliver(
-        routine,
-        say.runFailed(routine.name, result.failure.reason),
+        current,
+        say.runFailed(current.name, result.failure.reason),
       ).catch((error) => {
         this.deps.logger.error('Could not send the Run failure notice', {
-          routine: routine.name,
+          routine: current.name,
           error: errorMessage(error),
         });
         return undefined;
@@ -165,43 +182,63 @@ export class RoutineRunner {
     }
     if (result.text.trim() === SILENT_REPLY) return { ...base, status: 'silent' };
 
-    const delivered = await this.deliver(routine, say.withHeader(routine.name, result.text));
+    const delivered = await this.deliver(current, say.withHeader(current.name, result.text));
     if (!delivered) {
       return { ...base, status: 'failed', error: 'The message could not be delivered.' };
     }
     return { ...base, status: 'delivered', conversationId: delivered.id };
   }
 
-  /** Waits while the quota is known to be exhausted, telling the Owner once per reset. */
-  private async waitForQuota(run: RoutineRun): Promise<void> {
-    const until = this.blockedUntil;
-    const delay = until ? until.getTime() - this.now().getTime() : 0;
-    if (!until || delay <= 0) return;
-    await this.deps.store.setRunStatus(run.id, 'waiting');
-    if (this.noticeFor !== until.getTime()) {
-      this.noticeFor = until.getTime();
-      await this.noticeQuota(until);
+  /**
+   * Waits while the quota is known to be exhausted, telling the Owner once per reset in
+   * the Routine's topic. Keeps waiting if the wait is extended meanwhile.
+   */
+  private async waitForQuota(routine: Routine, run: RoutineRun): Promise<void> {
+    let waiting = false;
+    for (;;) {
+      const until = this.blockedUntil;
+      const delay = until ? until.getTime() - this.now().getTime() : 0;
+      if (!until || delay <= 0) break;
+      if (!waiting) {
+        waiting = true;
+        await this.deps.store.setRunStatus(run.id, 'waiting');
+      }
+      if (this.noticeFor !== until.getTime()) {
+        this.noticeFor = until.getTime();
+        await this.noticeQuota(routine, until);
+      }
+      await this.sleep(delay, this.stopping.signal);
+      if (this.blockedUntil === until) break; // not extended while sleeping
     }
-    await this.sleep(delay, this.stopping.signal);
-    await this.deps.store.setRunStatus(run.id, 'running');
+    if (waiting) await this.deps.store.setRunStatus(run.id, 'running');
   }
 
-  private async noticeQuota(until: Date): Promise<void> {
+  private async noticeQuota(routine: Routine, until: Date): Promise<void> {
     try {
-      const general = await this.deps.conversations.general();
-      await this.deps.conversations.notify(general, say.quotaExhausted(until, this.deps.timeZone));
+      const topic = await this.topic(routine);
+      await this.deps.conversations.notify(topic, say.quotaExhausted(until, this.deps.timeZone));
     } catch (error) {
-      this.deps.logger.error('Could not send the quota notice', { error: errorMessage(error) });
+      this.deps.logger.error('Could not send the quota notice', {
+        routine: routine.name,
+        error: errorMessage(error),
+      });
     }
   }
 
-  /** When to retry: just after the reset the Engine last reported, within sane bounds. */
-  private resetTime(): Date {
+  /**
+   * Holds Runs until just after the reset the Engine last reported. A wait already in
+   * progress is kept unless a known reset comes later, so Runs that fail together share
+   * one wait and one notice.
+   */
+  private blockForQuota(): void {
     const now = this.now().getTime();
     const resetsAt = this.deps.usage.latest()?.resetsAt?.getTime();
-    const wait =
-      resetsAt && resetsAt > now ? resetsAt - now + RESET_MARGIN_MS : UNKNOWN_RESET_WAIT_MS;
-    return new Date(now + Math.min(wait, MAX_WAIT_MS));
+    const known = resetsAt !== undefined && resetsAt > now;
+    const wait = known ? resetsAt - now + RESET_MARGIN_MS : UNKNOWN_RESET_WAIT_MS;
+    const next = new Date(now + Math.min(wait, MAX_WAIT_MS));
+    const current = this.blockedUntil;
+    if (current && current.getTime() > now && (!known || next <= current)) return;
+    this.blockedUntil = next;
   }
 
   private async turn(routine: Routine, origin: RunOrigin): Promise<TurnResult> {
@@ -244,18 +281,13 @@ export class RoutineRunner {
   }
 
   /**
-   * Sends to General, or to the Routine's own topic, opening it if needed. A topic
-   * found deleted while sending is replaced once. Returns where the message landed.
+   * Sends to the Routine's own topic, opening it if needed. A topic found deleted while
+   * sending is replaced once. Returns where the message landed.
    */
   private async deliver(routine: Routine, markdown: string): Promise<Conversation | undefined> {
-    const { conversations } = this.deps;
-    if (!routine.dedicatedTopic) {
-      const general = await conversations.general();
-      return (await conversations.deliver(general, markdown)) ? general : undefined;
-    }
     for (let attempt = 0; attempt < 2; attempt++) {
       const topic = await this.topic(routine);
-      if (await conversations.deliver(topic, markdown)) return topic;
+      if (await this.deps.conversations.deliver(topic, markdown)) return topic;
     }
     return undefined;
   }

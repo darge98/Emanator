@@ -9,7 +9,6 @@ function routine(overrides: Partial<Routine> = {}): Routine {
     id: 'r1',
     name: 'Heartbeat',
     prompt: 'Controlla.',
-    dedicatedTopic: false,
     enabled: true,
     triggers: [{ type: 'interval', everyMinutes: 10 }],
     createdAt: start,

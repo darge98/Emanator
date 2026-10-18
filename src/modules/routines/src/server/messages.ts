@@ -28,10 +28,9 @@ export const runFailed = (name: string, reason: TurnFailureReason) =>
 export function runInstructions(routine: Routine, origin: RunOrigin): string {
   const trigger =
     origin === 'manual' ? 'avviata a mano dalla persona' : 'avviata dalla sua pianificazione';
-  const where = routine.dedicatedTopic ? 'nel topic dedicato alla Routine' : 'nel topic Generale';
   return [
     `Stai eseguendo la Routine «${routine.name}», ${trigger}. Il messaggio che ricevi è il suo obiettivo.`,
-    `La persona non sta scrivendo con te: la tua risposta finale le arriverà come messaggio Telegram ${where}, preceduta dal nome della Routine.`,
+    'La persona non sta scrivendo con te: la tua risposta finale le arriverà come messaggio Telegram nel topic dedicato alla Routine, preceduta dal suo nome.',
     `Se non c'è nulla che valga la pena comunicarle, rispondi esattamente ${SILENT_REPLY} e non le arriverà nulla.`,
   ].join('\n');
 }

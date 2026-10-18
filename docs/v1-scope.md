@@ -15,17 +15,16 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Saving applies changes from the next Turn; a Turn already in progress completes with its existing instructions.
 
 ### Routines
-- A Routine is a prompt plus one or more scheduled Triggers: a specific date, an interval or a cron expression.
+- A Routine is a prompt plus one or more scheduled Triggers: a specific date, an interval or a cron expression. The dashboard offers guided schedules (every day, days of the week, day of the month at a time) that are cron expressions underneath, with raw cron as the advanced option.
 - The Agent decides which Faculties, Capabilities and Skills to use.
 - Routine names are unique and otherwise free; `general` is allowed too.
-- Each Routine picks its own model and whether it has a dedicated topic. Without one, it delivers to General.
-- A dedicated topic is the Routine's own Conversation:
+- Each Routine picks its own model.
+- Every Routine delivers to its own topic, never to General (choosing General may come back later). The topic is the Routine's own Conversation:
   - it is created on the first Run and the Routine keeps it by id;
   - its name is the Routine's name with the reserved `-routine` suffix (`briefing-routine`), and its Telegram title marks it as a Routine. It therefore never collides with General or with topics opened by the Owner or the Agent, and never needs a numeric suffix. A topic opened normally whose name would end in `-routine` gets the numeric suffix instead;
   - renaming the Routine renames the Conversation and the Telegram topic;
   - if the Conversation is archived, the next Run opens a new one with the same name;
-  - turning the option off applies from the next Run and leaves the Conversation live;
-  - deleting the Routine archives its Conversation. The Telegram topic stays, and removing it is up to the Owner.
+  - deleting the Routine archives its Conversation. The Telegram topic stays, and removing it is up to the Owner. A Run still in progress then delivers nothing, and a Run of a renamed Routine uses the new name.
 - Each Routine message starts with a header naming the Routine. It then still makes sense if it lands in General because the Owner deleted the target topic (see Conversations).
 - Creating, editing or deleting a Routine applies immediately, without restarting the Harness: the scheduler updates its Triggers. A Run already in progress completes.
 - Conversation names follow one rule: a name identifies a *live* Conversation. Archiving a Conversation frees its name, so a reopened `briefing-routine` keeps it, and `general` is reserved for the General Conversation.
@@ -68,7 +67,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 ### Engine and quota
 - The Claude Agent SDK runs with the Owner's subscription token (`claude setup-token`) or an API key, supplied via `.env`.
 - There is a default model, and Routines and Conversations can override it.
-- When the usage limit is hit, Runs wait for the reset and the Owner gets one notice in General with the time Runs resume. Runs started meanwhile wait without calling the Engine. A Run gives up after three resets, and stopping the Harness fails the Runs still waiting.
+- When the usage limit is hit, Runs wait for the reset and the Owner gets one notice, in the topic of the Routine that hit it, with the time Runs resume. Runs failing together share one wait and one notice, even when the Engine doesn't say when the quota resets. Runs started meanwhile wait without calling the Engine. A Run gives up after three resets, and stopping the Harness fails the Runs still waiting.
 
 ### UI
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
@@ -88,7 +87,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - The dashboard language is Italian or English.
 
 ### Failures
-A failed Run sends a notice to its target Conversation and is detailed in the Run history.
+A failed Run is always logged and detailed in the Run history. When the Engine reports the failure, the Owner also gets a notice in the Routine's topic.
 
 ## Architecture
 
@@ -102,6 +101,12 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 - **Language:** code and docs in English; UI in Italian and English.
 
 ## Later waves
+
+- Dashboard polish found in the Routines review (October 2026):
+  - validation errors from the server are in English, also in the Italian UI; Run errors in the history are raw Engine text;
+  - accessibility: focus moves to the editor when it opens and back after it closes, and history toggles get `aria-controls`;
+  - the Owner is told about every failed Run in Telegram, not only those the Engine reports.
+- Routine names made only of non-Latin letters (e.g. `日本`) all slug to `topic`, so only one of them can exist.
 
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
 - Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.

@@ -7,7 +7,7 @@ export { RoutineValidationError };
 /** A prompt run whenever one of its Triggers fires (see CONTEXT.md). */
 export interface Routine extends RoutineInput {
   id: string;
-  /** The Routine's own topic, once its first Run has opened it. Kept even when the option is off. */
+  /** The Routine's own topic, where every Run delivers, once the first Run has opened it. */
   conversationId?: string;
   createdAt: Date;
   /** Also the anchor of interval Triggers, so editing a Routine restarts its intervals. */
@@ -21,8 +21,6 @@ export interface RoutineInput {
   prompt: string;
   /** Overrides the default model for this Routine's Runs. */
   model?: string;
-  /** Deliver to the Routine's own topic instead of General. */
-  dedicatedTopic: boolean;
   enabled: boolean;
   triggers: Trigger[];
 }
@@ -48,8 +46,8 @@ export function validateRoutineInput(input: unknown): RoutineInput {
   const prompt = text(value.prompt, 'prompt', 20_000);
   const model =
     value.model === undefined || value.model === null ? '' : text(value.model, 'model', 100, true);
-  if (typeof value.dedicatedTopic !== 'boolean' || typeof value.enabled !== 'boolean') {
-    throw new RoutineValidationError('dedicatedTopic and enabled must be true or false.');
+  if (typeof value.enabled !== 'boolean') {
+    throw new RoutineValidationError('enabled must be true or false.');
   }
   if (!Array.isArray(value.triggers) || value.triggers.length === 0) {
     throw new RoutineValidationError('A Routine needs at least one Trigger.');
@@ -61,7 +59,6 @@ export function validateRoutineInput(input: unknown): RoutineInput {
     name,
     prompt,
     ...(model && { model }),
-    dedicatedTopic: value.dedicatedTopic,
     enabled: value.enabled,
     triggers: value.triggers.map(validateTrigger),
   };

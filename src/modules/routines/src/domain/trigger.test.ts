@@ -8,6 +8,7 @@ describe('validateTrigger', () => {
   it.each([
     [{ type: 'once', at: '2026-10-19T08:00:00+02:00' }],
     [{ type: 'once', at: '2026-10-19T06:00Z' }],
+    [{ type: 'once', at: '2028-02-29T06:00:00.000Z' }],
     [{ type: 'interval', everyMinutes: 30 }],
     [{ type: 'cron', expression: '0 8 * * 1-5' }],
   ])('accepts %j', (trigger) => expect(validateTrigger(trigger)).toEqual(trigger));
@@ -15,6 +16,8 @@ describe('validateTrigger', () => {
   it.each([
     [{ type: 'once', at: '2026-10-19T08:00:00' }],
     [{ type: 'once', at: 'domani' }],
+    [{ type: 'once', at: '2026-02-30T10:00:00Z' }],
+    [{ type: 'once', at: '2026-10-19T24:00:00Z' }],
     [{ type: 'interval', everyMinutes: 0 }],
     [{ type: 'interval', everyMinutes: 1.5 }],
     [{ type: 'cron', expression: '*/5 * * * * *' }],

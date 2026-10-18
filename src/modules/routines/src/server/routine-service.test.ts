@@ -2,7 +2,7 @@ import { FakeChannel } from '@emanator/channels/testing';
 import { ConversationService, ConversationStore } from '@emanator/conversations/server';
 import { type EngineEvent, UsageTracker } from '@emanator/engine';
 import { FakeEngine, replyWith, type ScriptedTurn } from '@emanator/engine/testing';
-import { createTestDatabase, silentLogger } from '@emanator/shared/server';
+import { createTestDatabase, type Logger, silentLogger } from '@emanator/shared/server';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { RoutineInput } from '../domain/routine.ts';
 import { RoutineRunner } from './routine-runner.ts';
@@ -17,6 +17,26 @@ afterEach(async () => {
 interface SetupOptions {
   /** Replaces the quota wait; resolves at once by default. */
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  logger?: Logger;
+  now?: () => Date;
+}
+
+/** A turn that waits for `release()` before answering. */
+function gatedTurn(text: string) {
+  let release = () => {};
+  let markStarted = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const turn: ScriptedTurn = async (request) => {
+    markStarted();
+    await gate;
+    return replyWith(text)(request);
+  };
+  return { turn, release, started };
 }
 
 async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
@@ -46,7 +66,8 @@ async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
     systemPrompt: () => 'You are a test agent.',
     defaultModel: 'sonnet',
     timeZone: 'Europe/Rome',
-    logger: silentLogger,
+    logger: options.logger ?? silentLogger,
+    ...(options.now && { now: options.now }),
     sleep: (ms, signal) => {
       sleeps.push(ms);
       return options.sleep ? options.sleep(ms, signal) : Promise.resolve();
@@ -86,14 +107,13 @@ async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
 const input = (overrides: Partial<RoutineInput> = {}): RoutineInput => ({
   name: 'Briefing',
   prompt: 'Riassumi la giornata.',
-  dedicatedTopic: false,
   enabled: true,
   triggers: [{ type: 'cron', expression: '0 8 * * *' }],
   ...overrides,
 });
 
 describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
-  it('runs in a fresh session and delivers to General under a header', async () => {
+  it('runs in a fresh session and delivers to its own topic under a header', async () => {
     const { channel, engine, routines, runNow } = await setup(
       new FakeEngine(replyWith('Oggi sole.')),
     );
@@ -105,9 +125,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
     expect(engine.requests[0]).not.toHaveProperty('session');
     expect(engine.requests[0]?.systemPrompt).toContain('You are a test agent.');
     expect(engine.requests[0]?.systemPrompt).toContain('«Briefing»');
-    expect(channel.sent).toEqual([
-      { threadId: undefined, markdown: '**⏰ Briefing**\n\nOggi sole.' },
-    ]);
+    expect(channel.opened).toEqual(['Briefing · routine']);
+    expect(channel.sent).toEqual([{ threadId: '100', markdown: '**⏰ Briefing**\n\nOggi sole.' }]);
     expect(await routines.runs(routine.id)).toMatchObject([
       { origin: 'manual', status: 'delivered', session: { engine: 'fake', id: 'session-1' } },
     ]);
@@ -119,8 +138,13 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
     const routine = await routines.create(input());
     await runNow(routine.id);
 
-    // The Owner replies in General.
-    conversations.handle({ type: 'message', text: 'E domani?', receivedAt: new Date() });
+    // The Owner replies in the Routine's topic.
+    conversations.handle({
+      type: 'message',
+      text: 'E domani?',
+      threadId: '100',
+      receivedAt: new Date(),
+    });
     await conversations.idle();
 
     expect(engine.requests[1]?.prompt).toContain('**⏰ Briefing**');
@@ -139,9 +163,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
 
   it('opens the dedicated topic once, even for parallel Runs, and reuses it', async () => {
     const { channel, conversationStore, routines, runner } = await setup();
-    const routine = await routines.create(
-      input({ name: 'Briefing del mattino', dedicatedTopic: true }),
-    );
+    const routine = await routines.create(input({ name: 'Briefing del mattino' }));
 
     await Promise.all([routines.runNow(routine.id), routines.runNow(routine.id)]);
     await runner.idle();
@@ -156,7 +178,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
 
   it('opens a new topic with the same name when the old one was archived', async () => {
     const { channel, conversationStore, routines, runNow } = await setup();
-    const routine = await routines.create(input({ dedicatedTopic: true }));
+    const routine = await routines.create(input());
     await runNow(routine.id);
     channel.deletedThreads.add('100');
 
@@ -169,16 +191,58 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
     });
   });
 
-  it('keeps the topic when the option is turned off, and delivers to General', async () => {
-    const { channel, routines, runNow } = await setup();
-    const routine = await routines.create(input({ dedicatedTopic: true }));
+  it('delivers nothing, and opens no topic, when the Routine is deleted during the Run', async () => {
+    const slow = gatedTurn('Fatto.');
+    const { channel, routines, runner, store } = await setup(new FakeEngine().script(slow.turn));
+    const routine = await routines.create(input());
+    const run = await routines.runNow(routine.id);
+    await slow.started;
+
+    await routines.delete(routine.id);
+    slow.release();
+    await runner.idle();
+
+    expect(channel.opened).toEqual([]);
+    expect(channel.sent).toEqual([]);
+    expect(await store.runs(routine.id)).toEqual([]);
+    expect(run).toBeDefined();
+  });
+
+  it('opens the topic under the new name when the Routine is renamed during the Run', async () => {
+    const slow = gatedTurn('Fatto.');
+    const { channel, routines, runner } = await setup(new FakeEngine().script(slow.turn));
+    const routine = await routines.create(input());
+    await routines.runNow(routine.id);
+    await slow.started;
+
+    await routines.update(routine.id, input({ name: 'Buongiorno' }));
+    slow.release();
+    await runner.idle();
+
+    expect(channel.opened).toEqual(['Buongiorno · routine']);
+    expect(channel.sent[0]?.markdown).toBe('**⏰ Buongiorno**\n\nFatto.');
+  });
+
+  it('logs every failed Run, including Engine exceptions', async () => {
+    const errors: unknown[] = [];
+    const throwing: ScriptedTurn = () => {
+      throw new Error('engine exploded');
+    };
+    const { routines, runNow } = await setup(new FakeEngine(throwing), {
+      logger: { ...silentLogger, error: (message, fields) => errors.push({ message, fields }) },
+    });
+    const routine = await routines.create(input());
+
     await runNow(routine.id);
 
-    await routines.update(routine.id, input({ dedicatedTopic: false }));
-    await runNow(routine.id);
-
-    expect(channel.sent.map(({ threadId }) => threadId)).toEqual(['100', undefined]);
-    expect((await routines.get(routine.id))?.conversationId).toBeDefined();
+    expect((await routines.runs(routine.id))?.[0]).toMatchObject({
+      status: 'failed',
+      error: 'engine exploded',
+    });
+    expect(errors).toContainEqual({
+      message: 'Routine Run failed',
+      fields: expect.objectContaining({ routine: 'Briefing', error: 'engine exploded' }),
+    });
   });
 
   it('records a failed Run and tells the Owner', async () => {
@@ -199,7 +263,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
 
   it('archives the topic Conversation when the Routine is deleted', async () => {
     const { conversationStore, routines, runNow } = await setup();
-    const routine = await routines.create(input({ dedicatedTopic: true }));
+    const routine = await routines.create(input());
     await runNow(routine.id);
 
     expect(await routines.delete(routine.id)).toBe(true);
@@ -240,10 +304,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
   describe('renaming', () => {
     it('renames the topic and its Conversation with the Routine', async () => {
       const { channel, conversationStore, routines, runNow } = await setup();
-      const routine = await routines.create(input({ dedicatedTopic: true }));
+      const routine = await routines.create(input());
       await runNow(routine.id);
 
-      await routines.update(routine.id, input({ name: 'Buongiorno', dedicatedTopic: true }));
+      await routines.update(routine.id, input({ name: 'Buongiorno' }));
 
       expect(channel.renamed).toEqual([{ threadId: '100', title: 'Buongiorno · routine' }]);
       expect(await conversationStore.findByName('buongiorno-routine')).toMatchObject({
@@ -255,11 +319,11 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
 
     it('archives a topic deleted meanwhile, so the next Run opens one with the new name', async () => {
       const { channel, conversationStore, routines, runNow } = await setup();
-      const routine = await routines.create(input({ dedicatedTopic: true }));
+      const routine = await routines.create(input());
       await runNow(routine.id);
       channel.deletedThreads.add('100');
 
-      await routines.update(routine.id, input({ name: 'Buongiorno', dedicatedTopic: true }));
+      await routines.update(routine.id, input({ name: 'Buongiorno' }));
       await runNow(routine.id);
 
       expect(channel.opened).toEqual(['Briefing · routine', 'Buongiorno · routine']);
@@ -270,10 +334,10 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
 
     it('leaves the topic alone when the name does not change', async () => {
       const { channel, routines, runNow } = await setup();
-      const routine = await routines.create(input({ dedicatedTopic: true }));
+      const routine = await routines.create(input());
       await runNow(routine.id);
 
-      await routines.update(routine.id, input({ dedicatedTopic: true, prompt: 'Altro.' }));
+      await routines.update(routine.id, input({ prompt: 'Altro.' }));
 
       expect(channel.renamed).toEqual([]);
     });
@@ -342,6 +406,46 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
         'delivered',
         'delivered',
       ]);
+    });
+
+    it('shares one wait and one notice when Runs fail together and the reset is unknown', async () => {
+      let now = Date.parse('2026-10-18T10:00:00Z');
+      const releases: Array<() => void> = [];
+      let wakeUp = () => {};
+      const wake = new Promise<void>((resolve) => {
+        wakeUp = resolve;
+      });
+      // Both Runs are inside the Engine when the quota runs out, a few seconds apart.
+      const unknownReset: ScriptedTurn = async () => {
+        await new Promise<void>((resolve) => releases.push(resolve));
+        return [
+          { type: 'turn.failed', reason: 'usage-limit', message: 'limit reached' },
+        ] as EngineEvent[];
+      };
+      const engine = new FakeEngine(replyWith('Fatto.')).script(unknownReset, unknownReset);
+      const { channel, routines, runner, sleeps } = await setup(engine, {
+        now: () => new Date(now),
+        sleep: () => wake,
+      });
+      const first = await routines.create(input({ name: 'Uno' }));
+      const second = await routines.create(input({ name: 'Due' }));
+
+      await routines.runNow(first.id);
+      await routines.runNow(second.id);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      releases[0]?.();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      now += 5_000;
+      releases[1]?.();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      now += 31 * 60_000;
+      wakeUp();
+      await runner.idle();
+
+      expect(channel.sent.filter(({ markdown }) => markdown.startsWith('⏳'))).toHaveLength(1);
+      expect(sleeps).toHaveLength(2);
+      expect((await routines.runs(first.id))?.[0]?.status).toBe('delivered');
+      expect((await routines.runs(second.id))?.[0]?.status).toBe('delivered');
     });
 
     it('fails a waiting Run at once when the Harness stops', async () => {

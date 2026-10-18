@@ -33,4 +33,9 @@ export const routineMigrations: Migration[] = [
       CREATE INDEX routine_runs_routine ON routine_runs (routine_id, started_at DESC);
     `,
   },
+  {
+    // Every Routine now delivers to its own topic.
+    id: '002-always-dedicated-topic',
+    sql: 'ALTER TABLE routines DROP COLUMN dedicated_topic;',
+  },
 ];

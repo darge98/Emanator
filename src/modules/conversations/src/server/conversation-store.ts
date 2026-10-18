@@ -110,10 +110,18 @@ export class ConversationStore {
     );
   }
 
-  async addHandoff(conversationId: string, markdown: string): Promise<void> {
+  /** Adds a handoff and keeps only the newest `keep` of the Conversation's. */
+  async addHandoff(conversationId: string, markdown: string, keep: number): Promise<void> {
     await this.db.query(
       'INSERT INTO conversation_handoffs (id, conversation_id, markdown, created_at) VALUES ($1, $2, $3, $4)',
       [randomUUID(), conversationId, markdown, new Date()],
+    );
+    await this.db.query(
+      `DELETE FROM conversation_handoffs WHERE conversation_id = $1 AND id NOT IN (
+         SELECT id FROM conversation_handoffs WHERE conversation_id = $1
+         ORDER BY created_at DESC, id DESC LIMIT $2
+       )`,
+      [conversationId, keep],
     );
   }
 
