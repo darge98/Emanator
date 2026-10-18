@@ -180,7 +180,7 @@ export class ConversationService {
     const { channel, store } = this.deps;
     const threadId = await channel.openThread(title);
     const topic = await store.create({
-      name: await store.availableName(slugify(title)),
+      name: slugify(title),
       title,
       channel: channel.id,
       threadId,
@@ -209,7 +209,7 @@ export class ConversationService {
 
     if (threadId === undefined) {
       return store.create({
-        name: await store.availableName(GENERAL_CONVERSATION_NAME),
+        name: GENERAL_CONVERSATION_NAME,
         title: say.GENERAL_TITLE,
         channel: channel.id,
         openedBy: 'harness',
@@ -217,7 +217,7 @@ export class ConversationService {
     }
     // A topic the Harness doesn't know, e.g. opened before the state was reset.
     return store.create({
-      name: await store.availableName(`topic-${threadId}`),
+      name: `topic-${threadId}`,
       title: `Topic ${threadId}`,
       channel: channel.id,
       threadId,

@@ -46,16 +46,49 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationStore', () => {
     });
     await conversations.archive(old.id);
     expect(await conversations.findByThread('telegram', '42')).toBeUndefined();
-    expect(await conversations.availableName('trip')).toBe('trip-2');
     await expect(
       conversations.create({
-        name: 'trip-2',
+        name: 'trip',
         title: 'Trip',
         channel: 'telegram',
         threadId: '42',
         openedBy: 'owner',
       }),
-    ).resolves.toBeDefined();
+    ).resolves.toMatchObject({ name: 'trip-2' });
+  });
+
+  it('claims unique names concurrently and skips suffixes that are already reserved', async () => {
+    const conversations = await store();
+    await conversations.create({
+      name: 'trip-2',
+      title: 'Existing',
+      channel: 'telegram',
+      threadId: 'existing',
+      openedBy: 'owner',
+    });
+
+    const created = await Promise.all(
+      Array.from({ length: 4 }, (_, n) =>
+        conversations.create({
+          name: 'trip',
+          title: 'Trip',
+          channel: 'telegram',
+          threadId: String(n),
+          openedBy: 'owner',
+        }),
+      ),
+    );
+    expect(created.map((conversation) => conversation.name).sort()).toEqual([
+      'trip',
+      'trip-3',
+      'trip-4',
+      'trip-5',
+    ]);
+    for (const conversation of created) {
+      expect(await conversations.findByThread('telegram', conversation.threadId)).toEqual(
+        conversation,
+      );
+    }
   });
 
   it('enforces one live Conversation per thread', async () => {

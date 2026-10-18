@@ -5,6 +5,7 @@ import type { Conversation, OpenedBy } from '../domain/conversation.ts';
 import { conversationMigrations } from './migrations.ts';
 
 export interface NewConversation {
+  /** Preferred name; creation adds a numeric suffix if this name is already reserved. */
   name: string;
   title: string;
   channel: string;
@@ -41,26 +42,33 @@ export class ConversationStore {
     return row ? toConversation(row) : undefined;
   }
 
+  /** Atomically claims `name`, or `name-2`, `name-3`, …; archived names stay reserved. */
   async create(input: NewConversation): Promise<Conversation> {
     const conversation: Conversation = {
       id: randomUUID(),
       ...input,
       createdAt: new Date(),
     };
-    await this.db.query(
-      `INSERT INTO conversations (id, name, title, channel, thread_id, opened_by, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        conversation.id,
-        conversation.name,
-        conversation.title,
-        conversation.channel,
-        conversation.threadId ?? null,
-        conversation.openedBy,
-        conversation.createdAt.toISOString(),
-      ],
-    );
-    return conversation;
+    for (let n = 1; ; n++) {
+      const name = n === 1 ? input.name : `${input.name}-${n}`;
+      const { rows } = await this.db.query(
+        `INSERT INTO conversations (id, name, title, channel, thread_id, opened_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (name) DO NOTHING
+         RETURNING *`,
+        [
+          conversation.id,
+          name,
+          conversation.title,
+          conversation.channel,
+          conversation.threadId ?? null,
+          conversation.openedBy,
+          conversation.createdAt.toISOString(),
+        ],
+      );
+      // Retry only a name collision; thread uniqueness and other failures still propagate.
+      if (rows[0]) return toConversation(rows[0]);
+    }
   }
 
   /** Stores the Engine session to resume, or clears it to start fresh. */
@@ -76,15 +84,6 @@ export class ConversationStore {
       new Date(),
       id,
     ]);
-  }
-
-  /** `base`, or `base-2`, `base-3`, … if taken. Names stay reserved after archiving. */
-  async availableName(base: string): Promise<string> {
-    const taken = async (name: string) =>
-      (await this.db.query('SELECT 1 FROM conversations WHERE name = $1', [name])).rowCount !== 0;
-    let name = base;
-    for (let n = 2; await taken(name); n++) name = `${base}-${n}`;
-    return name;
   }
 }
 

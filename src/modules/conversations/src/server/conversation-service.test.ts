@@ -3,7 +3,7 @@ import { FakeChannel } from '@emanator/channels/testing';
 import { type EngineEvent, UsageTracker } from '@emanator/engine';
 import { FakeEngine, replyWith, type ScriptedTurn } from '@emanator/engine/testing';
 import { createTestDatabase, silentLogger } from '@emanator/shared/server';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConversationService } from './conversation-service.ts';
 import { ConversationStore } from './conversation-store.ts';
 
@@ -234,6 +234,39 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
 
     expect(channel.opened).toEqual([]);
     expect(channel.sent[0]?.markdown).toContain('/topic Viaggio in Giappone');
+  });
+
+  it('tracks both topics when different Conversations open the same title concurrently', async () => {
+    const { channel, store, send } = await setup();
+    await send(command('help', '', 'one'), command('help', '', 'two'));
+    channel.sent.length = 0;
+
+    // Both callers reach creation before either can insert, exposing check-then-insert races.
+    let release = () => {};
+    const bothReady = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let waiting = 0;
+    const create = store.create.bind(store);
+    const creation = vi.spyOn(store, 'create').mockImplementation(async (input) => {
+      if (++waiting === 2) release();
+      await bothReady;
+      return create(input);
+    });
+
+    await send(command('topic', 'Trip', 'one'), command('topic', 'Trip', 'two'));
+    creation.mockRestore();
+
+    expect(channel.opened).toEqual(['Trip', 'Trip']);
+    const topics = await Promise.all([
+      store.findByThread('fake', '100'),
+      store.findByThread('fake', '101'),
+    ]);
+    expect(topics.map((topic) => topic?.name).sort()).toEqual(['trip', 'trip-2']);
+    expect(channel.sent).toHaveLength(4);
+    expect(
+      channel.sent.filter((reply) => reply.markdown.includes('Ho aperto il topic')),
+    ).toHaveLength(2);
   });
 
   it('/status reports the Conversation, the model and the quota per window', async () => {
