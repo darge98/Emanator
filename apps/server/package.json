@@ -9,6 +9,9 @@
     "@emanator/channels": "workspace:*",
     "@emanator/conversations": "workspace:*",
     "@emanator/engine": "workspace:*",
-    "@emanator/shared": "workspace:*"
+    "@emanator/shared": "workspace:*",
+    "@emanator/personas": "workspace:*",
+    "@fastify/static": "^8.0.0",
+    "fastify": "^5.0.0"
   }
 }

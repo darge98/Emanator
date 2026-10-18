@@ -8,7 +8,11 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 
 ### Agent and Persona
 - There is one Agent.
-- Its Persona starts from a built-in preset inspired by well-known AI assistants (Jarvis, Cortana, Joi, …) or is written from scratch. Either way the Owner can customise the name and style.
+- Its Persona has a name and free-form personality text, editable from the dashboard in Italian or English.
+- Built-in presets (Jarvis, Cortana, Joi) copy their name and personality into the editable fields. The saved Persona has no preset identity or link.
+- Presets draw their voices from MCU J.A.R.V.I.S., Halo 1–4 Cortana and Blade Runner 2049 Joi. They include original dialogue examples; their references never assign an identity to the Owner.
+- The Persona determines the register and forms of address, adapted to the Owner's explicit preferences. The Agent uses the Owner's name only when supplied in the available context and never invents a name, title or gender. Memory will later carry the learned name across Conversations and resets.
+- Saving applies changes from the next Turn; a Turn already in progress completes with its existing instructions.
 
 ### Routines
 - A Routine is a prompt plus one or more scheduled Triggers: a specific date, an interval or a cron expression.
@@ -60,9 +64,9 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - When the usage limit is hit, Runs wait for the reset and the Owner gets one notice.
 
 ### UI
-- Served on localhost only, with no authentication in v1.
-- Covers:
-  - Persona;
+- A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
+- Currently covers Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel. The language choice is stored locally in the browser.
+- Remaining v1 pages:
   - Areas;
   - Capabilities, including the OAuth "Connect" button;
   - Skills;
@@ -70,7 +74,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - Routines, with "run now" and Run history including transcripts and Tools used;
   - Conversations;
   - Telegram pairing.
-- Translated into Italian and English.
+- The dashboard language is Italian or English.
 
 ### Failures
 A failed Run sends a notice to its target Conversation and is detailed in the Run history.
@@ -78,10 +82,10 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 ## Architecture
 
 - **Modular monolith** in a pnpm TypeScript monorepo, organised as vertical feature slices named after glossary terms. Each slice holds domain, server API and UI ([ADR 0005](adr/0005-vertical-feature-slices.md)).
-- **Process:** a single Node process (Fastify or Hono) runs the API, scheduler and Telegram bot, and serves a Vite + React SPA.
+- **Process:** one Fastify Node process runs the API, scheduler and Telegram bot, and serves the built Vite + React SPA.
 - **Engine:** a swappable port; the first adapter is the Claude Agent SDK ([ADR 0001](adr/0001-swappable-engine-agent-sdk-with-owner-subscription.md)).
 - **Portable abilities:** Faculties, Capabilities (MCP) and Skills. Plugins are only packaging ([ADR 0002](adr/0002-portable-agent-abilities-plugins-are-packaging.md)).
-- **Storage:** definitions live in files (Markdown with frontmatter, YAML) that can be versioned with git; runtime state lives in SQLite ([ADR 0003](adr/0003-definitions-in-files-state-in-sqlite.md)).
+- **Storage:** PostgreSQL is the sole application database for structured configuration and runtime state. Skills and Memory remain files; Claude Agent SDK transcripts remain under `./data/claude` and the Engine's working folder is `./data/workspace`, with opaque session references in PostgreSQL ([ADR 0007](adr/0007-postgresql-config-and-state.md)). ADR 0003 records the superseded file/SQLite decision.
 - **Containers:** the Harness container holds the secrets. A single Sandbox container runs local and third-party code, with one unprivileged Linux user per process ([ADR 0004](adr/0004-separate-harness-and-sandbox.md)).
 - **Hosting:** Docker, starting on a local machine; a VPS or home server later.
 - **Language:** code and docs in English; UI in Italian and English.
@@ -90,7 +94,7 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
 - Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.
-- Memory: Markdown notes curated by the Agent.
+- Memory: Markdown notes curated by the Agent (file based).
 - Sandbox with the shell Faculty (on *ask*), local MCP servers and Skills with scripts.
 - Plugin installation from Claude Code marketplaces.
 - Injecting new messages into the turn already in progress, instead of queueing them.

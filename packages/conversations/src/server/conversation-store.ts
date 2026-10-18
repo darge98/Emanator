@@ -12,40 +12,45 @@ export interface NewConversation {
   openedBy: OpenedBy;
 }
 
-/** Conversations are runtime state in SQLite, not definitions (ADR 0003). */
+/** Conversations are runtime state in PostgreSQL, not definitions (ADR 0007). */
 export class ConversationStore {
-  constructor(private readonly db: Database) {
-    runMigrations(db, 'conversations', conversationMigrations);
+  constructor(private readonly db: Database) {}
+
+  async init(): Promise<void> {
+    await runMigrations(this.db, 'conversations', conversationMigrations);
   }
 
   /** The live Conversation of a thread; `threadId` undefined means the General thread. */
-  findByThread(channel: string, threadId: string | undefined): Conversation | undefined {
-    const row = this.db
-      .prepare(
-        `SELECT * FROM conversations
-         WHERE channel = ? AND ifnull(thread_id, '') = ? AND archived_at IS NULL`,
-      )
-      .get(channel, threadId ?? '');
+  async findByThread(
+    channel: string,
+    threadId: string | undefined,
+  ): Promise<Conversation | undefined> {
+    const {
+      rows: [row],
+    } = await this.db.query(
+      `SELECT * FROM conversations WHERE channel = $1 AND COALESCE(thread_id, '') = COALESCE($2, '') AND archived_at IS NULL`,
+      [channel, threadId ?? null],
+    );
     return row ? toConversation(row) : undefined;
   }
 
-  findByName(name: string): Conversation | undefined {
-    const row = this.db.prepare('SELECT * FROM conversations WHERE name = ?').get(name);
+  async findByName(name: string): Promise<Conversation | undefined> {
+    const {
+      rows: [row],
+    } = await this.db.query('SELECT * FROM conversations WHERE name = $1', [name]);
     return row ? toConversation(row) : undefined;
   }
 
-  create(input: NewConversation): Conversation {
+  async create(input: NewConversation): Promise<Conversation> {
     const conversation: Conversation = {
       id: randomUUID(),
       ...input,
       createdAt: new Date(),
     };
-    this.db
-      .prepare(
-        `INSERT INTO conversations (id, name, title, channel, thread_id, opened_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
+    await this.db.query(
+      `INSERT INTO conversations (id, name, title, channel, thread_id, opened_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
         conversation.id,
         conversation.name,
         conversation.title,
@@ -53,29 +58,32 @@ export class ConversationStore {
         conversation.threadId ?? null,
         conversation.openedBy,
         conversation.createdAt.toISOString(),
-      );
+      ],
+    );
     return conversation;
   }
 
   /** Stores the Engine session to resume, or clears it to start fresh. */
-  setSession(id: string, session: SessionRef | undefined): void {
-    this.db
-      .prepare('UPDATE conversations SET session_engine = ?, session_id = ? WHERE id = ?')
-      .run(session?.engine ?? null, session?.id ?? null, id);
+  async setSession(id: string, session: SessionRef | undefined): Promise<void> {
+    await this.db.query(
+      'UPDATE conversations SET session_engine = $1, session_id = $2 WHERE id = $3',
+      [session?.engine ?? null, session?.id ?? null, id],
+    );
   }
 
-  archive(id: string): void {
-    this.db
-      .prepare('UPDATE conversations SET archived_at = ? WHERE id = ?')
-      .run(new Date().toISOString(), id);
+  async archive(id: string): Promise<void> {
+    await this.db.query('UPDATE conversations SET archived_at = $1 WHERE id = $2', [
+      new Date(),
+      id,
+    ]);
   }
 
   /** `base`, or `base-2`, `base-3`, … if taken. Names stay reserved after archiving. */
-  availableName(base: string): string {
-    const taken = (name: string) =>
-      this.db.prepare('SELECT 1 FROM conversations WHERE name = ?').get(name) !== undefined;
+  async availableName(base: string): Promise<string> {
+    const taken = async (name: string) =>
+      (await this.db.query('SELECT 1 FROM conversations WHERE name = $1', [name])).rowCount !== 0;
     let name = base;
-    for (let n = 2; taken(name); n++) name = `${base}-${n}`;
+    for (let n = 2; await taken(name); n++) name = `${base}-${n}`;
     return name;
   }
 }
@@ -105,7 +113,10 @@ function toConversation(row: Record<string, unknown>): Conversation {
     }),
     ...(row.model !== null && { model: String(row.model) }),
     openedBy: String(row.opened_by) as OpenedBy,
-    createdAt: new Date(String(row.created_at)),
-    ...(row.archived_at !== null && { archivedAt: new Date(String(row.archived_at)) }),
+    createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+    ...(row.archived_at !== null && {
+      archivedAt:
+        row.archived_at instanceof Date ? row.archived_at : new Date(String(row.archived_at)),
+    }),
   };
 }

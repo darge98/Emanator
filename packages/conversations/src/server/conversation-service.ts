@@ -17,7 +17,7 @@ export interface ConversationServiceDeps {
   store: ConversationStore;
   usage: UsageTracker;
   /** Built fresh for every turn, so it can carry the current date and time. */
-  systemPrompt: () => string;
+  systemPrompt: () => Promise<string> | string;
   defaultModel: string;
   /** IANA time zone used when showing times to the Owner, e.g. `Europe/Rome`. */
   timeZone: string;
@@ -73,7 +73,7 @@ export class ConversationService {
   }
 
   private async process(event: InboundEvent): Promise<void> {
-    const conversation = this.resolve(event.threadId);
+    const conversation = await this.resolve(event.threadId);
     switch (event.type) {
       case 'message':
         return this.converse(conversation, event.text);
@@ -88,12 +88,15 @@ export class ConversationService {
     const { channel, store } = this.deps;
     await channel.showProgress(conversation.threadId, say.thinking);
     try {
-      const sessionLost = await this.turn(conversation, text);
+      // Resolve once before entering the Engine. A persona change during this turn
+      // takes effect on the next queued turn, including after a lost-session retry.
+      const prompt = await this.deps.systemPrompt();
+      const sessionLost = await this.turn(conversation, text, prompt);
       if (sessionLost) {
         // The Engine no longer has this session (e.g. its storage was wiped): start over, once.
-        store.setSession(conversation.id, undefined);
+        await store.setSession(conversation.id, undefined);
         const { session: _lost, ...fresh } = conversation;
-        await this.turn(fresh, text, say.sessionLost);
+        await this.turn(fresh, text, prompt, say.sessionLost);
       }
     } finally {
       await channel.showProgress(conversation.threadId, null);
@@ -104,21 +107,26 @@ export class ConversationService {
    * Runs one Engine turn and replies with its outcome, after `preface` if given.
    * Returns true, without replying, when the session to resume no longer exists.
    */
-  private async turn(conversation: Conversation, text: string, preface?: string): Promise<boolean> {
+  private async turn(
+    conversation: Conversation,
+    text: string,
+    systemPrompt: string,
+    preface?: string,
+  ): Promise<boolean> {
     const { channel, engine, store, usage } = this.deps;
     const model = this.modelOf(conversation);
     const withPreface = (markdown: string) => (preface ? `${preface}\n\n${markdown}` : markdown);
 
     for await (const event of engine.runTurn({
       prompt: text,
-      systemPrompt: this.deps.systemPrompt(),
+      systemPrompt,
       model,
       ...(conversation.session && { session: conversation.session }),
       decidePermission: denyAllTools,
     })) {
       switch (event.type) {
         case 'turn.started':
-          store.setSession(conversation.id, event.session);
+          await store.setSession(conversation.id, event.session);
           break;
         case 'tool.called':
           await channel.showProgress(conversation.threadId, say.usingTool(event.tool));
@@ -144,7 +152,7 @@ export class ConversationService {
   private async command(conversation: Conversation, command: InboundCommand): Promise<void> {
     switch (command.name) {
       case 'new':
-        this.deps.store.setSession(conversation.id, undefined);
+        await this.deps.store.setSession(conversation.id, undefined);
         return this.reply(conversation, say.contextReset);
       case 'topic':
         return this.openTopic(conversation, command.args);
@@ -171,8 +179,8 @@ export class ConversationService {
 
     const { channel, store } = this.deps;
     const threadId = await channel.openThread(title);
-    const topic = store.create({
-      name: store.availableName(slugify(title)),
+    const topic = await store.create({
+      name: await store.availableName(slugify(title)),
       title,
       channel: channel.id,
       threadId,
@@ -188,20 +196,20 @@ export class ConversationService {
       await this.deps.channel.send(conversation.threadId, { markdown });
     } catch (error) {
       if (!(error instanceof ThreadNotFoundError)) throw error;
-      this.deps.store.archive(conversation.id);
+      await this.deps.store.archive(conversation.id);
       this.deps.logger.warn('Thread is gone, Conversation archived', { name: conversation.name });
     }
   }
 
   /** The live Conversation of a thread, created on first contact. */
-  private resolve(threadId: string | undefined): Conversation {
+  private async resolve(threadId: string | undefined): Promise<Conversation> {
     const { channel, store } = this.deps;
-    const existing = store.findByThread(channel.id, threadId);
+    const existing = await store.findByThread(channel.id, threadId);
     if (existing) return existing;
 
     if (threadId === undefined) {
       return store.create({
-        name: store.availableName(GENERAL_CONVERSATION_NAME),
+        name: await store.availableName(GENERAL_CONVERSATION_NAME),
         title: say.GENERAL_TITLE,
         channel: channel.id,
         openedBy: 'harness',
@@ -209,7 +217,7 @@ export class ConversationService {
     }
     // A topic the Harness doesn't know, e.g. opened before the state was reset.
     return store.create({
-      name: store.availableName(`topic-${threadId}`),
+      name: await store.availableName(`topic-${threadId}`),
       title: `Topic ${threadId}`,
       channel: channel.id,
       threadId,

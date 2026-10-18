@@ -33,17 +33,23 @@ export class TelegramChannel implements Channel {
   readonly id = TELEGRAM_CHANNEL_ID;
   private readonly bot: Bot;
   private readonly pairing: TelegramPairing;
+  private readonly db: Database;
   private readonly logger: Logger;
   private readonly progress = new ProgressDrafts((threadId, draftId, text) =>
     this.sendDraft(threadId, draftId, text),
   );
 
   constructor({ token, db, logger }: TelegramChannelConfig) {
-    runMigrations(db, 'channels.telegram', telegramMigrations);
     this.bot = new Bot(token);
     this.bot.api.config.use(autoRetry());
     this.pairing = new TelegramPairing(db);
+    this.db = db;
     this.logger = logger;
+  }
+
+  async init(): Promise<void> {
+    await runMigrations(this.db, 'channels.telegram', telegramMigrations);
+    await this.pairing.init();
   }
 
   async start(onEvent: InboundHandler): Promise<void> {
@@ -90,7 +96,7 @@ export class TelegramChannel implements Channel {
   }
 
   async send(threadId: string | undefined, { markdown }: OutboundMessage): Promise<void> {
-    const { chatId } = this.requireOwner();
+    const { chatId } = await this.requireOwner();
     await this.showProgress(threadId, null);
     const thread = threadOptions(threadId);
     try {
@@ -113,7 +119,7 @@ export class TelegramChannel implements Channel {
   }
 
   async openThread(title: string): Promise<string> {
-    const { chatId } = this.requireOwner();
+    const { chatId } = await this.requireOwner();
     const topic = await this.bot.api.createForumTopic(chatId, title.slice(0, 128));
     return String(topic.message_thread_id);
   }
@@ -128,12 +134,12 @@ export class TelegramChannel implements Channel {
     );
   }
 
-  private receive(message: Message, onEvent: InboundHandler): void {
+  private async receive(message: Message, onEvent: InboundHandler): Promise<void> {
     if (message.chat.type !== 'private' || !message.from) return;
 
-    const owner = this.pairing.owner();
+    const owner = await this.pairing.owner();
     if (!owner) {
-      void this.tryPairing(message);
+      await this.tryPairing(message);
       return;
     }
     // Everyone but the Owner is ignored without an answer.
@@ -146,7 +152,9 @@ export class TelegramChannel implements Channel {
   private async tryPairing(message: Message): Promise<void> {
     const event = toInboundEvent(message);
     if (event?.type !== 'command' || event.name !== 'start' || !message.from) return;
-    if (!this.pairing.pair(event.args, { userId: message.from.id, chatId: message.chat.id }))
+    if (
+      !(await this.pairing.pair(event.args, { userId: message.from.id, chatId: message.chat.id }))
+    )
       return;
 
     this.logger.info('Paired with the Owner', { userId: message.from.id });
@@ -167,7 +175,7 @@ export class TelegramChannel implements Channel {
     draftId: number,
     text: string,
   ): Promise<void> {
-    const owner = this.pairing.owner();
+    const owner = await this.pairing.owner();
     if (!owner) return;
     try {
       await this.bot.api.sendMessageDraft(owner.chatId, draftId, text, threadOptions(threadId));
@@ -176,8 +184,8 @@ export class TelegramChannel implements Channel {
     }
   }
 
-  private requireOwner() {
-    const owner = this.pairing.owner();
+  private async requireOwner() {
+    const owner = await this.pairing.owner();
     if (!owner) throw new Error('Telegram is not paired with the Owner yet.');
     return owner;
   }

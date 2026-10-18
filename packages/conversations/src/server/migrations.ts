@@ -14,12 +14,12 @@ export const conversationMigrations: Migration[] = [
         session_id TEXT,
         model TEXT,
         opened_by TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        archived_at TEXT
+        created_at TIMESTAMPTZ NOT NULL,
+        archived_at TIMESTAMPTZ
       );
       -- At most one live Conversation per thread.
       CREATE UNIQUE INDEX conversations_live_thread
-        ON conversations (channel, ifnull(thread_id, ''))
+        ON conversations (channel, COALESCE(thread_id, ''))
         WHERE archived_at IS NULL;
     `,
   },

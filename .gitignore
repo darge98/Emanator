@@ -1,8 +1,9 @@
 node_modules/
 dist/
 coverage/
+.pnpm-store/
 
-# Runtime data: sessions, state, reports. Definitions get their own repo later (ADR 0003).
+# Engine sessions and workspace files, reports, and archived runtime backups.
 data/
 
 # Secrets

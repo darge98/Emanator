@@ -12,8 +12,9 @@ Code and docs use the English terms below. The UI is translated, so each term al
 The self-hosted platform that hosts the Agent and connects it to Events, Capabilities and Channels. Each installation serves exactly one Owner.
 _Avoid_: framework, server, bot
 
-**Owner** (it: *Proprietario*):
+**Owner** (it: *Utente*):
 The single person an Harness installation serves. They configure the Agent and receive its messages.
+Owner is a role, not a personal name or a form of address.
 _Avoid_: user, account
 
 **Agent** (it: *Agente*):
@@ -21,15 +22,19 @@ The configured assistant: Persona, Faculties, Capabilities, Skills, Channels and
 _Avoid_: bot, assistant, AI
 
 **Persona** (it: *Personalità*):
-The Agent's character: name, tone, style and behavioural rules. It starts from a built-in persona, inspired by well-known AI assistants from pop culture, or is written from scratch; either way the Owner can customise it.
+The Agent's character: a name and free-form personality text that describe its tone, style and behavioural rules. A preset can provide initial values, which the Owner can edit; the saved Persona contains no link to the preset.
 _Avoid_: character, system prompt
+
+**Preset** (it: *Preset*):
+A built-in starting point for a Persona. Applying one copies its name and personality into the editable Persona fields; later changes to that Persona are independent of the preset.
+_Avoid_: template, profile
 
 **Area** (it: *Ambito*):
 A part of the Owner's life, such as Personal, Work, Volunteering or Hobby. Every Capability belongs to an Area, so the Agent knows which part of the Owner's life an account relates to.
 _Avoid_: label, tag, category, profile, context
 
 **Memory** (it: *Memoria*):
-The persistent notes about the Owner and their world (facts, people, preferences, habits), curated by the Agent and editable by the Owner. It survives Conversation resets.
+The persistent notes about the Owner and their world (name, facts, people, preferences, habits), curated by the Agent and editable by the Owner. It survives Conversation resets.
 _Avoid_: knowledge base, profile, context
 
 ### Agent abilities

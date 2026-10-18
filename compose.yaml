@@ -1,10 +1,36 @@
 services:
+  postgres:
+    image: postgres:18-bookworm
+    environment:
+      POSTGRES_USER: emanator
+      POSTGRES_DB: emanator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emanator}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emanator -d emanator"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   # The Harness itself: Telegram long polling, Conversations, Engine.
   # Start: `docker compose up -d harness` · logs (pairing code): `docker compose logs -f harness`
   harness:
     build: .
     command: ["./node_modules/.bin/tsx", "apps/server/src/main.ts"]
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql://emanator:${POSTGRES_PASSWORD:-emanator}@postgres:5432/emanator
+      EMANATOR_HTTP_HOST: 0.0.0.0
+      EMANATOR_HTTP_PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./data:/data
     restart: unless-stopped
@@ -20,3 +46,6 @@ services:
     stdin_open: true
     tty: true
     profiles: ["tools"]
+
+volumes:
+  postgres-data:

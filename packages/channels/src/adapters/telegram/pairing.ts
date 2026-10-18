@@ -17,30 +17,41 @@ const CODE_LENGTH = 8;
  */
 export class TelegramPairing {
   private readonly code: string | undefined;
+  private pairedOwner: TelegramOwner | undefined;
 
   constructor(private readonly db: Database) {
-    this.code = this.owner() ? undefined : generateCode();
+    this.code = generateCode();
   }
 
-  owner(): TelegramOwner | undefined {
-    const row = this.db.prepare('SELECT user_id, chat_id FROM telegram_owner').get();
+  async init(): Promise<void> {
+    this.pairedOwner = await this.owner();
+  }
+
+  async owner(): Promise<TelegramOwner | undefined> {
+    const {
+      rows: [row],
+    } = await this.db.query('SELECT user_id, chat_id FROM telegram_owner WHERE singleton = 1');
     return row ? { userId: Number(row.user_id), chatId: Number(row.chat_id) } : undefined;
   }
 
   /** The code to show the Owner, or undefined once paired. */
   pendingCode(): string | undefined {
-    return this.owner() ? undefined : this.code;
+    return this.pairedOwner ? undefined : this.code;
   }
 
   /** Pairs the sender if the code matches; returns whether it did. */
-  pair(code: string, owner: TelegramOwner): boolean {
+  async pair(code: string, owner: TelegramOwner): Promise<boolean> {
     const expected = this.pendingCode();
     if (!expected || code.trim().toUpperCase() !== expected) return false;
-    this.db
-      .prepare(
-        'INSERT INTO telegram_owner (singleton, user_id, chat_id, paired_at) VALUES (1, ?, ?, ?)',
-      )
-      .run(owner.userId, owner.chatId, new Date().toISOString());
+    const result = await this.db.query(
+      'INSERT INTO telegram_owner (singleton, user_id, chat_id, paired_at) VALUES (1, $1, $2, $3) ON CONFLICT DO NOTHING',
+      [owner.userId, owner.chatId, new Date()],
+    );
+    if (result.rowCount !== 1) {
+      this.pairedOwner = await this.owner();
+      return false;
+    }
+    this.pairedOwner = owner;
     return true;
   }
 }

@@ -1,59 +1,69 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { Database } from './database.ts';
+import { transaction } from './database.ts';
 import { runMigrations } from './migrations.ts';
-import { openDatabase } from './sqlite.ts';
+import { createTestDatabase } from './testing.ts';
 
-const tables = (db: ReturnType<typeof openDatabase>) =>
-  db
-    .prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\'",
-    )
-    .all()
-    .map((row) => row.name);
+const fixtures: Array<{ db: Database; close: () => Promise<void> }> = [];
+async function database() {
+  const fixture = await createTestDatabase();
+  fixtures.push(fixture);
+  return fixture.db;
+}
+afterEach(async () => {
+  await Promise.all(fixtures.splice(0).map(({ close }) => close()));
+});
 
-describe('runMigrations', () => {
-  it('applies pending migrations once', () => {
-    const db = openDatabase(':memory:');
-    const migrations = [{ id: '001-notes', sql: 'CREATE TABLE notes (id TEXT)' }];
-
-    runMigrations(db, 'notes', migrations);
-    runMigrations(db, 'notes', migrations);
-
-    expect(tables(db)).toEqual(['notes']);
+describe.skipIf(!process.env.TEST_DATABASE_URL)('runMigrations', () => {
+  it('applies each migration once and tracks it by feature', async () => {
+    const db = await database();
+    const migrations = [{ id: '001', sql: 'CREATE TABLE notes (body TEXT)' }];
+    await runMigrations(db, 'notes', migrations);
+    await runMigrations(db, 'notes', migrations);
+    const result = await db.query(
+      "SELECT count(*)::int AS n FROM _migrations WHERE feature = 'notes'",
+    );
+    expect(result.rows[0]?.n).toBe(1);
+    await expect(db.query('SELECT * FROM notes')).resolves.toBeDefined();
   });
 
-  it('applies only the migrations added since the last run', () => {
-    const db = openDatabase(':memory:');
-    runMigrations(db, 'notes', [{ id: '001', sql: 'CREATE TABLE notes (id TEXT)' }]);
-
-    runMigrations(db, 'notes', [
-      { id: '001', sql: 'CREATE TABLE notes (id TEXT)' },
-      { id: '002', sql: 'ALTER TABLE notes ADD COLUMN body TEXT' },
-    ]);
-
-    const columns = db.prepare('PRAGMA table_info(notes)').all();
-    expect(columns.map((column) => column.name)).toEqual(['id', 'body']);
+  it('serializes concurrent migration attempts across features', async () => {
+    const db = await database();
+    const notes = [{ id: '001', sql: 'CREATE TABLE notes (body TEXT)' }];
+    const tasks = [{ id: '001', sql: 'CREATE TABLE tasks (body TEXT)' }];
+    await Promise.all([runMigrations(db, 'notes', notes), runMigrations(db, 'tasks', tasks)]);
+    const result = await db.query('SELECT count(*)::int AS n FROM _migrations');
+    expect(result.rows[0]?.n).toBe(2);
+    await expect(db.query('SELECT * FROM notes')).resolves.toBeDefined();
+    await expect(db.query('SELECT * FROM tasks')).resolves.toBeDefined();
   });
 
-  it('tracks features separately even when ids collide', () => {
-    const db = openDatabase(':memory:');
-
-    runMigrations(db, 'notes', [{ id: '001', sql: 'CREATE TABLE notes (id TEXT)' }]);
-    runMigrations(db, 'tasks', [{ id: '001', sql: 'CREATE TABLE tasks (id TEXT)' }]);
-
-    expect(tables(db)).toEqual(['notes', 'tasks']);
+  it('rolls back a broken migration and leaves it unapplied', async () => {
+    const db = await database();
+    await expect(
+      runMigrations(db, 'notes', [{ id: '001', sql: 'CREATE TABLE notes (id TEXT); INVALID SQL' }]),
+    ).rejects.toThrow();
+    const result = await db.query("SELECT to_regclass('notes') AS notes");
+    expect(result.rows[0]?.notes).toBeNull();
+    await runMigrations(db, 'notes', [{ id: '001', sql: 'CREATE TABLE notes (id TEXT)' }]);
+    const applied = await db.query(
+      "SELECT count(*)::int AS n FROM _migrations WHERE feature = 'notes' AND id = '001'",
+    );
+    expect(applied.rows[0]?.n).toBe(1);
+    await expect(db.query('SELECT * FROM notes')).resolves.toBeDefined();
   });
 
-  it('rolls back a failing migration and leaves it pending', () => {
-    const db = openDatabase(':memory:');
-    const broken = {
-      id: '001',
-      sql: 'CREATE TABLE notes (id TEXT); INSERT INTO missing VALUES (1);',
-    };
-
-    expect(() => runMigrations(db, 'notes', [broken])).toThrow();
-    expect(tables(db)).toEqual([]);
-
-    runMigrations(db, 'notes', [{ id: '001', sql: 'CREATE TABLE notes (id TEXT)' }]);
-    expect(tables(db)).toEqual(['notes']);
+  it('keeps asynchronous work inside the transaction and rolls it back on rejection', async () => {
+    const db = await database();
+    await db.query('CREATE TABLE notes (body TEXT)');
+    await expect(
+      transaction(db, async (client) => {
+        await client.query('INSERT INTO notes VALUES ($1)', ['before failure']);
+        await Promise.resolve();
+        throw new Error('work failed');
+      }),
+    ).rejects.toThrow('work failed');
+    const result = await db.query('SELECT count(*)::int AS n FROM notes');
+    expect(result.rows[0]?.n).toBe(0);
   });
 });

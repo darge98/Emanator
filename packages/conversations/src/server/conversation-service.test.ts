@@ -2,19 +2,28 @@ import type { InboundEvent } from '@emanator/channels';
 import { FakeChannel } from '@emanator/channels/testing';
 import { type EngineEvent, UsageTracker } from '@emanator/engine';
 import { FakeEngine, replyWith, type ScriptedTurn } from '@emanator/engine/testing';
-import { openDatabase, silentLogger } from '@emanator/shared/server';
-import { describe, expect, it } from 'vitest';
+import { createTestDatabase, silentLogger } from '@emanator/shared/server';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ConversationService } from './conversation-service.ts';
 import { ConversationStore } from './conversation-store.ts';
 
-function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
-  const store = new ConversationStore(openDatabase(':memory:'));
+const cleanups: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  await Promise.all(cleanups.splice(0).map((close) => close()));
+});
+
+async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
+  const fixture = await createTestDatabase();
+  cleanups.push(fixture.close);
+  const store = new ConversationStore(fixture.db);
+  await store.init();
+  let prompt = 'You are a test agent.';
   const service = new ConversationService({
     channel,
     engine,
     store,
     usage: new UsageTracker(),
-    systemPrompt: () => 'You are a test agent.',
+    systemPrompt: () => prompt,
     defaultModel: 'sonnet',
     timeZone: 'Europe/Rome',
     logger: silentLogger,
@@ -23,7 +32,16 @@ function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     for (const event of events) service.handle(event);
     await service.idle();
   };
-  return { channel, engine, store, service, send };
+  return {
+    channel,
+    engine,
+    store,
+    service,
+    send,
+    setPrompt: (next: string) => {
+      prompt = next;
+    },
+  };
 }
 
 const at = new Date('2026-10-14T10:00:00Z');
@@ -42,23 +60,29 @@ const command = (name: string, args = '', threadId?: string): InboundEvent => ({
 });
 
 /** A turn that waits for `release()` before answering. */
-function gated(text: string): { turn: ScriptedTurn; release: () => void } {
+function gated(text: string): { turn: ScriptedTurn; release: () => void; started: Promise<void> } {
   let release = () => {};
+  let markStarted = () => {};
   const opened = new Promise<void>((resolve) => {
     release = resolve;
   });
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
   return {
     turn: async (request) => {
+      markStarted();
       await opened;
       return replyWith(text)(request);
     },
     release,
+    started,
   };
 }
 
-describe('ConversationService', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
   it('answers in the General thread and remembers the Engine session', async () => {
-    const { channel, engine, store, send } = setup();
+    const { channel, engine, store, send } = await setup();
 
     await send(message('Ciao'));
 
@@ -69,7 +93,7 @@ describe('ConversationService', () => {
       model: 'sonnet',
     });
     expect(engine.requests[0]).not.toHaveProperty('session');
-    expect(store.findByThread('fake', undefined)).toMatchObject({
+    expect(await store.findByThread('fake', undefined)).toMatchObject({
       name: 'general',
       title: 'Generale',
       session: { engine: 'fake', id: 'session-1' },
@@ -77,30 +101,48 @@ describe('ConversationService', () => {
   });
 
   it('resumes the session on the next message', async () => {
-    const { engine, send } = setup();
+    const { engine, send } = await setup();
 
     await send(message('Ricorda: lampone'), message('Cosa ti ho detto?'));
 
     expect(engine.requests[1]?.session).toEqual({ engine: 'fake', id: 'session-1' });
   });
 
+  it('keeps the prompt snapshot for an in-flight turn and uses the new prompt on its resumed turn', async () => {
+    const slow = gated('prima');
+    const { engine, service, setPrompt } = await setup(new FakeEngine().script(slow.turn));
+
+    service.handle(message('uno'));
+    await slow.started;
+    setPrompt('You are a newly configured agent.');
+    slow.release();
+    await service.idle();
+    service.handle(message('due'));
+    await service.idle();
+
+    expect(engine.requests.map((request) => request.systemPrompt)).toEqual([
+      'You are a test agent.',
+      'You are a newly configured agent.',
+    ]);
+    expect(engine.requests[1]?.session).toEqual({ engine: 'fake', id: 'session-1' });
+  });
+
   it('gives an unknown topic its own Conversation and answers there', async () => {
-    const { channel, store, send } = setup();
+    const { channel, store, send } = await setup();
 
     await send(message('Ciao', '42'));
 
     expect(channel.sent).toEqual([{ threadId: '42', markdown: 'ok' }]);
-    expect(store.findByThread('fake', '42')).toMatchObject({ name: 'topic-42' });
+    expect(await store.findByThread('fake', '42')).toMatchObject({ name: 'topic-42' });
   });
 
   it('handles the messages of one Conversation one at a time', async () => {
     const slow = gated('prima');
-    const { channel, engine, service } = setup(new FakeEngine().script(slow.turn));
+    const { channel, engine, service } = await setup(new FakeEngine().script(slow.turn));
 
     service.handle(message('uno'));
     service.handle(message('due'));
-    await Promise.resolve();
-    await Promise.resolve();
+    await slow.started;
     expect(engine.requests).toHaveLength(1);
 
     slow.release();
@@ -110,12 +152,31 @@ describe('ConversationService', () => {
 
   it('runs different Conversations in parallel', async () => {
     const slow = gated('generale');
-    const { channel, service } = setup(new FakeEngine().script(slow.turn));
+    class WatchingChannel extends FakeChannel {
+      private markFastReply = () => {};
+      readonly fastReply = new Promise<void>((resolve) => {
+        this.markFastReply = resolve;
+      });
+
+      override async send(
+        threadId: string | undefined,
+        message: { markdown: string },
+      ): Promise<void> {
+        await super.send(threadId, message);
+        if (threadId === '42') this.markFastReply();
+      }
+    }
+    const channel = new WatchingChannel();
+    const engine = new FakeEngine(async (request) => {
+      if (request.prompt === 'lento') return slow.turn(request);
+      return replyWith('veloce')(request);
+    });
+    const { service } = await setup(engine, channel);
 
     service.handle(message('lento'));
     service.handle(message('veloce', '42'));
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(channel.sent).toEqual([{ threadId: '42', markdown: 'ok' }]);
+    await Promise.all([slow.started, channel.fastReply]);
+    expect(channel.sent).toEqual([{ threadId: '42', markdown: 'veloce' }]);
 
     slow.release();
     await service.idle();
@@ -131,7 +192,7 @@ describe('ConversationService', () => {
         completed as EngineEvent,
       ];
     };
-    const { channel, send } = setup(new FakeEngine().script(withTool));
+    const { channel, send } = await setup(new FakeEngine().script(withTool));
 
     await send(message('Che ore sono?'));
 
@@ -139,23 +200,23 @@ describe('ConversationService', () => {
   });
 
   it('/new forgets the session of that Conversation only', async () => {
-    const { channel, engine, store, send } = setup();
+    const { channel, engine, store, send } = await setup();
     await send(message('uno'), message('uno', '42'));
 
     await send(command('new'), message('di nuovo'));
 
     expect(channel.sent.at(-2)?.markdown).toContain('Contesto azzerato');
     expect(engine.requests.at(-1)).not.toHaveProperty('session');
-    expect(store.findByThread('fake', '42')?.session).toBeDefined();
+    expect((await store.findByThread('fake', '42'))?.session).toBeDefined();
   });
 
   it('/topic opens a thread with its own Conversation', async () => {
-    const { channel, store, send } = setup();
+    const { channel, store, send } = await setup();
 
     await send(command('topic', 'Viaggio in Giappone'));
 
     expect(channel.opened).toEqual(['Viaggio in Giappone']);
-    expect(store.findByThread('fake', '100')).toMatchObject({
+    expect(await store.findByThread('fake', '100')).toMatchObject({
       name: 'viaggio-in-giappone',
       title: 'Viaggio in Giappone',
       openedBy: 'owner',
@@ -167,7 +228,7 @@ describe('ConversationService', () => {
   });
 
   it('/topic without a name explains how to use it', async () => {
-    const { channel, send } = setup();
+    const { channel, send } = await setup();
 
     await send(command('topic'));
 
@@ -187,7 +248,7 @@ describe('ConversationService', () => {
       },
       ...(replyWith('ok')(request) as EngineEvent[]),
     ];
-    const { channel, send } = setup(new FakeEngine().script(withUsage));
+    const { channel, send } = await setup(new FakeEngine().script(withUsage));
 
     await send(message('ciao'), command('status'));
 
@@ -212,7 +273,7 @@ describe('ConversationService', () => {
       lost,
       replyWith('di nuovo', 'session-2'),
     );
-    const { channel, store, send } = setup(engine);
+    const { channel, store, send } = await setup(engine);
     await send(message('uno'));
 
     await send(message('due'));
@@ -221,14 +282,14 @@ describe('ConversationService', () => {
     expect(channel.sent.at(-1)?.markdown).toBe(
       '⚠️ Avevo perso il contesto di questa conversazione: riparto da zero.\n\ndi nuovo',
     );
-    expect(store.findByThread('fake', undefined)?.session?.id).toBe('session-2');
+    expect((await store.findByThread('fake', undefined))?.session?.id).toBe('session-2');
   });
 
   it('keeps the session when a turn fails for any other reason', async () => {
     const broken: ScriptedTurn = () => [
       { type: 'turn.failed', reason: 'error', message: 'overloaded' },
     ];
-    const { channel, engine, store, send } = setup(
+    const { channel, engine, store, send } = await setup(
       new FakeEngine().script(replyWith('ok'), broken),
     );
     await send(message('uno'));
@@ -237,7 +298,7 @@ describe('ConversationService', () => {
 
     expect(engine.requests).toHaveLength(2);
     expect(channel.sent.at(-1)?.markdown).toContain('overloaded');
-    expect(store.findByThread('fake', undefined)?.session?.id).toBe('session-1');
+    expect((await store.findByThread('fake', undefined))?.session?.id).toBe('session-1');
   });
 
   it('tells the Owner when handling fails outside the Engine', async () => {
@@ -246,7 +307,7 @@ describe('ConversationService', () => {
         throw new Error('Bad Request: the chat is not a forum');
       }
     }
-    const { channel, send } = setup(new FakeEngine(), new NoTopics());
+    const { channel, send } = await setup(new FakeEngine(), new NoTopics());
 
     await send(command('topic', 'Viaggio'));
 
@@ -267,7 +328,7 @@ describe('ConversationService', () => {
       }
     }
     const channel = new Offline();
-    const { send } = setup(new FakeEngine(), channel);
+    const { send } = await setup(new FakeEngine(), channel);
 
     await send(message('uno'));
     channel.offline = false;
@@ -281,7 +342,7 @@ describe('ConversationService', () => {
       { type: 'usage.limit', status: 'exhausted', resetsAt: new Date('2026-10-14T20:30:00Z') },
       { type: 'turn.failed', reason: 'usage-limit', message: 'limit' },
     ];
-    const { channel, send } = setup(new FakeEngine().script(exhausted));
+    const { channel, send } = await setup(new FakeEngine().script(exhausted));
 
     await send(message('ciao'));
 
@@ -289,21 +350,21 @@ describe('ConversationService', () => {
   });
 
   it('archives a Conversation whose thread was deleted, and starts over next time', async () => {
-    const { channel, store, send } = setup();
+    const { channel, store, send } = await setup();
     await send(message('ciao', '42'));
-    const first = store.findByThread('fake', '42');
+    const first = await store.findByThread('fake', '42');
 
     channel.deletedThreads.add('42');
     await send(message('ci sei?', '42'));
-    expect(store.findByThread('fake', '42')).toBeUndefined();
+    expect(await store.findByThread('fake', '42')).toBeUndefined();
 
     channel.deletedThreads.delete('42');
     await send(message('di nuovo', '42'));
-    expect(store.findByThread('fake', '42')?.id).not.toBe(first?.id);
+    expect((await store.findByThread('fake', '42'))?.id).not.toBe(first?.id);
   });
 
   it('explains that only text is understood for now', async () => {
-    const { channel, send } = setup();
+    const { channel, send } = await setup();
 
     await send({ type: 'unsupported', kind: 'voice', receivedAt: at });
 
@@ -311,7 +372,7 @@ describe('ConversationService', () => {
   });
 
   it('points to /help for unknown commands', async () => {
-    const { channel, send } = setup();
+    const { channel, send } = await setup();
 
     await send(command('boh'));
 

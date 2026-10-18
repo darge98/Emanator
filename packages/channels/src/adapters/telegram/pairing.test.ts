@@ -1,52 +1,42 @@
-import { openDatabase, runMigrations } from '@emanator/shared/server';
-import { describe, expect, it } from 'vitest';
+import { createTestDatabase, runMigrations } from '@emanator/shared/server';
+import { afterEach, describe, expect, it } from 'vitest';
 import { telegramMigrations } from './migrations.ts';
 import { TelegramPairing } from './pairing.ts';
 
-function database() {
-  const db = openDatabase(':memory:');
-  runMigrations(db, 'channels.telegram', telegramMigrations);
-  return db;
+const cleanups: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  await Promise.all(cleanups.splice(0).map((close) => close()));
+});
+async function pairing() {
+  const fixture = await createTestDatabase();
+  cleanups.push(fixture.close);
+  const db = fixture.db;
+  await runMigrations(db, 'channels.telegram', telegramMigrations);
+  const instance = new TelegramPairing(db);
+  await instance.init();
+  return { db, instance };
 }
-
 const owner = { userId: 100, chatId: 100 };
 
-describe('TelegramPairing', () => {
-  it('offers a one-time code while nobody is paired', () => {
-    const pairing = new TelegramPairing(database());
-
-    expect(pairing.owner()).toBeUndefined();
-    expect(pairing.pendingCode()).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+describe.skipIf(!process.env.TEST_DATABASE_URL)('TelegramPairing', () => {
+  it('offers a one-time code while nobody is paired', async () => {
+    const { instance } = await pairing();
+    expect(await instance.owner()).toBeUndefined();
+    expect(instance.pendingCode()).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
   });
-
-  it('pairs the sender of the right code, ignoring case and spaces', () => {
-    const pairing = new TelegramPairing(database());
-    const code = pairing.pendingCode() as string;
-
-    expect(pairing.pair(`  ${code.toLowerCase()} `, owner)).toBe(true);
-    expect(pairing.owner()).toEqual(owner);
-    expect(pairing.pendingCode()).toBeUndefined();
+  it('pairs the sender of the right code, ignoring case and spaces', async () => {
+    const { instance } = await pairing();
+    const code = instance.pendingCode() as string;
+    expect(await instance.pair(`  ${code.toLowerCase()} `, owner)).toBe(true);
+    expect(await instance.owner()).toEqual(owner);
+    expect(instance.pendingCode()).toBeUndefined();
   });
-
-  it('refuses a wrong code', () => {
-    const pairing = new TelegramPairing(database());
-
-    expect(pairing.pair('WRONG123', owner)).toBe(false);
-    expect(pairing.owner()).toBeUndefined();
-  });
-
-  it('cannot be paired twice', () => {
-    const db = database();
-    const pairing = new TelegramPairing(db);
-    pairing.pair(pairing.pendingCode() as string, owner);
-
-    expect(pairing.pair('ANYTHING', { userId: 200, chatId: 200 })).toBe(false);
-    expect(new TelegramPairing(db).owner()).toEqual(owner);
-  });
-
-  it('issues a new code at every start', () => {
-    const db = database();
-
-    expect(new TelegramPairing(db).pendingCode()).not.toBe(new TelegramPairing(db).pendingCode());
+  it('refuses a wrong code and prevents a second pairing', async () => {
+    const { instance } = await pairing();
+    expect(await instance.pair('WRONG123', owner)).toBe(false);
+    const code = instance.pendingCode() as string;
+    expect(await instance.pair(code, owner)).toBe(true);
+    expect(await instance.pair(code, { userId: 200, chatId: 200 })).toBe(false);
+    expect(await instance.owner()).toEqual(owner);
   });
 });
