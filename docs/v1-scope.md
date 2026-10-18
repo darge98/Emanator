@@ -17,12 +17,18 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 ### Routines
 - A Routine is a prompt plus one or more scheduled Triggers: a specific date, an interval or a cron expression.
 - The Agent decides which Faculties, Capabilities and Skills to use.
-- Each Routine picks its own model and the Conversation it delivers to.
+- Routine names are unique and otherwise free; `general` is allowed too.
+- Each Routine picks its own model and whether it has a dedicated topic. Without one, it delivers to General.
+- A dedicated topic is the Routine's own Conversation:
+  - it is created on the first Run and the Routine keeps it by id;
+  - its name is the Routine's name with the reserved `-routine` suffix (`briefing-routine`), and its Telegram title marks it as a Routine. It therefore never collides with General or with topics opened by the Owner or the Agent, and never needs a numeric suffix. A topic opened normally whose name would end in `-routine` gets the numeric suffix instead;
+  - renaming the Routine renames the Conversation and the Telegram topic;
+  - if the Conversation is archived, the next Run opens a new one with the same name;
+  - turning the option off applies from the next Run and leaves the Conversation live;
+  - deleting the Routine archives its Conversation. The Telegram topic stays, and removing it is up to the Owner.
 - Each Routine message starts with a header naming the Routine. It then still makes sense if it lands in General because the Owner deleted the target topic (see Conversations).
-- Conversation names, which Routines will be the first to use, follow one rule: a name identifies a *live* Conversation. This needs three changes:
-  - `findByName` must skip archived ones;
-  - names must be unique only among live Conversations (a table rebuild), so that a reopened `briefing` is `briefing` again;
-  - `general` must be reserved for the General Conversation.
+- Creating, editing or deleting a Routine applies immediately, without restarting the Harness: the scheduler updates its Triggers. A Run already in progress completes.
+- Conversation names follow one rule: a name identifies a *live* Conversation. Archiving a Conversation frees its name, so a reopened `briefing-routine` keeps it, and `general` is reserved for the General Conversation.
 - A Run may finish without messaging the Owner. A Heartbeat is just a Routine.
 - Runs, including Runs of the same Routine, execute in parallel.
 - Events that fire while the Harness is down are skipped.
@@ -118,6 +124,6 @@ A failed Run sends a notice to its target Conversation and is detailed in the Ru
 ## Risks to check first
 
 - **Subscription token with the Agent SDK:** it works end to end (smoke run on 2026-10-14, see ADR 0001), but it remains a grey area in Anthropic's terms.
-- **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics.
+- **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics, and that the bot can rename them (Routine renames).
 - **Google official MCP servers:** they are in Developer Preview, and it is unverified whether a personal @gmail.com account is accepted. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
 - **Built-in Personas named after real characters** (Jarvis, Cortana, Joi): trademark and copyright risk once the project is public.

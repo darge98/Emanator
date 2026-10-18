@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { SessionRef } from '@emanator/engine';
 import { type Database, runMigrations } from '@emanator/shared/server';
-import type { Conversation, OpenedBy } from '../domain/conversation.ts';
+import {
+  type Conversation,
+  GENERAL_CONVERSATION_NAME,
+  type OpenedBy,
+} from '../domain/conversation.ts';
 import { conversationMigrations } from './migrations.ts';
 
 export interface NewConversation {
-  /** Preferred name; creation adds a numeric suffix if this name is already reserved. */
+  /** Preferred name; creation adds a numeric suffix if a live Conversation holds it. */
   name: string;
   title: string;
   channel: string;
@@ -35,14 +39,20 @@ export class ConversationStore {
     return row ? toConversation(row) : undefined;
   }
 
+  /** The live Conversation with this name. */
   async findByName(name: string): Promise<Conversation | undefined> {
     const {
       rows: [row],
-    } = await this.db.query('SELECT * FROM conversations WHERE name = $1', [name]);
+    } = await this.db.query('SELECT * FROM conversations WHERE name = $1 AND archived_at IS NULL', [
+      name,
+    ]);
     return row ? toConversation(row) : undefined;
   }
 
-  /** Atomically claims `name`, or `name-2`, `name-3`, …; archived names stay reserved. */
+  /**
+   * Atomically claims `name`, or `name-2`, `name-3`, … if a live Conversation holds it.
+   * Only the General thread may be called `general`.
+   */
   async create(input: NewConversation): Promise<Conversation> {
     const conversation: Conversation = {
       id: randomUUID(),
@@ -51,10 +61,11 @@ export class ConversationStore {
     };
     for (let n = 1; ; n++) {
       const name = n === 1 ? input.name : `${input.name}-${n}`;
+      if (name === GENERAL_CONVERSATION_NAME && input.threadId !== undefined) continue;
       const { rows } = await this.db.query(
         `INSERT INTO conversations (id, name, title, channel, thread_id, opened_by, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (name) DO NOTHING
+         ON CONFLICT (name) WHERE archived_at IS NULL DO NOTHING
          RETURNING *`,
         [
           conversation.id,

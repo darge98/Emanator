@@ -35,7 +35,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationStore', () => {
     expect(await conversations.findByName('general')).not.toHaveProperty('session');
   });
 
-  it('archives a thread while keeping its name reserved', async () => {
+  it('frees the name of an archived Conversation', async () => {
     const conversations = await store();
     const old = await conversations.create({
       name: 'trip',
@@ -46,15 +46,37 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationStore', () => {
     });
     await conversations.archive(old.id);
     expect(await conversations.findByThread('telegram', '42')).toBeUndefined();
-    await expect(
-      conversations.create({
-        name: 'trip',
-        title: 'Trip',
-        channel: 'telegram',
-        threadId: '42',
-        openedBy: 'owner',
-      }),
-    ).resolves.toMatchObject({ name: 'trip-2' });
+    expect(await conversations.findByName('trip')).toBeUndefined();
+
+    const reopened = await conversations.create({
+      name: 'trip',
+      title: 'Trip',
+      channel: 'telegram',
+      threadId: '43',
+      openedBy: 'owner',
+    });
+    expect(reopened).toMatchObject({ name: 'trip' });
+    expect(await conversations.findByName('trip')).toEqual(reopened);
+  });
+
+  it('reserves `general` for the General thread', async () => {
+    const conversations = await store();
+    const topic = await conversations.create({
+      name: 'general',
+      title: 'General',
+      channel: 'telegram',
+      threadId: '42',
+      openedBy: 'owner',
+    });
+    expect(topic.name).toBe('general-2');
+
+    const general = await conversations.create({
+      name: 'general',
+      title: 'Generale',
+      channel: 'telegram',
+      openedBy: 'harness',
+    });
+    expect(general.name).toBe('general');
   });
 
   it('claims unique names concurrently and skips suffixes that are already reserved', async () => {

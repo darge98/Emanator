@@ -23,4 +23,14 @@ export const conversationMigrations: Migration[] = [
         WHERE archived_at IS NULL;
     `,
   },
+  {
+    // A name identifies a live Conversation, so an archived one frees its name.
+    id: '002-live-names',
+    sql: `
+      ALTER TABLE conversations DROP CONSTRAINT conversations_name_key;
+      CREATE UNIQUE INDEX conversations_live_name
+        ON conversations (name)
+        WHERE archived_at IS NULL;
+    `,
+  },
 ];
