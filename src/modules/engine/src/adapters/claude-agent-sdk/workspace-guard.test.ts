@@ -45,6 +45,9 @@ describe('leavesWorkingDirectory', () => {
     expect(await leaves('Write', { file_path: 'escape/new/file.txt' })).toBe(true);
     expect(await leaves('Read', { file_path: 'broken' })).toBe(true);
     expect(await leaves('Glob', { pattern: '../*' })).toBe(true);
+    expect(await leaves('Glob', { pattern: join(base, '*') })).toBe(true);
+    expect(await leaves('Glob', { pattern: '{notes,../..}/*' })).toBe(true);
+    expect(await leaves('Glob', { pattern: '{notes,/etc}/*' })).toBe(true);
     expect(await leaves('Grep', { pattern: 'x', path: '/etc' })).toBe(true);
   });
 

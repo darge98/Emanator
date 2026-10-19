@@ -14,7 +14,12 @@ function pathsOf(sdkTool: string, input: Record<string, unknown>): string[] | un
       return [text(input.file_path) ?? ''];
     case 'Glob': {
       const base = text(input.path) ?? '.';
-      return [base, join(base, text(input.pattern) ?? '')];
+      const pattern = text(input.pattern) ?? '';
+      // join() would keep an absolute pattern inside the base; Glob searches from it.
+      const paths = [base, isAbsolute(pattern) ? pattern : join(base, pattern)];
+      // Braces hide alternatives from resolution, e.g. `{a,../..}/*` or `{a,/etc}/*`.
+      if (pattern.split(/[/{},]/).includes('..') || /[{,]\//.test(pattern)) paths.push('..');
+      return paths;
     }
     case 'Grep':
       return [text(input.path) ?? '.'];
