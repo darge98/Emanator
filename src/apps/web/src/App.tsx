@@ -1,16 +1,18 @@
+import { CapabilitiesPage } from '@emanator/capabilities/web';
 import { FacultiesPage } from '@emanator/faculties/web';
 import { PersonaPage } from '@emanator/personas/web';
 import { RoutinesPage } from '@emanator/routines/web';
-import { Fingerprint, type Icon, SlidersHorizontal, Timer } from '@phosphor-icons/react';
+import { Fingerprint, type Icon, Plug, SlidersHorizontal, Timer } from '@phosphor-icons/react';
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmDialog, type ConfirmRequest } from './confirm-dialog.tsx';
 
-type Page = 'persona' | 'routines' | 'faculties';
+type Page = 'persona' | 'routines' | 'faculties' | 'capabilities';
 
 const NAV: readonly { page: Page; title: string; Icon: Icon }[] = [
   { page: 'persona', title: 'Persona', Icon: Fingerprint },
   { page: 'routines', title: 'Routines', Icon: Timer },
   { page: 'faculties', title: 'Faculties', Icon: SlidersHorizontal },
+  { page: 'capabilities', title: 'Capabilities', Icon: Plug },
 ];
 
 const PAGES: readonly Page[] = NAV.map(({ page }) => page);
@@ -143,7 +145,9 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {page === 'faculties' ? (
+        {page === 'capabilities' ? (
+          <CapabilitiesPage footer={footer} onDirtyChange={onDirtyChange} confirm={confirm} />
+        ) : page === 'faculties' ? (
           <FacultiesPage footer={footer} onDirtyChange={onDirtyChange} />
         ) : page === 'routines' ? (
           <RoutinesPage footer={footer} onDirtyChange={onDirtyChange} confirm={confirm} />

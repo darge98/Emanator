@@ -21,5 +21,14 @@ export type {
   PermissionRequest,
 } from './domain/permission.ts';
 export type { SessionRef } from './domain/session.ts';
-export { defineTool, type ToolDefinition, type ToolHints, type ToolOutput } from './domain/tool.ts';
+export {
+  defineTool,
+  type JsonObjectSchema,
+  type JsonSchemaToolDefinition,
+  MAX_TOOL_NAME_LENGTH,
+  type ToolDefinition,
+  type ToolHints,
+  type ToolOutput,
+  type ZodToolDefinition,
+} from './domain/tool.ts';
 export { UsageTracker } from './domain/usage-tracker.ts';

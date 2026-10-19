@@ -184,6 +184,9 @@ importers:
 
   src/apps/server:
     dependencies:
+      '@emanator/capabilities':
+        specifier: workspace:*
+        version: link:../../modules/capabilities
       '@emanator/channels':
         specifier: workspace:*
         version: link:../../modules/channels
@@ -217,12 +220,18 @@ importers:
 
   src/apps/web:
     dependencies:
+      '@emanator/capabilities':
+        specifier: workspace:*
+        version: link:../../modules/capabilities
       '@emanator/faculties':
         specifier: workspace:*
         version: link:../../modules/faculties
       '@emanator/personas':
         specifier: workspace:*
         version: link:../../modules/personas
+      '@emanator/policies':
+        specifier: workspace:*
+        version: link:../../modules/policies
       '@emanator/routines':
         specifier: workspace:*
         version: link:../../modules/routines
@@ -254,6 +263,37 @@ importers:
       vite:
         specifier: ^6.3.5
         version: 6.4.4(@types/node@24.19.2)(lightningcss@1.33.0)(tsx@4.23.15)
+
+  src/modules/capabilities:
+    dependencies:
+      '@emanator/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@emanator/policies':
+        specifier: workspace:*
+        version: link:../policies
+      '@emanator/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.1
+        version: 1.32.1(zod@4.6.7)
+      fastify:
+        specifier: ^5.0.0
+        version: 5.12.7
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+      simple-icons:
+        specifier: ^16.35.0
+        version: 16.35.0
+    devDependencies:
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
 
   src/modules/channels:
     dependencies:
@@ -352,6 +392,13 @@ importers:
       fastify:
         specifier: ^5.0.0
         version: 5.12.7
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
 
   src/modules/routines:
     dependencies:
@@ -2221,6 +2268,10 @@ packages:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
 
+  simple-icons@16.35.0:
+    resolution: {integrity: sha512-TCfl/2+GTrx0nCo4pEWGvxhOb8c6NsqOU1OpwjtF4lwJAthB8IYVD0fuIMjLMg6JFuG1YBO0t1iETQqJLqkoJA==}
+    engines: {node: '>=0.12.18'}
+
   sonic-boom@4.2.1:
     resolution: {integrity: sha512-w6AxtubXa2wTXAUsZMMWERrsIRAdrK0Sc+FUytWvYAhBJLyuI4llrMIC1DtlNSdI99EI86KZum2MMq3EAZlF9Q==}
 
@@ -4026,6 +4077,8 @@ snapshots:
       side-channel-weakmap: 1.0.2
 
   signal-exit@4.1.0: {}
+
+  simple-icons@16.35.0: {}
 
   sonic-boom@4.2.1:
     dependencies:

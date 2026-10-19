@@ -1,0 +1,321 @@
+/* Capabilities layout only; shared primitives and tokens come from the dashboard's styles.css. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.search {
+  position: relative;
+  flex: 1;
+  max-width: 420px;
+}
+
+.search svg {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.search :global(.input) {
+  width: 100%;
+  padding-left: calc(var(--space-3) * 2 + 16px);
+  border-radius: var(--radius-full);
+}
+
+.toolbar :global(.btn) {
+  margin-left: auto;
+  border-radius: var(--radius-full);
+}
+
+.notice {
+  margin-top: var(--space-6);
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+}
+
+.group-title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.empty {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+/* ── Catalog grid ── */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The whole row lights up, the action included, though it holds two buttons. */
+.tile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  margin: 0 calc(-1 * var(--space-3));
+  border-radius: var(--radius);
+  transition: background 150ms var(--ease);
+}
+
+.tile:hover,
+.tile:focus-within {
+  background: var(--sunken);
+}
+
+.tile-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tile-main:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.tile-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tile-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.tile-description {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── Details dialog ── */
+
+/* Wider than the shell's yes/no dialog, whose rule it overrides. */
+:global(.dialog).dialog {
+  width: min(720px, 100%);
+  max-height: calc(100dvh - 2 * var(--space-8));
+  overflow-y: auto;
+  gap: var(--space-4);
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.dialog-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dialog-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.row-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.row-error {
+  font-size: var(--text-sm);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.dialog-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dialog-tools h3 {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+/* ── Tools of one Capability ── */
+
+.tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The legend's own top margin belongs to a page, not to a dialog. */
+.tools > ul:first-child {
+  margin-top: 0;
+}
+
+.muted {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.tools-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* ── Custom server editor ── */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.editor-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-heading h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.editor-heading p {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.toggle > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle strong {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.toggle small {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 720px) {
+  .grid,
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tools-footer,
+  .editor-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

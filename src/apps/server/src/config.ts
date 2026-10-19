@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { SecretBox } from '@emanator/capabilities/server';
 import { type EngineCredentials, engineCredentialsFromEnv } from '@emanator/engine/server';
 
 export interface HarnessConfig {
@@ -10,6 +11,9 @@ export interface HarnessConfig {
   databaseUrl: string;
   httpHost: string;
   httpPort: number;
+  /** How the Owner's browser reaches the dashboard; OAuth redirects come back here. */
+  dashboardUrl: string;
+  secrets: SecretBox;
 }
 
 /** Everything the Harness needs from `.env`; fails fast on what's missing. */
@@ -30,6 +34,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (!telegramToken) {
     throw new Error('Set TELEGRAM_BOT_TOKEN in .env (create the bot with @BotFather).');
   }
+  const dashboardUrl = (
+    env.EMANATOR_DASHBOARD_URL?.trim() || `http://127.0.0.1:${httpPort}`
+  ).replace(/\/+$/, '');
+  if (!/^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(dashboardUrl)) {
+    throw new Error(
+      'EMANATOR_DASHBOARD_URL must be a loopback address, e.g. http://127.0.0.1:3000.',
+    );
+  }
   const timeZone = env.EMANATOR_TIMEZONE?.trim() || 'Europe/Rome';
   // Throws a RangeError on an unknown zone, before anything starts.
   new Intl.DateTimeFormat('it-IT', { timeZone });
@@ -38,6 +50,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     databaseUrl,
     httpHost,
     httpPort,
+    dashboardUrl,
+    secrets: SecretBox.fromEnv(env),
     dataDir: env.EMANATOR_DATA_DIR?.trim() || join(process.cwd(), 'data'),
     telegramToken,
     engineCredentials: engineCredentialsFromEnv(env),

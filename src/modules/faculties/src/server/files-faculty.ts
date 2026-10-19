@@ -5,6 +5,7 @@ const READ_CHOICES = ['allow', 'deny'] as const;
 
 /** Files in the working folder; the Engine refuses any path outside it. */
 export const filesFaculty: Faculty = {
+  kind: 'faculty',
   name: 'files',
   title: 'Files',
   description: 'Only in the working folder. Reading cannot ask: it is allowed or denied.',

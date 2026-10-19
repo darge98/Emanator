@@ -1,4 +1,4 @@
-/* Faculties layout only; shared primitives and tokens come from the dashboard's styles.css. */
+/* Tool Policy rows, shared by Faculties and Capabilities; tokens come from the dashboard's styles.css. */
 .legend {
   display: flex;
   flex-wrap: wrap;

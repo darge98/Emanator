@@ -4,6 +4,14 @@
  */
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  CapabilityCatalog,
+  CapabilityConnections,
+  CapabilityService,
+  CapabilityStore,
+  needsAuthorizationNotice,
+  OAUTH_CALLBACK_PATH,
+} from '@emanator/capabilities/server';
 import { TelegramChannel } from '@emanator/channels/server';
 import {
   CONVERSATION_COMMANDS,
@@ -18,7 +26,11 @@ import { ApprovalService, PolicyService, PolicyStore } from '@emanator/policies/
 import { RoutineRunner, RoutineService, RoutineStore } from '@emanator/routines/server';
 import { consoleLogger, openDatabase } from '@emanator/shared/server';
 import { loadConfig } from './config.ts';
-import { createDashboardServer } from './dashboard-server.ts';
+import {
+  CAPABILITIES_PAGE,
+  CAPABILITIES_PREFIX,
+  createDashboardServer,
+} from './dashboard-server.ts';
 import { systemPrompt } from './system-prompt.ts';
 
 const logger = consoleLogger('harness');
@@ -62,17 +74,46 @@ async function start() {
     logger: consoleLogger('approvals'),
   });
   await approvals.init();
-  // Faculties are the only Tools so far; Capabilities will add theirs.
   const policies = new PolicyService({
     store: policyStore,
     approvals,
-    groups: () => faculties,
+    groups: () => [...faculties, ...capabilities.groups()],
     logger: consoleLogger('policies'),
   });
   const permissions = policies.decider.bind(policies);
-  // Read on every turn, so a Policy saved in the dashboard applies from the next one.
-  const abilities = async () =>
-    turnAbilities(await policies.usable(faculties.flatMap(({ tools }) => tools)));
+
+  const capabilityStore = new CapabilityStore(db, config.secrets, consoleLogger('capabilities'));
+  await capabilityStore.init();
+  const catalog = new CapabilityCatalog();
+  const capabilityConnections = new CapabilityConnections({
+    store: capabilityStore,
+    redirectUrl: `${config.dashboardUrl}${CAPABILITIES_PREFIX}${OAUTH_CALLBACK_PATH}`,
+    notifyNeedsAuthorization: async (capability) => {
+      const page = `${config.dashboardUrl}${CAPABILITIES_PAGE}`;
+      await channel.send(undefined, { markdown: needsAuthorizationNotice(capability, page) });
+    },
+    logger: consoleLogger('capabilities'),
+    signInHostsOf: ({ catalogId }) =>
+      catalogId === undefined ? undefined : catalog.offer(catalogId)?.entry.signInHosts,
+  });
+  const capabilities = new CapabilityService({
+    store: capabilityStore,
+    connections: capabilityConnections,
+    forgetPolicies: (tools) => policies.forget(tools),
+    catalog,
+  });
+  await capabilities.init();
+
+  // Read on every turn, so a Policy or a Capability saved in the dashboard applies from the next one.
+  const abilities = async () => {
+    const { tools, engineTools } = turnAbilities(
+      await policies.usable(faculties.flatMap(({ tools }) => tools)),
+    );
+    return {
+      tools: [...tools, ...(await policies.usable(capabilities.turnTools()))],
+      engineTools,
+    };
+  };
 
   const usage = new UsageTracker();
   const agentPrompt = async () => {
@@ -120,6 +161,7 @@ async function start() {
     personas,
     routines,
     policies,
+    capabilities,
     logger: consoleLogger('dashboard'),
   });
   try {
@@ -152,6 +194,7 @@ async function start() {
     await routines.stop();
     await channel.stop();
     await conversations.idle();
+    await capabilityConnections.close();
     await db.end();
     process.exit(0);
   }

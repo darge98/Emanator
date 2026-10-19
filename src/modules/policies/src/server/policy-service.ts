@@ -34,7 +34,8 @@ export class PolicyService {
 
   async list(): Promise<PolicyGroup[]> {
     const chosen = await this.deps.store.policies();
-    return this.deps.groups().map(({ name, title, description, tools }) => ({
+    return this.deps.groups().map(({ kind, name, title, description, tools }) => ({
+      kind,
       name,
       title,
       ...(description !== undefined && { description }),
@@ -43,11 +44,12 @@ export class PolicyService {
   }
 
   /**
-   * Saves the Owner's choices, `{ policies: { [tool]: policy } }`. A Tool left out, or set
-   * to its default, goes back to the default. Nothing is saved if any choice is invalid.
+   * Saves the Owner's choices, `{ policies: { [tool]: policy } }`, for the Tools it names: a
+   * Tool set to its default goes back to it, Tools left out keep theirs. Each dashboard page
+   * saves only its own Tools. Nothing is saved if any choice is invalid.
    */
   async save(input: unknown): Promise<PolicyGroup[]> {
-    const chosen = new Map<string, Policy>();
+    const chosen = await this.deps.store.policies();
     for (const [tool, policy] of Object.entries(validatePolicies(input))) {
       const info = this.tools().find(({ name }) => name === tool);
       if (!info) throw new PolicyValidationError(`There is no Tool called "${tool}".`);
@@ -57,10 +59,22 @@ export class PolicyService {
           `"${tool}" can only be set to: ${info.choices.join(', ')}.`,
         );
       }
-      if (policy !== info.defaultPolicy) chosen.set(tool, policy);
+      if (policy === info.defaultPolicy) chosen.delete(tool);
+      else chosen.set(tool, policy);
     }
     await this.deps.store.replacePolicies(chosen);
     return this.list();
+  }
+
+  /**
+   * Forgets the choices for Tools that are gone, e.g. those of a deleted Capability: one
+   * created later under the same name must start from its defaults, not an old *allow*.
+   */
+  async forget(tools: readonly string[]): Promise<void> {
+    const chosen = await this.deps.store.policies();
+    const forgotten = tools.filter((tool) => chosen.delete(tool));
+    if (forgotten.length === 0) return;
+    await this.deps.store.replacePolicies(chosen);
   }
 
   /** A Tool nobody declared is denied: the Agent only has Tools the Owner can see. */

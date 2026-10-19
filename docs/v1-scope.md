@@ -49,16 +49,21 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 
 ### Agent abilities
 - **Faculties:** web search and fetch, files confined to the working folder, and opening Conversations. There is no shell in v1.
-- **Capabilities:** remote MCP servers only.
-  - There is one Capability per account, each assigned to an Area (Personal, Work, Volunteering, …).
-  - The Harness acts as an MCP OAuth client. It supports both dynamic client registration and pre-registered client ID/secret.
+- **Capabilities:** remote MCP servers only ([ADR 0008](adr/0008-harness-is-the-mcp-client-of-capabilities.md)).
+  - A catalog holds the Capabilities the Harness sets up itself: their server, scopes and OAuth client come from Compose and `.env`, so the Owner only connects them. Each entry is connected once; v1 has Gmail and Google Calendar, two entries the Owner turns on separately, on one workspace-mcp. Each asks only for its own scopes and gets only its own Tools, picked by name. Any other remote MCP server can still be added by hand.
+  - There is one Capability per account. Its slug is fixed at creation and prefixes its Tool names (`gmail-work__search_gmail_messages`).
+  - The Harness is the only MCP and OAuth client. It supports both dynamic client registration and a pre-registered client ID/secret, and asks only for the scopes the Owner lists (the server's own list when there are none).
+  - Client secrets and tokens are sealed with `EMANATOR_SECRET_KEY` before they reach PostgreSQL; the dashboard never reads a secret back.
+  - The Tools a server lists are cached, so Policies and the dashboard work while it is offline. A disabled Capability gives no Tools to turns; an offline one fails its calls with an error the model can explain.
+  - Access tokens refresh during calls. A grant that can't be refreshed makes the Capability *needs authorization* and tells the Owner once, in General.
 - **Skills:** instruction-only SKILL.md packages, created, edited or uploaded from the UI.
 
 ### Control
 - Each Tool has a Policy: *allow*, *ask* or *deny*.
   - One Policy per Tool, shared by Conversations and Routines.
   - Defaults come from MCP tool annotations: read-only starts as *allow*, write or destructive as *ask*.
-  - Faculties have no annotations, so their defaults are fixed: web search, web fetch, reading files and opening Conversations start as *allow*; writing files as *ask*. Web fetch on *allow* can leak data; that risk is accepted until a Capability holds private data, and is reviewed when Google arrives.
+  - Faculties have no annotations, so their defaults are fixed: web search, reading files and opening Conversations start as *allow*; web fetch and writing files as *ask*. Web fetch asks because Capabilities hold private data: mail could tell the Agent to put it in a URL and fetch it. The Owner can still set it to *allow*, accepting that risk.
+  - A custom server's Tools start from the annotations the server declares, which nothing checks: a server can call a destructive Tool read-only. Adding one is trusting it, and the dashboard says so; the catalog's entries are reviewed.
   - Files use the Engine's own tools. Reading, finding and searching files can be *allow* or *deny* but not *ask*, because the Engine reads inside the working folder without asking (ADR 0001). Nothing outside the working folder can be reached, whatever the Policy.
   - The Owner can change Policies only in the UI.
 - Approvals arrive on Telegram as Yes/No buttons, with no "always" option, in the topic of the turn that asked: the Conversation's, or the Routine's for a Run.
@@ -67,8 +72,15 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - Approvals still pending when the Harness stops become expired, because their turn ended with the process; their buttons then answer that the request expired.
 
 ### Google (Gmail and Calendar)
-- Start with Google's official remote MCP servers, read-only.
-- **Plan B:** if the Owner's account isn't admitted to the preview, run `workspace-mcp` as a local MCP server inside the Sandbox. The Sandbox then enters v1, still without the shell.
+- Google's own MCP servers only answer Cloud projects enrolled in the Workspace Developer Preview (checked on 2026-10-19). Until the Owner's project is admitted, Gmail and Calendar come from [workspace-mcp](https://github.com/taylorwilsdon/google_workspace_mcp) on Google's stable APIs.
+- workspace-mcp runs as its own Compose service, started with the Harness, not in the Sandbox. It shares a network with the Harness only, so PostgreSQL is out of its reach:
+  - it is pinned to a reviewed commit;
+  - it runs stateless, so it keeps no token: the Harness sends its own with each call;
+  - it offers only read-only Gmail and Calendar Tools;
+  - it runs read-only, with no privileges and no other secret.
+- Gmail and Google Calendar are the catalog's entries. The Owner's Google Cloud project provides one OAuth client, a Web application marked "Use this client for an AI-powered agent", with the Harness's redirect URI. Its ID and secret go in `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); at every start the Harness brings both Capabilities in line with them.
+- The scopes are `openid` and `userinfo.email` (workspace-mcp checks tokens through userinfo), plus `gmail.readonly` for Gmail or `calendar.readonly` for Calendar. A grant that can only read limits what a compromised workspace-mcp could do with the tokens; write Tools will need the Owner to connect again.
+- Moving to Google's own servers is a change of URL; their Tool names differ, so their Policies start over.
 
 ### Engine and quota
 - The Claude Agent SDK runs with the Owner's subscription token (`claude setup-token`) or an API key, supplied via `.env`.
@@ -80,10 +92,9 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Currently covers:
   - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel;
   - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error). Run transcripts are still to come;
-  - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it.
+  - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it. A save changes only the Tools it names;
+  - Capabilities: the catalog first, each entry with what `.env` still lacks; then custom servers. Connect (through the authorization page and back), on/off, refresh Tools, the Policies of each Capability's Tools, and create, edit or delete for custom servers.
 - Remaining v1 pages:
-  - Areas;
-  - Capabilities, including the OAuth "Connect" button;
   - Skills;
   - Run transcripts in the Routine history;
   - Conversations;
@@ -99,13 +110,22 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - **Process:** one Fastify Node process runs the API, scheduler and Telegram bot, and serves the built Vite + React SPA.
 - **Engine:** a swappable port; the first adapter is the Claude Agent SDK ([ADR 0001](adr/0001-swappable-engine-agent-sdk-with-owner-subscription.md)).
 - **Portable abilities:** Faculties, Capabilities (MCP) and Skills. Plugins are only packaging ([ADR 0002](adr/0002-portable-agent-abilities-plugins-are-packaging.md)).
-- **Storage:** PostgreSQL is the sole application database for structured configuration and runtime state. Skills and Memory remain files; Claude Agent SDK transcripts remain under `./data/claude` and the Engine's working folder is `./data/workspace`, with opaque session references in PostgreSQL ([ADR 0007](adr/0007-postgresql-config-and-state.md)). ADR 0003 records the superseded file/SQLite decision.
+- **Storage:** PostgreSQL is the sole application database for structured configuration and runtime state, with Capability secrets sealed by `EMANATOR_SECRET_KEY`. Skills and Memory remain files; Claude Agent SDK transcripts remain under `./data/claude` and the Engine's working folder is `./data/workspace`, with opaque session references in PostgreSQL ([ADR 0007](adr/0007-postgresql-config-and-state.md)). ADR 0003 records the superseded file/SQLite decision.
 - **Containers:** the Harness container holds the secrets. A single Sandbox container runs local and third-party code, with one unprivileged Linux user per process ([ADR 0004](adr/0004-separate-harness-and-sandbox.md)).
 - **Hosting:** Docker, starting on a local machine; a VPS or home server later.
 - **Language:** code, docs and dashboard in English; Telegram messages in Italian.
 
 ## Later waves
 
+- Areas (Personal, Work, Volunteering, …) to group Capabilities, once the Owner connects several accounts and the Agent needs to tell them apart. Until then the Capability's name carries the account.
+- Capabilities left out of v1:
+  - Tool output with images or files (v1 names them instead of showing them);
+  - servers authenticated by a static API key or header;
+  - the MCP servers' `instructions` in the system prompt;
+  - Tool names too long for the Engine are left out; shortening them with a hash would keep them;
+  - more catalog entries, each tried for real first (e.g. hosted servers with dynamic registration such as Notion or Linear);
+  - connecting one catalog entry with several accounts, which comes with Areas;
+  - write Tools for Gmail and Calendar, on *ask*.
 - Dashboard polish found in the Routines review (October 2026):
   - Run errors in the history are raw Engine text;
   - accessibility: focus moves to the editor when it opens and back after it closes, and history toggles get `aria-controls`;
@@ -142,5 +162,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 
 - **Subscription token with the Agent SDK:** it works end to end (smoke run on 2026-10-14, see ADR 0001), but it remains a grey area in Anthropic's terms.
 - **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics, and that the bot can rename them (Routine renames; the Bot API documents `editForumTopic` for private chats).
-- **Google official MCP servers:** they are in Developer Preview, and it is unverified whether a personal @gmail.com account is accepted. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
+- **Google official MCP servers:** checked on 2026-10-19. A personal @gmail.com account authorizes fine, but every Tool call is refused until the Cloud project is enrolled in the Workspace Developer Preview; workspace-mcp covers Gmail and Calendar meanwhile. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
+- **workspace-mcp:** third-party code that sees Google tokens during calls. It is pinned and confined (see Google above); updating it means reviewing the new commit.
+- **Service logos in the dashboard:** the catalog shows Gmail's and Google Calendar's logos, single-colour, from Simple Icons (CC0). The icons carry no copyright, but they are Google's trademarks, used here only to name the service; check Google's brand terms before the project goes public.
 - **Built-in Personas named after real characters** (Jarvis, Cortana, Joi): trademark and copyright risk once the project is public.

@@ -5,11 +5,13 @@ import { PolicyService } from './policy-service.ts';
 
 const GROUPS: ToolGroup[] = [
   {
+    kind: 'faculty',
     name: 'web',
     title: 'Web',
     tools: [{ name: 'web_search', title: 'Search', defaultPolicy: 'allow' }],
   },
   {
+    kind: 'faculty',
     name: 'files',
     title: 'Files',
     tools: [
@@ -50,10 +52,13 @@ describe('PolicyService', () => {
       defaultPolicy: 'allow' as const,
       run() {},
     };
-    const { service } = setup('approved', [{ name: 'web', title: 'Web', tools: [implemented] }]);
+    const { service } = setup('approved', [
+      { kind: 'faculty', name: 'web', title: 'Web', tools: [implemented] },
+    ]);
 
     expect(await service.list()).toEqual([
       {
+        kind: 'faculty',
         name: 'web',
         title: 'Web',
         tools: [
@@ -69,7 +74,7 @@ describe('PolicyService', () => {
     ]);
   });
 
-  it('stores only choices that differ from the default, and forgets the rest', async () => {
+  it('stores only choices that differ from the default', async () => {
     const { service } = setup();
 
     const saved = await service.save({ policies: { web_search: 'deny', write_file: 'ask' } });
@@ -82,11 +87,33 @@ describe('PolicyService', () => {
       custom: false,
     });
 
-    const reset = await service.save({ policies: {} });
+    const reset = await service.save({ policies: { web_search: 'allow' } });
     expect(toolsOf(reset).find((t) => t.name === 'web_search')).toMatchObject({
       policy: 'allow',
       custom: false,
     });
+  });
+
+  it('leaves the Tools a save does not name as they were', async () => {
+    const { service } = setup();
+    await service.save({ policies: { web_search: 'deny' } });
+
+    const saved = await service.save({ policies: { write_file: 'deny' } });
+
+    expect(toolsOf(saved).map(({ name, policy }) => [name, policy])).toEqual([
+      ['web_search', 'deny'],
+      ['read_file', 'allow'],
+      ['write_file', 'deny'],
+    ]);
+  });
+
+  it('forgets the choices of Tools that are gone', async () => {
+    const { service } = setup();
+    await service.save({ policies: { web_search: 'deny', write_file: 'deny' } });
+
+    await service.forget(['web_search', 'write_file', 'never_chosen']);
+
+    expect(toolsOf(await service.list()).every(({ custom }) => !custom)).toBe(true);
   });
 
   it('saves nothing when any choice is invalid', async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_TOOL_NAME_LENGTH } from '../../domain/tool.ts';
 import { fromSdkToolName, sdkToolOf, toSdkToolName } from './tool-names.ts';
 
 describe('tool names', () => {
@@ -16,5 +17,9 @@ describe('tool names', () => {
   it('leaves unknown names unchanged', () => {
     expect(fromSdkToolName('Bash')).toBe('Bash');
     expect(fromSdkToolName('mcp__other__tool')).toBe('mcp__other__tool');
+  });
+
+  it('keeps the longest Harness Tool name within the SDK limit of 128 characters', () => {
+    expect(toSdkToolName('x'.repeat(MAX_TOOL_NAME_LENGTH))).toHaveLength(128);
   });
 });

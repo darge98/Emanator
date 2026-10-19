@@ -9,6 +9,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY src/apps/server/package.json src/apps/server/
 COPY src/apps/web/package.json src/apps/web/
+COPY src/modules/capabilities/package.json src/modules/capabilities/
 COPY src/modules/channels/package.json src/modules/channels/
 COPY src/modules/conversations/package.json src/modules/conversations/
 COPY src/modules/engine/package.json src/modules/engine/

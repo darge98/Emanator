@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emanator}
     volumes:
       - postgres-data:/var/lib/postgresql
+    networks: [data]
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -26,6 +27,7 @@ services:
       DATABASE_URL: postgresql://emanator:${POSTGRES_PASSWORD:-emanator}@postgres:5432/emanator
       EMANATOR_HTTP_HOST: 0.0.0.0
       EMANATOR_HTTP_PORT: 3000
+    networks: [data, capabilities]
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,6 +36,44 @@ services:
     volumes:
       - ./data:/data
     restart: unless-stopped
+
+  # Gmail and Calendar for Capabilities, through Google's stable APIs, until Google's own
+  # MCP servers leave the Developer Preview. Third-party code that sees Google tokens, so:
+  # pinned to a reviewed commit (v2.1.0), stateless (it stores no token: the Harness passes
+  # its own on each call), read-only Tools, no privileges and no other secret.
+  # It starts with the rest (`docker compose up -d --build`); without GOOGLE_CLIENT_ID and
+  # WORKSPACE_MCP_JWT_KEY in .env it stops at once, and only the Google Capability misses it.
+  # Capability URL: http://workspace-mcp:8000/mcp (Harness in Compose) or, with
+  # WORKSPACE_MCP_URL=http://127.0.0.1:8001 in .env, http://127.0.0.1:8001/mcp (pnpm dev).
+  workspace-mcp:
+    build: https://github.com/taylorwilsdon/google_workspace_mcp.git#789730452b9c5452b2c8d348cf005d196c12ba4e
+    environment:
+      MCP_ENABLE_OAUTH21: "true"
+      EXTERNAL_OAUTH21_PROVIDER: "true"
+      WORKSPACE_MCP_STATELESS_MODE: "true"
+      WORKSPACE_MCP_READ_ONLY: "true"
+      TOOLS: gmail calendar
+      # Must match the URL the Harness uses: the OAuth metadata names it as the resource.
+      WORKSPACE_EXTERNAL_URL: ${WORKSPACE_MCP_URL:-http://workspace-mcp:8000}
+      # The OAuth client of your Google Cloud project; its secret stays in the Harness.
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Required at startup even though the Harness brings Google's own tokens.
+      FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY: ${WORKSPACE_MCP_JWT_KEY:-}
+    # Only the Harness's network: PostgreSQL is out of its reach.
+    networks: [capabilities]
+    ports:
+      - "127.0.0.1:8001:8000"
+    read_only: true
+    # FastMCP writes its own scratch files under the home folder at startup; in memory they
+    # vanish with the container, like everything else it holds.
+    tmpfs:
+      - /tmp
+      - /home/app/.local:mode=1777
+      - /home/app/.cache:mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # Retries a few times, not forever, when .env lacks what it needs.
+    restart: on-failure:3
 
   # End-to-end check of the Engine against your real account.
   # Interactive: `docker compose run --rm engine-smoke`
@@ -46,6 +86,10 @@ services:
     stdin_open: true
     tty: true
     profiles: ["tools"]
+
+networks:
+  data:
+  capabilities:
 
 volumes:
   postgres-data:

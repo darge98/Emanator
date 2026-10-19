@@ -30,7 +30,7 @@ A built-in starting point for a Persona. Applying one copies its name and person
 _Avoid_: template, profile
 
 **Area** (it: *Ambito*):
-A part of the Owner's life, such as Personal, Work, Volunteering or Hobby. Every Capability belongs to an Area, so the Agent knows which part of the Owner's life an account relates to.
+A part of the Owner's life, such as Personal, Work, Volunteering or Hobby. Capabilities will belong to Areas, so the Agent knows which part of the Owner's life an account relates to (a later wave).
 _Avoid_: label, tag, category, profile, context
 
 **Memory** (it: *Memoria*):
@@ -44,7 +44,7 @@ An innate ability of the Agent that needs nothing installed and comes from the H
 _Avoid_: built-in tool, native tool, feature
 
 **Capability** (it: *Capacità*):
-An integration with an external system for one specific account (e.g. Gmail · Work). The Owner adds it as an MCP server and assigns it to an Area. The same service connected with two accounts gives two distinct Capabilities.
+An integration with an external system for one specific account (e.g. Gmail · Work). The Owner adds it as a remote MCP server and connects it. The same service connected with two accounts gives two distinct Capabilities.
 _Avoid_: integration, connector, extension, tool
 
 **Skill** (it: *Skill*):

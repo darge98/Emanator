@@ -13,8 +13,9 @@ describe('Faculties', () => {
     expect(names).toEqual(expect.arrayContaining([...ENGINE_TOOLS]));
   });
 
-  it('ask before changing files and allow everything else', () => {
+  it('ask before fetching pages or changing files, and allow everything else', () => {
     expect(tools.filter((t) => t.defaultPolicy === 'ask').map((t) => t.name)).toEqual([
+      'web_fetch',
       'write_file',
       'edit_file',
     ]);

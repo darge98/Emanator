@@ -10,6 +10,7 @@ export interface ConversationOpener {
 /** The Agent opens a topic of its own to talk about something. */
 export function conversationsFaculty(conversations: ConversationOpener): Faculty {
   return {
+    kind: 'faculty',
     name: 'conversations',
     title: 'Conversations',
     description: 'New Telegram topics opened by the Agent.',

@@ -1,11 +1,9 @@
-import type { Policy, PolicyGroup, ToolPolicy } from '@emanator/policies';
+import type { Policy, PolicyGroup } from '@emanator/policies';
+import { type PolicyChoices, PolicyLegend, ToolPolicyList } from '@emanator/policies/web';
 import { ArrowClockwise, Check, Info, WarningCircle } from '@phosphor-icons/react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import styles from './faculties-page.module.css';
 
 type State = 'loading' | 'ready' | 'saving' | 'saved' | 'error';
-
-const ALL_POLICIES: readonly Policy[] = ['allow', 'ask', 'deny'];
 
 const t = {
   eyebrow: 'Your Agent',
@@ -19,22 +17,9 @@ const t = {
   allSaved: 'All changes saved',
   dirty: 'Unsaved changes',
   saveError: 'Save failed',
-  byDefault: 'default',
   cancel: 'Discard changes',
   save: 'Save Policies',
-  legend: 'What each Policy means',
-  defaultMeaning: 'the default Policy',
-  meaning: {
-    allow: 'uses it on its own',
-    ask: 'asks you on Telegram first',
-    deny: 'never uses it',
-  },
   nextTurn: 'Changes apply from the next turn. Approval requests arrive on Telegram.',
-  policy: { allow: 'Allow', ask: 'Ask', deny: 'Deny' },
-} satisfies {
-  policy: Record<Policy, string>;
-  meaning: Record<Policy, string>;
-  [key: string]: unknown;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -61,7 +46,11 @@ interface FacultiesPageProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-type Choices = Record<string, Policy>;
+type Choices = PolicyChoices;
+
+// Capabilities show their Tools on their own page, and save them from there.
+const facultiesOf = (groups: readonly PolicyGroup[]) =>
+  groups.filter(({ kind }) => kind === 'faculty');
 
 const choicesOf = (groups: readonly PolicyGroup[]): Choices =>
   Object.fromEntries(groups.flatMap(({ tools }) => tools.map((tool) => [tool.name, tool.policy])));
@@ -77,8 +66,9 @@ export function FacultiesPage({ footer, onDirtyChange }: FacultiesPageProps) {
   useEffect(() => {
     let alive = true;
     request<PolicyGroup[]>('/api/policies')
-      .then((list) => {
+      .then((all) => {
         if (!alive) return;
+        const list = facultiesOf(all);
         setGroups(list);
         setDraft(choicesOf(list));
         setState('ready');
@@ -121,10 +111,12 @@ export function FacultiesPage({ footer, onDirtyChange }: FacultiesPageProps) {
     setState('saving');
     setError('');
     try {
-      const saved = await request<PolicyGroup[]>('/api/policies', {
-        method: 'PUT',
-        body: JSON.stringify({ policies: draft }),
-      });
+      const saved = facultiesOf(
+        await request<PolicyGroup[]>('/api/policies', {
+          method: 'PUT',
+          body: JSON.stringify({ policies: draft }),
+        }),
+      );
       setGroups(saved);
       setDraft(choicesOf(saved));
       setState('saved');
@@ -202,35 +194,19 @@ export function FacultiesPage({ footer, onDirtyChange }: FacultiesPageProps) {
             void save();
           }}
         >
-          <ul className={styles.legend} aria-label={t.legend}>
-            {ALL_POLICIES.map((policy) => (
-              <li key={policy}>
-                <strong className={styles[policy]}>{t.policy[policy]}</strong>
-                {t.meaning[policy]}
-              </li>
-            ))}
-            <li>
-              <span className={styles['default-dot']} aria-hidden="true" />
-              {t.defaultMeaning}
-            </li>
-          </ul>
+          <PolicyLegend />
           {groups.map((group) => (
             <section key={group.name} className="section" aria-labelledby={`group-${group.name}`}>
               <div className="section-intro">
                 <h2 id={`group-${group.name}`}>{group.title}</h2>
                 {group.description && <p>{group.description}</p>}
               </div>
-              <ul className={`panel ${styles.tools}`}>
-                {group.tools.map((tool) => (
-                  <ToolRow
-                    key={tool.name}
-                    tool={tool}
-                    value={draft[tool.name] ?? tool.policy}
-                    disabled={saving}
-                    onChange={(policy) => choose(tool.name, policy)}
-                  />
-                ))}
-              </ul>
+              <ToolPolicyList
+                tools={group.tools}
+                draft={draft}
+                disabled={saving}
+                onChange={choose}
+              />
             </section>
           ))}
           {error && (
@@ -267,47 +243,5 @@ export function FacultiesPage({ footer, onDirtyChange }: FacultiesPageProps) {
       )}
       {footer}
     </div>
-  );
-}
-
-function ToolRow({
-  tool,
-  value,
-  disabled,
-  onChange,
-}: {
-  tool: ToolPolicy;
-  value: Policy;
-  disabled: boolean;
-  onChange: (policy: Policy) => void;
-}) {
-  const choices = tool.choices ?? ALL_POLICIES;
-  return (
-    <li className={styles.tool} data-changed={value !== tool.policy}>
-      <div className={styles['tool-copy']}>
-        <strong>{tool.title}</strong>
-        <code>{tool.name}</code>
-      </div>
-      <fieldset className={`segmented ${styles.choices}`} disabled={disabled}>
-        <legend className="visually-hidden">{tool.title}</legend>
-        {choices.map((policy) => (
-          <button
-            type="button"
-            key={policy}
-            className={styles[policy]}
-            aria-pressed={value === policy}
-            onClick={() => onChange(policy)}
-          >
-            {t.policy[policy]}
-            {policy === tool.defaultPolicy && (
-              <>
-                <span className={styles['default-dot']} aria-hidden="true" />
-                <span className="visually-hidden"> ({t.byDefault})</span>
-              </>
-            )}
-          </button>
-        ))}
-      </fieldset>
-    </li>
   );
 }

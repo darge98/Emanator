@@ -1,6 +1,7 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { type CapabilityService, capabilityRoutes } from '@emanator/capabilities/server';
 import { type PersonaStore, personaRoutes } from '@emanator/personas/server';
 import { type PolicyService, policyRoutes } from '@emanator/policies/server';
 import { type RoutineService, routineRoutes } from '@emanator/routines/server';
@@ -8,10 +9,16 @@ import { errorMessage, type Logger } from '@emanator/shared/server';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyError } from 'fastify';
 
+export const CAPABILITIES_PREFIX = '/api/capabilities';
+
+/** The dashboard page of Capabilities, which the browser returns to after an authorization. */
+export const CAPABILITIES_PAGE = '/#capabilities';
+
 interface DashboardDeps {
   personas: Pick<PersonaStore, 'get' | 'save'>;
   routines?: RoutineService;
   policies?: PolicyService;
+  capabilities?: CapabilityService;
   logger: Logger;
   webRoot?: string;
 }
@@ -21,6 +28,7 @@ export async function createDashboardServer({
   personas,
   routines,
   policies,
+  capabilities,
   logger,
   webRoot,
 }: DashboardDeps) {
@@ -54,6 +62,13 @@ export async function createDashboardServer({
   app.register(personaRoutes, { prefix: '/api/persona', personas });
   if (routines) app.register(routineRoutes, { prefix: '/api/routines', routines });
   if (policies) app.register(policyRoutes, { prefix: '/api/policies', policies });
+  if (capabilities) {
+    app.register(capabilityRoutes, {
+      prefix: CAPABILITIES_PREFIX,
+      capabilities,
+      pageUrl: CAPABILITIES_PAGE,
+    });
+  }
 
   const root = webRoot ?? fileURLToPath(new URL('../../web/dist/', import.meta.url));
   const built = await access(join(root, 'index.html')).then(

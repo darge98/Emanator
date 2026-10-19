@@ -39,7 +39,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **A modular monolith with vertical feature slices (ADR 0005).**
 - `src/apps/server/src/main.ts` is the composition root: one Fastify process runs the dashboard API, the Routine scheduler and the Telegram long-polling bot, and serves the built SPA.
 - `src/apps/web` is the React/Vite shell. It only composes the pages that the modules export.
-- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `policies`, `faculties`, `shared`), with up to three entry points:
+- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `policies`, `faculties`, `capabilities`, `shared`), with up to three entry points:
   - `@emanator/<feature>`: domain types, pure;
   - `@emanator/<feature>/server`: stores, services, Fastify routes;
   - `@emanator/<feature>/web`: React pages.
@@ -70,12 +70,21 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - `PolicyService.decider()` builds each turn's `PermissionDecider`. *ask* sends an Approval with Yes/No buttons to the turn's thread; it is repeated after 15 minutes and expires 15 minutes later. Any error while deciding denies the Tool.
 - Button presses (`InboundAction`) go straight to `ApprovalService.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
 - Each Faculty is one file in `faculties/src/server` that describes its Tools once: name, dashboard title, default Policy, allowed `choices` and, for a Harness Tool, its implementation. Policies, turns and the dashboard all read from there, so the dashboard has no per-Tool code.
+- Policy groups carry a `kind` (`faculty` or `capability`): each dashboard page shows and saves only its own, and a save changes only the Tools it names.
 - Web and files are Engine Tools (`ENGINE_TOOLS`, `TurnRequest.engineTools`); the adapter refuses any file path outside the working folder before Policies are asked. The SDK reads inside the folder without asking, so reading Tools declare `choices` without *ask*. `open_conversation` is a Harness Tool.
+
+**Capabilities** (`modules/capabilities`, ADR 0008). Each is a remote MCP server for one account. The Harness is its only MCP and OAuth client; the Engine never sees a token.
+- `CapabilityConnections` connects, authorizes through the Owner's browser (`/api/capabilities/oauth/callback`), refreshes tokens and calls Tools. Secrets are sealed by `SecretBox` (`EMANATOR_SECRET_KEY`) before they reach PostgreSQL.
+- Listed Tools are cached in `capability_tools`. `CapabilityService` keeps the Capabilities and their Tools in memory, because `PolicyService.groups()` is synchronous. Its `turnTools()` gives turns the Tools of enabled Capabilities as `JsonSchemaToolDefinition`s named `<slug>__<tool>`, which is why the slug never changes.
+- Every call failure becomes an error result, never a failed turn. A grant that can't be refreshed sets `needs-auth` and tells the Owner once, in General.
+- `fake-mcp-server.ts` is a real MCP server with a minimal OAuth server (discovery, dynamic registration, PKCE, refresh), for tests.
+- `CATALOG` (domain) lists the Capabilities the Harness sets up itself; `CapabilityCatalog` resolves each entry from `.env` (client, address), and `CapabilityService.init()` brings catalog Capabilities in line with it at every start. Catalog Capabilities can't be edited, only connected, switched or deleted.
+- Gmail and Calendar are two catalog entries on one workspace-mcp (a Compose service started with the Harness, pinned and stateless). Each has its own scopes and grant; its `toolPattern` keeps only its product's Tools, filtered in `CapabilityService.toolsFor`. A Capability whose entry leaves the catalog is deleted at start.
 
 **Dashboard.**
 - It is served on `127.0.0.1:3000` without authentication. `dashboard-server.ts` rejects non-loopback hosts and cross-origin writes. For that reason the Vite proxy keeps the Host header (`changeOrigin: false`).
 - It is in English only. Pages report unsaved edits through `onDirtyChange`, so `App.tsx` can ask before navigating away, and ask the Owner yes/no questions through the `confirm` prop, which opens the shell's `ConfirmDialog` (never `window.confirm`).
-- `src/apps/web/src/styles.css` is the design system: tokens (4px spacing scale, type scale, colours with a dark variant) and the primitives every page shares (`.page`, `.section`, `.panel`, `.btn`, `.field`, `.save-bar`, …). A module's CSS module holds only its page layout and reads the tokens; it never hardcodes colours or sizes. Icons come from `@phosphor-icons/react`, fonts are Geist via `@fontsource`.
+- `src/apps/web/src/styles.css` is the design system: tokens (4px spacing scale, type scale, colours with a dark variant) and the primitives every page shares (`.page`, `.section`, `.panel`, `.btn`, `.field`, `.save-bar`, …). A module's CSS module holds only its page layout and reads the tokens; it never hardcodes colours or sizes. Icons come from `@phosphor-icons/react`; services' own logos come from `simple-icons`. Fonts are Geist via `@fontsource`.
 
 ## Conventions
 

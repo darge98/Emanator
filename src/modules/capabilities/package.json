@@ -1,0 +1,26 @@
+{
+  "name": "@emanator/capabilities",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./web": "./src/web.ts"
+  },
+  "dependencies": {
+    "@emanator/engine": "workspace:*",
+    "@emanator/policies": "workspace:*",
+    "@emanator/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "fastify": "^5.0.0",
+    "simple-icons": "^16.35.0"
+  },
+  "peerDependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "react": "^19.1.0"
+  },
+  "devDependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "@types/react": "^19.1.0"
+  }
+}

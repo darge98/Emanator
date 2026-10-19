@@ -16,6 +16,8 @@ export interface ToolInfo {
 
 /** The Tools of one Faculty or Capability, shown together in the dashboard. */
 export interface ToolGroup<Tool extends ToolInfo = ToolInfo> {
+  /** Which page shows the group: Faculties, or the Capability's own. */
+  kind: 'faculty' | 'capability';
   name: string;
   title: string;
   description?: string;
