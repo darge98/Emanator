@@ -1,7 +1,7 @@
 import { silentLogger } from '@emanator/shared/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Policy, ToolInfo } from '../domain/policy.ts';
-import { PolicyService, UnknownToolError } from './policy-service.ts';
+import { PolicyService } from './policy-service.ts';
 
 const TOOLS: ToolInfo[] = [
   { name: 'web_search', group: 'web', defaultPolicy: 'allow' },
@@ -10,11 +10,12 @@ const TOOLS: ToolInfo[] = [
 ];
 
 function setup(answer: 'approved' | 'denied' | 'expired' = 'approved') {
-  const chosen = new Map<string, Policy>();
+  let chosen = new Map<string, Policy>();
   const store = {
     policies: async () => new Map(chosen),
-    setPolicy: async (tool: string, policy: Policy) => void chosen.set(tool, policy),
-    resetPolicy: async (tool: string) => void chosen.delete(tool),
+    replacePolicies: async (next: ReadonlyMap<string, Policy>) => {
+      chosen = new Map(next);
+    },
   };
   const request = vi.fn(async () => answer);
   const service = new PolicyService({
@@ -29,35 +30,43 @@ function setup(answer: 'approved' | 'denied' | 'expired' = 'approved') {
 const use = (tool: string) => ({ tool, input: {}, signal: new AbortController().signal });
 
 describe('PolicyService', () => {
-  it('uses the default Policy until the Owner chooses one, and back after a reset', async () => {
+  it('stores only choices that differ from the default, and forgets the rest', async () => {
     const { service } = setup();
 
-    expect(await service.set('web_search', { policy: 'deny' })).toMatchObject({
+    const saved = await service.save({ policies: { web_search: 'deny', write_file: 'ask' } });
+    expect(saved.find((t) => t.name === 'web_search')).toMatchObject({
       policy: 'deny',
       custom: true,
     });
-    expect(await service.reset('web_search')).toMatchObject({ policy: 'allow', custom: false });
+    expect(saved.find((t) => t.name === 'write_file')).toMatchObject({
+      policy: 'ask',
+      custom: false,
+    });
+
+    const reset = await service.save({ policies: {} });
+    expect(reset.find((t) => t.name === 'web_search')).toMatchObject({
+      policy: 'allow',
+      custom: false,
+    });
   });
 
-  it('refuses unknown Tools and invalid Policies', async () => {
+  it('saves nothing when any choice is invalid', async () => {
     const { service } = setup();
+    await service.save({ policies: { web_search: 'deny' } });
 
-    await expect(service.set('rm_rf', { policy: 'allow' })).rejects.toThrow(UnknownToolError);
-    await expect(service.set('web_search', { policy: 'maybe' })).rejects.toThrow(
+    await expect(
+      service.save({ policies: { web_search: 'allow', rm_rf: 'allow' } }),
+    ).rejects.toThrow(/no Tool called "rm_rf"/);
+    await expect(service.save({ policies: { web_search: 'maybe' } })).rejects.toThrow(
       /allow, ask, deny/,
     );
-  });
-
-  it('refuses a Policy the Tool cannot enforce', async () => {
-    const { service } = setup();
-
-    await expect(service.set('read_file', { policy: 'ask' })).rejects.toThrow(/allow, deny/);
-    expect(await service.set('read_file', { policy: 'deny' })).toMatchObject({ policy: 'deny' });
+    await expect(service.save({ policies: { read_file: 'ask' } })).rejects.toThrow(/allow, deny/);
+    expect((await service.list()).find((t) => t.name === 'web_search')?.policy).toBe('deny');
   });
 
   it('allows, denies and asks according to the Policy', async () => {
     const { service, request } = setup('denied');
-    await service.set('web_search', { policy: 'deny' });
+    await service.save({ policies: { web_search: 'deny' } });
     const onWaiting = vi.fn();
     const decide = service.decider({ thread: async () => '7', onWaiting });
 
@@ -105,7 +114,7 @@ describe('PolicyService', () => {
 
   it('hides denied Tools from the model', async () => {
     const { service } = setup();
-    await service.set('write_file', { policy: 'deny' });
+    await service.save({ policies: { write_file: 'deny' } });
 
     expect(await service.usable([{ name: 'web_search' }, { name: 'write_file' }])).toEqual([
       { name: 'web_search' },

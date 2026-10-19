@@ -30,10 +30,18 @@ export function defaultPolicy(hints: ToolHints | undefined): Policy {
   return hints?.readOnly && !hints.destructive ? 'allow' : 'ask';
 }
 
-export function validatePolicy(input: unknown): Policy {
-  const policy = (input as { policy?: unknown } | null)?.policy;
-  if (typeof policy === 'string' && (POLICIES as readonly string[]).includes(policy)) {
-    return policy as Policy;
+/** Reads `{ policies: { [tool]: policy } }`, the Owner's choices from the dashboard. */
+export function validatePolicies(input: unknown): Record<string, Policy> {
+  const policies = (input as { policies?: unknown } | null)?.policies;
+  if (typeof policies !== 'object' || policies === null || Array.isArray(policies)) {
+    throw new PolicyValidationError('The request must carry a policies object.');
   }
-  throw new PolicyValidationError(`The policy must be one of: ${POLICIES.join(', ')}.`);
+  for (const [tool, policy] of Object.entries(policies)) {
+    if (typeof policy !== 'string' || !(POLICIES as readonly string[]).includes(policy)) {
+      throw new PolicyValidationError(
+        `The policy of "${tool}" must be one of: ${POLICIES.join(', ')}.`,
+      );
+    }
+  }
+  return policies as Record<string, Policy>;
 }

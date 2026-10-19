@@ -8,6 +8,5 @@ export {
   type DeciderContext,
   PolicyService,
   type PolicyServiceDeps,
-  UnknownToolError,
 } from './server/policy-service.ts';
 export { PolicyStore } from './server/policy-store.ts';

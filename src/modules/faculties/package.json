@@ -4,11 +4,18 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./web": "./src/web.ts"
   },
   "dependencies": {
     "@emanator/engine": "workspace:*",
     "@emanator/policies": "workspace:*",
     "zod": "^4.6.7"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0"
   }
 }

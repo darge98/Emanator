@@ -39,7 +39,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **A modular monolith with vertical feature slices (ADR 0005).**
 - `src/apps/server/src/main.ts` is the composition root: one Fastify process runs the dashboard API, the Routine scheduler and the Telegram long-polling bot, and serves the built SPA.
 - `src/apps/web` is the React/Vite shell. It only composes the pages that the modules export.
-- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `shared`), with up to three entry points:
+- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `policies`, `faculties`, `shared`), with up to three entry points:
   - `@emanator/<feature>`: domain types, pure;
   - `@emanator/<feature>/server`: stores, services, Fastify routes;
   - `@emanator/<feature>/web`: React pages.
@@ -65,6 +65,12 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - On `usage-limit` the Run waits for the reset with status `waiting` and the Owner gets a single notice. `stop()` aborts those waits.
 - Run outcomes are stored in `routine_runs`.
 
+**Policies and Faculties** (`modules/policies`, `modules/faculties`).
+- Every Tool has a Policy: the Owner's choice in `tool_policies`, else its default. Tools nobody declared are denied, and denied Tools are not given to the model: each turn gets its `abilities` (Tools and Engine Faculties) filtered by `PolicyService.usable`.
+- `PolicyService.decider()` builds each turn's `PermissionDecider`. *ask* sends an Approval with Yes/No buttons to the turn's thread; it is repeated after 15 minutes and expires 15 minutes later. Any error while deciding denies the Tool.
+- Button presses (`InboundAction`) go straight to `ApprovalService.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
+- Web and files are the Engine's own tools (`TurnRequest.faculties`); the adapter refuses any file path outside the working folder before Policies are asked. The SDK reads inside the folder without asking, so reading Tools declare `choices` without *ask*. `open_conversation` is a Harness Tool.
+
 **Dashboard.**
 - It is served on `127.0.0.1:3000` without authentication. `dashboard-server.ts` rejects non-loopback hosts and cross-origin writes. For that reason the Vite proxy keeps the Host header (`changeOrigin: false`).
 - Pages receive `language` (`it`/`en`) and report unsaved edits through `onDirtyChange`, so `App.tsx` can ask before navigating away.
@@ -74,4 +80,4 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - Code, comments and docs are in English. User-facing text (the dashboard, and the Telegram messages in `messages.ts` files) is in Italian, with English for the dashboard too.
 - Biome style: 2 spaces, single quotes, 100 columns. TypeScript is strict with `noUncheckedIndexedAccess`, and imports use explicit `.ts` extensions.
 - Comments are short and explain *why*. Match the density of the surrounding code.
-- The Agent has no Tools yet: Engine calls pass a deny-all `PermissionDecider` until the Policies module exists.
+- A new Tool needs an entry in a catalogue (`FACULTY_TOOLS` for Faculties) with its default Policy, or Policies deny it.

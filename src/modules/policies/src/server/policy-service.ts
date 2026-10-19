@@ -5,13 +5,13 @@ import {
   PolicyValidationError,
   type ToolInfo,
   type ToolPolicy,
-  validatePolicy,
+  validatePolicies,
 } from '../domain/policy.ts';
 import type { ApprovalService } from './approval-service.ts';
 import type { PolicyStore } from './policy-store.ts';
 
 export interface PolicyServiceDeps {
-  store: Pick<PolicyStore, 'policies' | 'setPolicy' | 'resetPolicy'>;
+  store: Pick<PolicyStore, 'policies' | 'replacePolicies'>;
   approvals: Pick<ApprovalService, 'request'>;
   /** Every Tool the Agent can have, from Faculties and Capabilities. */
   tools: () => readonly ToolInfo[];
@@ -26,13 +26,6 @@ export interface DeciderContext {
   onWaiting?: (waiting: boolean) => void | Promise<void>;
 }
 
-export class UnknownToolError extends Error {
-  override name = 'UnknownToolError';
-  constructor(readonly tool: string) {
-    super(`There is no Tool called "${tool}".`);
-  }
-}
-
 /** Decides how the Agent may use each Tool: the Owner's choice, else the Tool's default. */
 export class PolicyService {
   constructor(private readonly deps: PolicyServiceDeps) {}
@@ -45,22 +38,25 @@ export class PolicyService {
     });
   }
 
-  async set(tool: string, input: unknown): Promise<ToolPolicy> {
-    const policy = validatePolicy(input);
-    const info = this.requireTool(tool);
-    // A Policy the Engine can't enforce would be ignored without a word.
-    if (info.choices && !info.choices.includes(policy)) {
-      throw new PolicyValidationError(`"${tool}" can only be set to: ${info.choices.join(', ')}.`);
+  /**
+   * Saves the Owner's choices, `{ policies: { [tool]: policy } }`. A Tool left out, or set
+   * to its default, goes back to the default. Nothing is saved if any choice is invalid.
+   */
+  async save(input: unknown): Promise<ToolPolicy[]> {
+    const chosen = new Map<string, Policy>();
+    for (const [tool, policy] of Object.entries(validatePolicies(input))) {
+      const info = this.deps.tools().find(({ name }) => name === tool);
+      if (!info) throw new PolicyValidationError(`There is no Tool called "${tool}".`);
+      // A Policy the Engine can't enforce would be ignored without a word.
+      if (info.choices && !info.choices.includes(policy)) {
+        throw new PolicyValidationError(
+          `"${tool}" can only be set to: ${info.choices.join(', ')}.`,
+        );
+      }
+      if (policy !== info.defaultPolicy) chosen.set(tool, policy);
     }
-    await this.deps.store.setPolicy(tool, policy);
-    return this.view(tool);
-  }
-
-  /** Back to the Tool's default Policy. */
-  async reset(tool: string): Promise<ToolPolicy> {
-    this.requireTool(tool);
-    await this.deps.store.resetPolicy(tool);
-    return this.view(tool);
+    await this.deps.store.replacePolicies(chosen);
+    return this.list();
   }
 
   /** A Tool nobody declared is denied: the Agent only has Tools the Owner can see. */
@@ -129,17 +125,5 @@ export class PolicyService {
     } catch (error) {
       this.deps.logger.warn('Could not report a pending Approval', { error: errorMessage(error) });
     }
-  }
-
-  private requireTool(tool: string): ToolInfo {
-    const info = this.deps.tools().find(({ name }) => name === tool);
-    if (!info) throw new UnknownToolError(tool);
-    return info;
-  }
-
-  private async view(tool: string): Promise<ToolPolicy> {
-    const found = (await this.list()).find(({ name }) => name === tool);
-    if (!found) throw new UnknownToolError(tool);
-    return found;
   }
 }

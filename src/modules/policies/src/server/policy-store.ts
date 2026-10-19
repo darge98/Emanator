@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { type Database, runMigrations } from '@emanator/shared/server';
+import { type Database, runMigrations, transaction } from '@emanator/shared/server';
 import type { Approval, ApprovalStatus } from '../domain/approval.ts';
 import type { Policy } from '../domain/policy.ts';
 import { policyMigrations } from './migrations.ts';
@@ -20,17 +20,18 @@ export class PolicyStore {
     return new Map(rows.map((row) => [String(row.tool), row.policy as Policy]));
   }
 
-  async setPolicy(tool: string, policy: Policy): Promise<void> {
-    await this.db.query(
-      `INSERT INTO tool_policies (tool, policy, updated_at) VALUES ($1, $2, $3)
-       ON CONFLICT (tool) DO UPDATE SET policy = EXCLUDED.policy, updated_at = EXCLUDED.updated_at`,
-      [tool, policy, new Date()],
-    );
-  }
-
-  /** Back to the default Policy. */
-  async resetPolicy(tool: string): Promise<void> {
-    await this.db.query('DELETE FROM tool_policies WHERE tool = $1', [tool]);
+  /** Replaces every choice at once, so a save from the dashboard applies whole or not at all. */
+  async replacePolicies(policies: ReadonlyMap<string, Policy>): Promise<void> {
+    await transaction(this.db, async (client) => {
+      await client.query('DELETE FROM tool_policies');
+      const now = new Date();
+      for (const [tool, policy] of policies) {
+        await client.query(
+          'INSERT INTO tool_policies (tool, policy, updated_at) VALUES ($1, $2, $3)',
+          [tool, policy, now],
+        );
+      }
+    });
   }
 
   async createApproval(

@@ -6,5 +6,5 @@ export {
   PolicyValidationError,
   type ToolInfo,
   type ToolPolicy,
-  validatePolicy,
+  validatePolicies,
 } from './domain/policy.ts';

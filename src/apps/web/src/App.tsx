@@ -1,11 +1,15 @@
+import { FacultiesPage } from '@emanator/faculties/web';
 import { PersonaPage } from '@emanator/personas/web';
 import { RoutinesPage } from '@emanator/routines/web';
 import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { LeaveDialog } from './leave-dialog.tsx';
 
-type Page = 'persona' | 'routines';
+type Page = 'persona' | 'routines' | 'faculties';
 
-const pageFromHash = (): Page => (window.location.hash === '#routines' ? 'routines' : 'persona');
+const PAGES: readonly Page[] = ['persona', 'routines', 'faculties'];
+
+const pageFromHash = (): Page =>
+  PAGES.find((page) => window.location.hash === `#${page}`) ?? 'persona';
 
 export default function App() {
   const [language, setLanguage] = useState<'it' | 'en'>(() => {
@@ -137,6 +141,18 @@ export default function App() {
             </span>
             {language === 'it' ? 'Routine' : 'Routines'}
           </a>
+          {/* biome-ignore lint/a11y/useValidAnchor: as above */}
+          <a
+            className={`nav-item ${page === 'faculties' ? 'active' : ''}`}
+            href="#faculties"
+            aria-current={page === 'faculties' ? 'page' : undefined}
+            onClick={(event) => navigate('faculties', event)}
+          >
+            <span className="nav-icon" aria-hidden="true">
+              ◇
+            </span>
+            {language === 'it' ? 'Facoltà' : 'Faculties'}
+          </a>
         </nav>
         <div className="sidebar-bottom">
           <span className="online-dot" />
@@ -145,7 +161,14 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {page === 'routines' ? (
+        {page === 'faculties' ? (
+          <FacultiesPage
+            language={language}
+            languageControl={languageControl}
+            footer={footer}
+            onDirtyChange={onDirtyChange}
+          />
+        ) : page === 'routines' ? (
           <RoutinesPage
             language={language}
             languageControl={languageControl}

@@ -79,14 +79,14 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
 - Currently covers:
   - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel;
-  - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error). Run transcripts are still to come.
+  - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error). Run transcripts are still to come;
+  - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it.
 
   The language choice is stored locally in the browser.
 - Remaining v1 pages:
   - Areas;
   - Capabilities, including the OAuth "Connect" button;
   - Skills;
-  - Faculties and Policies;
   - Run transcripts in the Routine history;
   - Conversations;
   - Telegram pairing.
@@ -112,6 +112,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
   - validation errors from the server are in English, also in the Italian UI; Run errors in the history are raw Engine text;
   - accessibility: focus moves to the editor when it opens and back after it closes, and history toggles get `aria-controls`;
   - the Owner is told about every failed Run in Telegram, not only those the Engine reports.
+- Two Policy saves at the same moment can collide, and the second fails with a server error instead of replacing the first. Unlikely with one Owner; a lock at the start of the transaction fixes it.
 - Routine names made only of non-Latin letters (e.g. `日本`) all slug to `topic`, so only one of them can exist.
 
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
