@@ -1,9 +1,9 @@
 /**
- * Faculties the Engine implements with its own tools, named the Harness way (ADR 0002).
- * They reach the Engine's model only when a turn asks for them, and Policies apply to them
- * like to any other Tool.
+ * Tools the Engine implements itself, named the Harness way (ADR 0002). A Faculty exposes
+ * them; they reach the Engine's model only when a turn asks for them, and Policies apply
+ * to them like to any other Tool.
  */
-export const ENGINE_FACULTIES = [
+export const ENGINE_TOOLS = [
   'web_search',
   'web_fetch',
   // Files, confined to the turn's working folder.
@@ -14,4 +14,4 @@ export const ENGINE_FACULTIES = [
   'edit_file',
 ] as const;
 
-export type EngineFaculty = (typeof ENGINE_FACULTIES)[number];
+export type EngineTool = (typeof ENGINE_TOOLS)[number];

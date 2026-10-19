@@ -66,10 +66,11 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - Run outcomes are stored in `routine_runs`.
 
 **Policies and Faculties** (`modules/policies`, `modules/faculties`).
-- Every Tool has a Policy: the Owner's choice in `tool_policies`, else its default. Tools nobody declared are denied, and denied Tools are not given to the model: each turn gets its `abilities` (Tools and Engine Faculties) filtered by `PolicyService.usable`.
+- Every Tool has a Policy: the Owner's choice in `tool_policies`, else its default. Tools nobody declared are denied, and denied Tools are not given to the model: each turn gets its `abilities` (Harness Tools and Engine Tools) filtered by `PolicyService.usable`.
 - `PolicyService.decider()` builds each turn's `PermissionDecider`. *ask* sends an Approval with Yes/No buttons to the turn's thread; it is repeated after 15 minutes and expires 15 minutes later. Any error while deciding denies the Tool.
 - Button presses (`InboundAction`) go straight to `ApprovalService.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
-- Web and files are the Engine's own tools (`TurnRequest.faculties`); the adapter refuses any file path outside the working folder before Policies are asked. The SDK reads inside the folder without asking, so reading Tools declare `choices` without *ask*. `open_conversation` is a Harness Tool.
+- Each Faculty is one file in `faculties/src/server` that describes its Tools once: name, dashboard title, default Policy, allowed `choices` and, for a Harness Tool, its implementation. Policies, turns and the dashboard all read from there, so the dashboard has no per-Tool code.
+- Web and files are Engine Tools (`ENGINE_TOOLS`, `TurnRequest.engineTools`); the adapter refuses any file path outside the working folder before Policies are asked. The SDK reads inside the folder without asking, so reading Tools declare `choices` without *ask*. `open_conversation` is a Harness Tool.
 
 **Dashboard.**
 - It is served on `127.0.0.1:3000` without authentication. `dashboard-server.ts` rejects non-loopback hosts and cross-origin writes. For that reason the Vite proxy keeps the Host header (`changeOrigin: false`).
@@ -80,4 +81,4 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - Code, comments and docs are in English. User-facing text (the dashboard, and the Telegram messages in `messages.ts` files) is in Italian, with English for the dashboard too.
 - Biome style: 2 spaces, single quotes, 100 columns. TypeScript is strict with `noUncheckedIndexedAccess`, and imports use explicit `.ts` extensions.
 - Comments are short and explain *why*. Match the density of the surrounding code.
-- A new Tool needs an entry in a catalogue (`FACULTY_TOOLS` for Faculties) with its default Policy, or Policies deny it.
+- A new Tool is declared in its Faculty with its default Policy, or Policies deny it. A new Engine Tool also goes in `ENGINE_TOOLS`, with its SDK name in the adapter's `tool-names.ts`.

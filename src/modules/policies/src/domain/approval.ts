@@ -14,3 +14,6 @@ export interface Approval {
 
 /** `expired`: nobody answered in time, the turn ended first or the Harness stopped. Counts as a denial. */
 export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'expired';
+
+/** How an Approval ended: anything but `pending`. */
+export type ApprovalDecision = Exclude<ApprovalStatus, 'pending'>;

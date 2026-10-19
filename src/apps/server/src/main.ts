@@ -10,10 +10,9 @@ import {
   ConversationService,
   ConversationStore,
 } from '@emanator/conversations/server';
-import { ENGINE_FACULTIES, UsageTracker } from '@emanator/engine';
+import { UsageTracker } from '@emanator/engine';
 import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
-import { FACULTY_TOOLS } from '@emanator/faculties';
-import { conversationTools } from '@emanator/faculties/server';
+import { agentFaculties, turnAbilities } from '@emanator/faculties/server';
 import { PersonaStore } from '@emanator/personas/server';
 import { ApprovalService, PolicyService, PolicyStore } from '@emanator/policies/server';
 import { RoutineRunner, RoutineService, RoutineStore } from '@emanator/routines/server';
@@ -67,17 +66,13 @@ async function start() {
   const policies = new PolicyService({
     store: policyStore,
     approvals,
-    tools: () => FACULTY_TOOLS,
+    groups: () => faculties,
     logger: consoleLogger('policies'),
   });
   const permissions = policies.decider.bind(policies);
   // Read on every turn, so a Policy saved in the dashboard applies from the next one.
-  const abilities = async () => ({
-    tools: await policies.usable(facultyTools),
-    faculties: (await policies.usable(ENGINE_FACULTIES.map((name) => ({ name })))).map(
-      ({ name }) => name,
-    ),
-  });
+  const abilities = async () =>
+    turnAbilities(await policies.usable(faculties.flatMap(({ tools }) => tools)));
 
   const usage = new UsageTracker();
   const agentPrompt = async () => {
@@ -97,7 +92,7 @@ async function start() {
     logger: consoleLogger('conversations'),
   });
   // After the service, which the conversations Faculty needs; turns read it only later.
-  const facultyTools = conversationTools(conversations);
+  const faculties = agentFaculties({ conversations });
 
   const routineStore = new RoutineStore(db);
   await routineStore.init();

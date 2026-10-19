@@ -1,6 +1,5 @@
-import type { Policy, ToolPolicy } from '@emanator/policies';
+import type { Policy, PolicyGroup, ToolPolicy } from '@emanator/policies';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import type { Faculty } from '../domain/faculty.ts';
 import styles from './faculties-page.module.css';
 
 type Language = 'it' | 'en';
@@ -30,24 +29,6 @@ const copy = {
     nextTurn:
       'Le modifiche valgono dal prossimo turno. Le richieste di approvazione arrivano su Telegram.',
     policy: { allow: 'Consenti', ask: 'Chiedi', deny: 'Nega' },
-    groups: {
-      web: ['Web', 'Ricerca e lettura di pagine web.'],
-      files: [
-        'File',
-        'Solo nella cartella di lavoro. La lettura non può chiedere: o è consentita, o è negata.',
-      ],
-      conversations: ['Conversazioni', 'Nuovi topic su Telegram aperti dall’Agent.'],
-    },
-    tools: {
-      web_search: 'Cercare sul web',
-      web_fetch: 'Leggere una pagina web',
-      read_file: 'Leggere un file',
-      find_files: 'Trovare file per nome',
-      search_files: 'Cercare testo nei file',
-      write_file: 'Creare o sovrascrivere un file',
-      edit_file: 'Modificare un file',
-      open_conversation: 'Aprire una conversazione',
-    },
   },
   en: {
     settings: 'Settings',
@@ -68,28 +49,11 @@ const copy = {
     save: 'Save',
     nextTurn: 'Changes apply from the next turn. Approval requests arrive on Telegram.',
     policy: { allow: 'Allow', ask: 'Ask', deny: 'Deny' },
-    groups: {
-      web: ['Web', 'Searching and reading web pages.'],
-      files: ['Files', 'Only in the working folder. Reading cannot ask: it is allowed or denied.'],
-      conversations: ['Conversations', 'New Telegram topics opened by the Agent.'],
-    },
-    tools: {
-      web_search: 'Search the web',
-      web_fetch: 'Read a web page',
-      read_file: 'Read a file',
-      find_files: 'Find files by name',
-      search_files: 'Search text in files',
-      write_file: 'Create or overwrite a file',
-      edit_file: 'Edit a file',
-      open_conversation: 'Open a conversation',
-    },
   },
 } satisfies Record<
   Language,
   {
     policy: Record<Policy, string>;
-    groups: Record<Faculty, [string, string]>;
-    tools: Record<string, string>;
     [key: string]: unknown;
   }
 >;
@@ -122,8 +86,8 @@ interface FacultiesPageProps {
 
 type Choices = Record<string, Policy>;
 
-const choicesOf = (tools: readonly ToolPolicy[]): Choices =>
-  Object.fromEntries(tools.map((tool) => [tool.name, tool.policy]));
+const choicesOf = (groups: readonly PolicyGroup[]): Choices =>
+  Object.fromEntries(groups.flatMap(({ tools }) => tools.map((tool) => [tool.name, tool.policy])));
 
 /** Choices are edited as a draft and saved together, like the Persona. */
 export function FacultiesPage({
@@ -132,19 +96,19 @@ export function FacultiesPage({
   footer,
   onDirtyChange,
 }: FacultiesPageProps) {
-  const [tools, setTools] = useState<ToolPolicy[]>([]);
+  const [groups, setGroups] = useState<PolicyGroup[]>([]);
   const [draft, setDraft] = useState<Choices>({});
   const [state, setState] = useState<State>('loading');
   const [error, setError] = useState('');
   const t = copy[language];
-  const dirty = tools.some((tool) => draft[tool.name] !== tool.policy);
+  const dirty = groups.some(({ tools }) => tools.some((tool) => draft[tool.name] !== tool.policy));
 
   useEffect(() => {
     let alive = true;
-    request<ToolPolicy[]>('/api/policies')
+    request<PolicyGroup[]>('/api/policies')
       .then((list) => {
         if (!alive) return;
-        setTools(list);
+        setGroups(list);
         setDraft(choicesOf(list));
         setState('ready');
       })
@@ -186,11 +150,11 @@ export function FacultiesPage({
     setState('saving');
     setError('');
     try {
-      const saved = await request<ToolPolicy[]>('/api/policies', {
+      const saved = await request<PolicyGroup[]>('/api/policies', {
         method: 'PUT',
         body: JSON.stringify({ policies: draft }),
       });
-      setTools(saved);
+      setGroups(saved);
       setDraft(choicesOf(saved));
       setState('saved');
     } catch (failure) {
@@ -200,7 +164,7 @@ export function FacultiesPage({
   }
 
   function cancel() {
-    setDraft(choicesOf(tools));
+    setDraft(choicesOf(groups));
     setError('');
     setState('ready');
   }
@@ -211,7 +175,6 @@ export function FacultiesPage({
     if (state === 'saved') setState('ready');
   }
 
-  const groups = [...new Set(tools.map((tool) => tool.group))];
   const saving = state === 'saving';
 
   return (
@@ -259,31 +222,28 @@ export function FacultiesPage({
               void save();
             }}
           >
-            {groups.map((group) => {
-              // Groups other than Faculties, e.g. Capabilities later, show their own name.
-              const [title, description] = t.groups[group as Faculty] ?? [group, ''];
-              return (
-                <section key={group} className={styles.panel} aria-labelledby={`group-${group}`}>
-                  <h2 id={`group-${group}`}>{title}</h2>
-                  {description && <p className={styles['group-hint']}>{description}</p>}
-                  <ul className={styles.tools}>
-                    {tools
-                      .filter((tool) => tool.group === group)
-                      .map((tool) => (
-                        <ToolRow
-                          key={tool.name}
-                          tool={tool}
-                          value={draft[tool.name] ?? tool.policy}
-                          label={t.tools[tool.name as keyof typeof t.tools] ?? tool.name}
-                          t={t}
-                          disabled={saving}
-                          onChange={(policy) => choose(tool.name, policy)}
-                        />
-                      ))}
-                  </ul>
-                </section>
-              );
-            })}
+            {groups.map((group) => (
+              <section
+                key={group.name}
+                className={styles.panel}
+                aria-labelledby={`group-${group.name}`}
+              >
+                <h2 id={`group-${group.name}`}>{group.title}</h2>
+                {group.description && <p className={styles['group-hint']}>{group.description}</p>}
+                <ul className={styles.tools}>
+                  {group.tools.map((tool) => (
+                    <ToolRow
+                      key={tool.name}
+                      tool={tool}
+                      value={draft[tool.name] ?? tool.policy}
+                      t={t}
+                      disabled={saving}
+                      onChange={(policy) => choose(tool.name, policy)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))}
             <div className={styles['form-footer']}>
               <p className={styles.hint}>
                 <span aria-hidden="true">ⓘ</span>
@@ -333,14 +293,12 @@ export function FacultiesPage({
 function ToolRow({
   tool,
   value,
-  label,
   t,
   disabled,
   onChange,
 }: {
   tool: ToolPolicy;
   value: Policy;
-  label: string;
   t: (typeof copy)[Language];
   disabled: boolean;
   onChange: (policy: Policy) => void;
@@ -349,11 +307,11 @@ function ToolRow({
   return (
     <li className={styles.tool}>
       <div className={styles['tool-copy']}>
-        <strong>{label}</strong>
+        <strong>{tool.title}</strong>
         <code>{tool.name}</code>
       </div>
       <fieldset className={styles.segmented} disabled={disabled}>
-        <legend className="visually-hidden">{label}</legend>
+        <legend className="visually-hidden">{tool.title}</legend>
         {choices.map((policy) => (
           <button
             type="button"

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type Database, runMigrations, transaction } from '@emanator/shared/server';
-import type { Approval, ApprovalStatus } from '../domain/approval.ts';
+import type { Approval, ApprovalDecision, ApprovalStatus } from '../domain/approval.ts';
 import type { Policy } from '../domain/policy.ts';
 import { policyMigrations } from './migrations.ts';
 
@@ -74,10 +74,7 @@ export class PolicyStore {
    * Decides a pending Approval and returns it, or undefined when it was already decided:
    * of two answers racing, e.g. a press and the expiry, only the first counts.
    */
-  async decideApproval(
-    id: string,
-    status: Exclude<ApprovalStatus, 'pending'>,
-  ): Promise<Approval | undefined> {
+  async decideApproval(id: string, status: ApprovalDecision): Promise<Approval | undefined> {
     const {
       rows: [row],
     } = await this.db.query(

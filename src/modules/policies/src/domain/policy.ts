@@ -5,14 +5,21 @@ export const POLICIES = ['allow', 'ask', 'deny'] as const;
 
 export type Policy = (typeof POLICIES)[number];
 
-/** A Tool the Owner can set a Policy for. */
+/** A Tool the Owner can set a Policy for, described for the dashboard. */
 export interface ToolInfo {
   name: string;
-  /** The Faculty or Capability that exposes the Tool. */
-  group: string;
+  title: string;
   defaultPolicy: Policy;
   /** The Policies that can be enforced for it; all of them when omitted. */
   choices?: readonly Policy[];
+}
+
+/** The Tools of one Faculty or Capability, shown together in the dashboard. */
+export interface ToolGroup<Tool extends ToolInfo = ToolInfo> {
+  name: string;
+  title: string;
+  description?: string;
+  tools: readonly Tool[];
 }
 
 /** A Tool with the Policy in force; `custom` when the Owner chose it. */
@@ -20,6 +27,8 @@ export interface ToolPolicy extends ToolInfo {
   policy: Policy;
   custom: boolean;
 }
+
+export type PolicyGroup = ToolGroup<ToolPolicy>;
 
 export class PolicyValidationError extends Error {
   override name = 'PolicyValidationError';

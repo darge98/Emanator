@@ -1,6 +1,6 @@
 import type { Channel, InboundAction } from '@emanator/channels';
 import { errorMessage, type Logger } from '@emanator/shared/server';
-import type { Approval, ApprovalStatus } from '../domain/approval.ts';
+import type { Approval, ApprovalDecision } from '../domain/approval.ts';
 import * as say from './messages.ts';
 import type { PolicyStore } from './policy-store.ts';
 
@@ -42,7 +42,7 @@ function defaultSchedule(ms: number, run: () => void): () => void {
 }
 
 interface Waiting {
-  resolve: (status: Exclude<ApprovalStatus, 'pending'>) => void;
+  resolve: (status: ApprovalDecision) => void;
   cancelTimers: (() => void)[];
   decided: boolean;
 }
@@ -67,16 +67,11 @@ export class ApprovalService {
   }
 
   /** Resolves with the decision, never `pending`. */
-  async request({
-    tool,
-    input,
-    threadId,
-    signal,
-  }: ApprovalRequest): Promise<Exclude<ApprovalStatus, 'pending'>> {
+  async request({ tool, input, threadId, signal }: ApprovalRequest): Promise<ApprovalDecision> {
     if (this.stopped || signal.aborted) return 'expired';
     const approval = await this.deps.store.createApproval(tool, input, threadId);
     const { id } = approval;
-    const decided = new Promise<Exclude<ApprovalStatus, 'pending'>>((resolve) => {
+    const decided = new Promise<ApprovalDecision>((resolve) => {
       this.waiting.set(id, { resolve, cancelTimers: [], decided: false });
     });
     const expire = () => void this.settle(id, 'expired');
@@ -160,7 +155,7 @@ export class ApprovalService {
    * Records the decision and wakes the waiting turn. Returns false when the Approval was
    * already decided or is unknown. Never rejects.
    */
-  private async settle(id: string, status: Exclude<ApprovalStatus, 'pending'>): Promise<boolean> {
+  private async settle(id: string, status: ApprovalDecision): Promise<boolean> {
     let approval: Approval | undefined;
     try {
       approval = await this.deps.store.decideApproval(id, status);
@@ -180,7 +175,7 @@ export class ApprovalService {
     return true;
   }
 
-  private wake(id: string, status: Exclude<ApprovalStatus, 'pending'>): void {
+  private wake(id: string, status: ApprovalDecision): void {
     const waiting = this.waiting.get(id);
     if (!waiting || waiting.decided) return;
     waiting.decided = true;

@@ -38,8 +38,8 @@ describe('buildQueryOptions', () => {
     expect(options.mcpServers).toEqual({});
   });
 
-  it('enables only the built-in tools behind the requested Faculties', () => {
-    expect(build({ faculties: ['web_search', 'web_fetch'] }).tools).toEqual([
+  it('enables only the built-in tools behind the requested Engine Tools', () => {
+    expect(build({ engineTools: ['web_search', 'web_fetch'] }).tools).toEqual([
       'WebSearch',
       'WebFetch',
     ]);

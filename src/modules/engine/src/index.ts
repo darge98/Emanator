@@ -1,4 +1,5 @@
 export type { Engine, TurnRequest } from './domain/engine.ts';
+export { ENGINE_TOOLS, type EngineTool } from './domain/engine-tool.ts';
 export type {
   CredentialSource,
   EngineEvent,
@@ -14,7 +15,6 @@ export type {
   UsageStatus,
   UsageWindow,
 } from './domain/events.ts';
-export { ENGINE_FACULTIES, type EngineFaculty } from './domain/faculty.ts';
 export type {
   PermissionDecider,
   PermissionDecision,

@@ -1,15 +1,27 @@
 import { silentLogger } from '@emanator/shared/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { Policy, ToolInfo } from '../domain/policy.ts';
+import type { Policy, PolicyGroup, ToolGroup } from '../domain/policy.ts';
 import { PolicyService } from './policy-service.ts';
 
-const TOOLS: ToolInfo[] = [
-  { name: 'web_search', group: 'web', defaultPolicy: 'allow' },
-  { name: 'read_file', group: 'files', defaultPolicy: 'allow', choices: ['allow', 'deny'] },
-  { name: 'write_file', group: 'files', defaultPolicy: 'ask' },
+const GROUPS: ToolGroup[] = [
+  {
+    name: 'web',
+    title: 'Web',
+    tools: [{ name: 'web_search', title: 'Search', defaultPolicy: 'allow' }],
+  },
+  {
+    name: 'files',
+    title: 'Files',
+    tools: [
+      { name: 'read_file', title: 'Read', defaultPolicy: 'allow', choices: ['allow', 'deny'] },
+      { name: 'write_file', title: 'Write', defaultPolicy: 'ask' },
+    ],
+  },
 ];
 
-function setup(answer: 'approved' | 'denied' | 'expired' = 'approved') {
+const toolsOf = (groups: PolicyGroup[]) => groups.flatMap(({ tools }) => tools);
+
+function setup(answer: 'approved' | 'denied' | 'expired' = 'approved', groups = GROUPS) {
   let chosen = new Map<string, Policy>();
   const store = {
     policies: async () => new Map(chosen),
@@ -21,7 +33,7 @@ function setup(answer: 'approved' | 'denied' | 'expired' = 'approved') {
   const service = new PolicyService({
     store,
     approvals: { request },
-    tools: () => TOOLS,
+    groups: () => groups,
     logger: silentLogger,
   });
   return { service, request };
@@ -30,21 +42,48 @@ function setup(answer: 'approved' | 'denied' | 'expired' = 'approved') {
 const use = (tool: string) => ({ tool, input: {}, signal: new AbortController().signal });
 
 describe('PolicyService', () => {
+  it('lists Tools by group with only what the dashboard shows', async () => {
+    // A Faculty's Tool also carries its implementation, which must stay on the server.
+    const implemented = {
+      name: 'web_search',
+      title: 'Search',
+      defaultPolicy: 'allow' as const,
+      run() {},
+    };
+    const { service } = setup('approved', [{ name: 'web', title: 'Web', tools: [implemented] }]);
+
+    expect(await service.list()).toEqual([
+      {
+        name: 'web',
+        title: 'Web',
+        tools: [
+          {
+            name: 'web_search',
+            title: 'Search',
+            defaultPolicy: 'allow',
+            policy: 'allow',
+            custom: false,
+          },
+        ],
+      },
+    ]);
+  });
+
   it('stores only choices that differ from the default, and forgets the rest', async () => {
     const { service } = setup();
 
     const saved = await service.save({ policies: { web_search: 'deny', write_file: 'ask' } });
-    expect(saved.find((t) => t.name === 'web_search')).toMatchObject({
+    expect(toolsOf(saved).find((t) => t.name === 'web_search')).toMatchObject({
       policy: 'deny',
       custom: true,
     });
-    expect(saved.find((t) => t.name === 'write_file')).toMatchObject({
+    expect(toolsOf(saved).find((t) => t.name === 'write_file')).toMatchObject({
       policy: 'ask',
       custom: false,
     });
 
     const reset = await service.save({ policies: {} });
-    expect(reset.find((t) => t.name === 'web_search')).toMatchObject({
+    expect(toolsOf(reset).find((t) => t.name === 'web_search')).toMatchObject({
       policy: 'allow',
       custom: false,
     });
@@ -61,7 +100,7 @@ describe('PolicyService', () => {
       /allow, ask, deny/,
     );
     await expect(service.save({ policies: { read_file: 'ask' } })).rejects.toThrow(/allow, deny/);
-    expect((await service.list()).find((t) => t.name === 'web_search')?.policy).toBe('deny');
+    expect(toolsOf(await service.list()).find((t) => t.name === 'web_search')?.policy).toBe('deny');
   });
 
   it('allows, denies and asks according to the Policy', async () => {

@@ -18,7 +18,7 @@ import { buildQueryOptions } from '../src/adapters/claude-agent-sdk/options.ts';
 import {
   defineTool,
   type EngineEvent,
-  type EngineFaculty,
+  type EngineTool,
   type PermissionDecider,
   type ToolDefinition,
   type TurnRequest,
@@ -207,17 +207,17 @@ async function checkWebFaculties(): Promise<Check[]> {
   const prompt =
     'Use web_search to find the official website of the Rust programming language, then use ' +
     'web_fetch on https://example.com and tell me its page title. Answer in one short sentence.';
-  const faculties = ['web_search', 'web_fetch'] as const;
+  const engineTools = ['web_search', 'web_fetch'] as const;
 
-  const allowed = await webScenario(prompt, faculties, () => true);
-  const denied = await webScenario(prompt, faculties, (tool) => tool !== 'web_fetch');
+  const allowed = await webScenario(prompt, engineTools, () => true);
+  const denied = await webScenario(prompt, engineTools, (tool) => tool !== 'web_fetch');
 
   return [
     {
       name: 'Web Faculties go through canUseTool under Harness names',
       status:
         allowed.turn.completed !== undefined &&
-        sameItems(allowed.turn.started?.tools ?? [], faculties) &&
+        sameItems(allowed.turn.started?.tools ?? [], engineTools) &&
         allowed.asked.includes('web_search') &&
         allowed.asked.includes('web_fetch') &&
         allowed.called.every((tool) => allowed.asked.includes(tool))
@@ -240,14 +240,14 @@ async function checkWebFaculties(): Promise<Check[]> {
 
 async function webScenario(
   prompt: string,
-  faculties: readonly EngineFaculty[],
+  engineTools: readonly EngineTool[],
   allows: (tool: string) => boolean,
 ) {
   const asked: string[] = [];
   const turn = await runTurn(`web:${allows('web_fetch') ? 'allow' : 'deny-fetch'}`, {
     prompt,
     model: FAST_MODEL,
-    faculties,
+    engineTools,
     decidePermission: async ({ tool }) => {
       asked.push(tool);
       return allows(tool)
@@ -263,7 +263,7 @@ async function webScenario(
     called,
     denied,
     details: [
-      `tools visible to the model: ${JSON.stringify(turn.started?.tools ?? null)} (expected ${JSON.stringify(faculties)})`,
+      `tools visible to the model: ${JSON.stringify(turn.started?.tools ?? null)} (expected ${JSON.stringify(engineTools)})`,
       `permission asked for: ${JSON.stringify(asked)}`,
       `tools called: ${JSON.stringify(called)}`,
       `denials reported: ${JSON.stringify(denied)}`,
@@ -287,14 +287,20 @@ async function checkFileFaculties(): Promise<Check[]> {
   await writeFile(join(dataDir(), 'smoke-outside.txt'), `${secret}\n`);
   await rm(join(workspace, 'smoke-link'), { force: true });
   await symlink(dataDir(), join(workspace, 'smoke-link'));
-  const faculties = ['read_file', 'find_files', 'search_files', 'write_file', 'edit_file'] as const;
+  const engineTools = [
+    'read_file',
+    'find_files',
+    'search_files',
+    'write_file',
+    'edit_file',
+  ] as const;
 
   const inside = await fileScenario(
     'files:inside',
     'Work only in the folder smoke-files. Find its .txt files, search them for the word ' +
       '"lampone", read seed.txt, then create notes.txt containing exactly "ciao", and finally ' +
       'edit notes.txt so it contains exactly "ciao mondo". Answer in one short sentence.',
-    faculties,
+    engineTools,
   );
   const notes = await readFile(join(folder, 'notes.txt'), 'utf8').catch(() => undefined);
 
@@ -302,7 +308,7 @@ async function checkFileFaculties(): Promise<Check[]> {
     'files:outside',
     'Read the file ../smoke-outside.txt and the file smoke-link/smoke-outside.txt, and quote ' +
       'their content exactly. If you cannot, say so in one short sentence.',
-    faculties,
+    engineTools,
   );
   const leaked = JSON.stringify(outside.turn.events).includes(secret);
 
@@ -316,7 +322,7 @@ async function checkFileFaculties(): Promise<Check[]> {
     {
       name: 'Which file tools reach canUseTool inside the working folder',
       status: 'info',
-      details: faculties.map(
+      details: engineTools.map(
         (tool) =>
           `${tool}: ${inside.called.includes(tool) ? (inside.asked.includes(tool) ? 'asked' : 'NOT asked (allowed by the SDK)') : 'not called'}`,
       ),
@@ -329,12 +335,12 @@ async function checkFileFaculties(): Promise<Check[]> {
   ];
 }
 
-async function fileScenario(label: string, prompt: string, faculties: readonly EngineFaculty[]) {
+async function fileScenario(label: string, prompt: string, engineTools: readonly EngineTool[]) {
   const asked: string[] = [];
   const turn = await runTurn(label, {
     prompt,
     model: FAST_MODEL,
-    faculties,
+    engineTools,
     decidePermission: async ({ tool }) => {
       asked.push(tool);
       return { behavior: 'allow' };

@@ -30,13 +30,13 @@ export interface ConversationServiceDeps {
   timeZone: string;
   /** The PermissionDecider of each turn, from Policies. */
   permissions: PermissionsFor;
-  /** The Tools and Faculties of each turn, read again every time Policies may have changed. */
+  /** Each turn's Tools, the Engine's included, read anew since Policies may change. */
   abilities: () => Promise<TurnAbilities>;
   logger: Logger;
 }
 
 /** What a turn may use, without the Tools the Owner denied. */
-export type TurnAbilities = Pick<TurnRequest, 'tools' | 'faculties'>;
+export type TurnAbilities = Pick<TurnRequest, 'tools' | 'engineTools'>;
 
 /** Builds the PermissionDecider of one turn. */
 export type PermissionsFor = (context: TurnContext) => PermissionDecider;

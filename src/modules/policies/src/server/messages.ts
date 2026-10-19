@@ -1,4 +1,4 @@
-import type { Approval, ApprovalStatus } from '../domain/approval.ts';
+import type { Approval, ApprovalDecision } from '../domain/approval.ts';
 
 // What the Harness says about Approvals. Italian, like the other Telegram messages.
 
@@ -13,7 +13,7 @@ export function approvalRequest({ tool, input }: Approval, reminder: boolean): s
   return [reminder ? `⏰ **Promemoria** · ${ask}` : ask, ...inputBlock(input)].join('\n\n');
 }
 
-const OUTCOMES: Record<Exclude<ApprovalStatus, 'pending'>, string> = {
+const OUTCOMES: Record<ApprovalDecision, string> = {
   approved: '✅ Approvata.',
   denied: '❌ Negata.',
   expired: '⌛ Scaduta senza risposta: vale come un no.',

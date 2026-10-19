@@ -2,7 +2,9 @@ import type { PermissionDecider, PermissionDecision, PermissionRequest } from '@
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import {
   type Policy,
+  type PolicyGroup,
   PolicyValidationError,
+  type ToolGroup,
   type ToolInfo,
   type ToolPolicy,
   validatePolicies,
@@ -13,8 +15,8 @@ import type { PolicyStore } from './policy-store.ts';
 export interface PolicyServiceDeps {
   store: Pick<PolicyStore, 'policies' | 'replacePolicies'>;
   approvals: Pick<ApprovalService, 'request'>;
-  /** Every Tool the Agent can have, from Faculties and Capabilities. */
-  tools: () => readonly ToolInfo[];
+  /** Every Tool the Agent can have, grouped by the Faculty or Capability that exposes it. */
+  groups: () => readonly ToolGroup[];
   logger: Logger;
 }
 
@@ -30,22 +32,24 @@ export interface DeciderContext {
 export class PolicyService {
   constructor(private readonly deps: PolicyServiceDeps) {}
 
-  async list(): Promise<ToolPolicy[]> {
+  async list(): Promise<PolicyGroup[]> {
     const chosen = await this.deps.store.policies();
-    return this.deps.tools().map((tool) => {
-      const custom = chosen.get(tool.name);
-      return { ...tool, policy: custom ?? tool.defaultPolicy, custom: custom !== undefined };
-    });
+    return this.deps.groups().map(({ name, title, description, tools }) => ({
+      name,
+      title,
+      ...(description !== undefined && { description }),
+      tools: tools.map((tool) => withPolicy(tool, chosen.get(tool.name))),
+    }));
   }
 
   /**
    * Saves the Owner's choices, `{ policies: { [tool]: policy } }`. A Tool left out, or set
    * to its default, goes back to the default. Nothing is saved if any choice is invalid.
    */
-  async save(input: unknown): Promise<ToolPolicy[]> {
+  async save(input: unknown): Promise<PolicyGroup[]> {
     const chosen = new Map<string, Policy>();
     for (const [tool, policy] of Object.entries(validatePolicies(input))) {
-      const info = this.deps.tools().find(({ name }) => name === tool);
+      const info = this.tools().find(({ name }) => name === tool);
       if (!info) throw new PolicyValidationError(`There is no Tool called "${tool}".`);
       // A Policy the Engine can't enforce would be ignored without a word.
       if (info.choices && !info.choices.includes(policy)) {
@@ -61,14 +65,22 @@ export class PolicyService {
 
   /** A Tool nobody declared is denied: the Agent only has Tools the Owner can see. */
   async policyOf(tool: string): Promise<Policy> {
-    return (await this.list()).find(({ name }) => name === tool)?.policy ?? 'deny';
+    return (await this.policies()).find(({ name }) => name === tool)?.policy ?? 'deny';
   }
 
   /** Leaves out the denied Tools, so the model doesn't try them. */
   async usable<T extends { name: string }>(tools: readonly T[]): Promise<T[]> {
-    const policies = await this.list();
+    const policies = await this.policies();
     const denied = new Set(policies.filter((p) => p.policy === 'deny').map((p) => p.name));
     return tools.filter(({ name }) => !denied.has(name));
+  }
+
+  private tools(): ToolInfo[] {
+    return this.deps.groups().flatMap(({ tools }) => tools);
+  }
+
+  private async policies(): Promise<ToolPolicy[]> {
+    return (await this.list()).flatMap(({ tools }) => tools);
   }
 
   /**
@@ -126,4 +138,19 @@ export class PolicyService {
       this.deps.logger.warn('Could not report a pending Approval', { error: errorMessage(error) });
     }
   }
+}
+
+/** Only what the dashboard shows: a Tool may also carry its implementation. */
+function withPolicy(
+  { name, title, defaultPolicy, choices }: ToolInfo,
+  custom: Policy | undefined,
+): ToolPolicy {
+  return {
+    name,
+    title,
+    defaultPolicy,
+    ...(choices && { choices }),
+    policy: custom ?? defaultPolicy,
+    custom: custom !== undefined,
+  };
 }

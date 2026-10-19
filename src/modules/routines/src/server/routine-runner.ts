@@ -18,7 +18,7 @@ export interface RoutineRunnerDeps {
   usage: UsageTracker;
   /** The PermissionDecider of each Run, from Policies. */
   permissions: PermissionsFor;
-  /** The Tools and Faculties of each Run, without those the Owner denied. */
+  /** The Tools of each Run, the Engine's included, without those the Owner denied. */
   abilities: () => Promise<TurnAbilities>;
   /** The Agent's system prompt, built fresh for every Run. */
   systemPrompt: () => Promise<string> | string;

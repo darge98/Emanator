@@ -1,9 +1,11 @@
-export type { Approval, ApprovalStatus } from './domain/approval.ts';
+export type { Approval, ApprovalDecision, ApprovalStatus } from './domain/approval.ts';
 export {
   defaultPolicy,
   POLICIES,
   type Policy,
+  type PolicyGroup,
   PolicyValidationError,
+  type ToolGroup,
   type ToolInfo,
   type ToolPolicy,
   validatePolicies,
