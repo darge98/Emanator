@@ -12,8 +12,7 @@
     "@emanator/policies": "workspace:*",
     "@emanator/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "fastify": "^5.0.0",
-    "simple-icons": "^16.35.0"
+    "fastify": "^5.0.0"
   },
   "peerDependencies": {
     "@phosphor-icons/react": "^2.1.10",

@@ -16,16 +16,14 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import {
-  type SimpleIcon,
-  siGmail,
-  siGooglecalendar,
-  siGoogledrive,
-  siGoogletasks,
-} from 'simple-icons';
 import { type Capability, type CapabilityStatus, suggestSlug } from '../domain/capability.ts';
 import type { CatalogItem } from '../domain/catalog.ts';
 import styles from './capabilities-page.module.css';
+// Google's own product icons, from its CDN (www.gstatic.com/images/branding/productlogos).
+import calendarLogo from './logos/calendar.svg';
+import driveLogo from './logos/drive.svg';
+import gmailLogo from './logos/gmail.svg';
+import tasksLogo from './logos/tasks.svg';
 
 /** A Capability as the API sends it: dates are ISO strings. */
 type CapabilityDto = Omit<Capability, 'createdAt' | 'updatedAt'> & {
@@ -67,22 +65,18 @@ interface Entry {
 /** Draws a tile's icon at the given size. */
 type Glyph = (props: { size: number }) => ReactNode;
 
-/** A service's own logo, from Simple Icons (CC0), in the colour its brand gives it. */
+/** A service's own logo, as its maker publishes it. */
 const logo =
-  ({ path, hex }: SimpleIcon): Glyph =>
-  ({ size }) => (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill={`#${hex}`} aria-hidden="true">
-      <path d={path} />
-    </svg>
-  );
+  (src: string): Glyph =>
+  ({ size }) => <img src={src} width={size} height={size} alt="" />;
 
 const CUSTOM_SERVER: Glyph = ({ size }) => <Plug size={size} />;
 
 const ICONS: Record<string, Glyph> = {
-  gmail: logo(siGmail),
-  calendar: logo(siGooglecalendar),
-  drive: logo(siGoogledrive),
-  tasks: logo(siGoogletasks),
+  gmail: logo(gmailLogo),
+  calendar: logo(calendarLogo),
+  drive: logo(driveLogo),
+  tasks: logo(tasksLogo),
 };
 
 const t = {

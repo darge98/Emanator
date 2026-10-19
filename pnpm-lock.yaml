@@ -284,9 +284,6 @@ importers:
       react:
         specifier: ^19.1.0
         version: 19.3.1
-      simple-icons:
-        specifier: ^16.35.0
-        version: 16.35.0
     devDependencies:
       '@phosphor-icons/react':
         specifier: ^2.1.10
@@ -2268,10 +2265,6 @@ packages:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
 
-  simple-icons@16.35.0:
-    resolution: {integrity: sha512-TCfl/2+GTrx0nCo4pEWGvxhOb8c6NsqOU1OpwjtF4lwJAthB8IYVD0fuIMjLMg6JFuG1YBO0t1iETQqJLqkoJA==}
-    engines: {node: '>=0.12.18'}
-
   sonic-boom@4.2.1:
     resolution: {integrity: sha512-w6AxtubXa2wTXAUsZMMWERrsIRAdrK0Sc+FUytWvYAhBJLyuI4llrMIC1DtlNSdI99EI86KZum2MMq3EAZlF9Q==}
 
@@ -4077,8 +4070,6 @@ snapshots:
       side-channel-weakmap: 1.0.2
 
   signal-exit@4.1.0: {}
-
-  simple-icons@16.35.0: {}
 
   sonic-boom@4.2.1:
     dependencies:

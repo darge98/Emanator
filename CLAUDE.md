@@ -84,7 +84,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **Dashboard.**
 - It is served on `127.0.0.1:3000` without authentication. `dashboard-server.ts` rejects non-loopback hosts and cross-origin writes. For that reason the Vite proxy keeps the Host header (`changeOrigin: false`).
 - It is in English only. Pages report unsaved edits through `onDirtyChange`, so `App.tsx` can ask before navigating away, and ask the Owner yes/no questions through the `confirm` prop, which opens the shell's `ConfirmDialog` (never `window.confirm`).
-- `src/apps/web/src/styles.css` is the design system: tokens (4px spacing scale, type scale, colours with a dark variant) and the primitives every page shares (`.page`, `.section`, `.panel`, `.btn`, `.field`, `.save-bar`, …). A module's CSS module holds only its page layout and reads the tokens; it never hardcodes colours or sizes. Icons come from `@phosphor-icons/react`; services' own logos come from `simple-icons`. Fonts are Geist via `@fontsource`.
+- `src/apps/web/src/styles.css` is the design system: tokens (4px spacing scale, type scale, colours with a dark variant) and the primitives every page shares (`.page`, `.section`, `.panel`, `.btn`, `.field`, `.save-bar`, …). A module's CSS module holds only its page layout and reads the tokens; it never hardcodes colours or sizes. Icons come from `@phosphor-icons/react`; services' own logos are their makers' SVGs, kept in the module's `web/logos`. Fonts are Geist via `@fontsource`.
 
 ## Conventions
 
