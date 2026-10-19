@@ -34,13 +34,25 @@ A part of the Owner's life, such as Personal, Work, Volunteering or Hobby. Capab
 _Avoid_: label, tag, category, profile, context
 
 **Memory** (it: *Memoria*):
-The persistent notes about the Owner and their world (name, facts, people, preferences, habits), curated by the Agent and editable by the Owner. It survives Conversation resets.
-_Avoid_: knowledge base, profile, context
+The Agent's persistent wiki about the Owner and their world: pages about the Owner, the people they know, places, interests, possessions and projects, linked to one another. The Agent curates it and the Owner can read and correct it. It survives Conversation resets and a change of Engine.
+_Avoid_: knowledge base, profile, context, second brain
+
+**Page** (it: *Pagina*):
+One subject in Memory (the Owner, a person, a place, an interest, a possession…) with the Facts known about it.
+_Avoid_: note, entity, document, file
+
+**Fact** (it: *Fatto*):
+A single piece of knowledge on a Page, with where it came from. It is either *confirmed* (by the Owner) or *inferred* (by the Agent, from Conversations or Capabilities). Preferences and instructions can only be confirmed Facts.
+_Avoid_: memory, note, claim
+
+**Dream** (it: *Sogno*):
+The Harness's nightly pass over Memory. It infers new Facts from the day, links and tidies Pages, finds contradictions, and asks the Owner to confirm what matters.
+_Avoid_: consolidation, sync, digest
 
 ### Agent abilities
 
 **Faculty** (it: *Facoltà*):
-An innate ability of the Agent that needs nothing installed and comes from the Harness or the Engine: web search, files, shell, creating Reminders, opening Conversations. The Harness defines what a Faculty means; each Engine implements it in its own way.
+An innate ability of the Agent that needs nothing installed and comes from the Harness or the Engine: web search, files, shell, Memory, creating Reminders, opening Conversations. The Harness defines what a Faculty means; each Engine implements it in its own way.
 _Avoid_: built-in tool, native tool, feature
 
 **Capability** (it: *Capacità*):

@@ -16,7 +16,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 
 ### Routines
 - A Routine is a prompt plus one or more scheduled Triggers: a specific date, an interval or a cron expression. The dashboard offers guided schedules (every day, days of the week, day of the month at a time) that are cron expressions underneath, with raw cron as the advanced option.
-- The Agent decides which Faculties, Capabilities and Skills to use.
+- The Agent decides which Faculties and Capabilities to use.
 - Routine names are unique and otherwise free; `general` is allowed too.
 - Each Routine picks its own model.
 - Every Routine delivers to its own topic, never to General (choosing General may come back later). The topic is the Routine's own Conversation:
@@ -44,7 +44,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   The Harness therefore can't detect the deletion, and the Conversation stays live until the Owner archives it, which v1 can't do yet (see Later waves).
 - Context is reset only by the Owner with `/new`, and is compacted automatically when it grows too large.
 - Messages within one Conversation are queued and handled in order.
-- Bot commands are in English (`/start`, `/new`, …). The bot answers only the paired Owner chat, using a pairing code shown in the UI.
+- Bot commands are in English (`/start`, `/new`, …). The bot answers only the paired Owner chat, using a one-time pairing code that the Harness writes to its log at start.
 - Telegram is used in long-polling mode, so no public URL is needed.
 
 ### Agent abilities
@@ -56,7 +56,6 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - Client secrets and tokens are sealed with `EMANATOR_SECRET_KEY` before they reach PostgreSQL; the dashboard never reads a secret back.
   - The Tools a server lists are cached, so Policies and the dashboard work while it is offline. A disabled Capability gives no Tools to turns; an offline one fails its calls with an error the model can explain.
   - Access tokens refresh during calls. A grant that can't be refreshed makes the Capability *needs authorization* and tells the Owner once, in General.
-- **Skills:** instruction-only SKILL.md packages, created, edited or uploaded from the UI.
 
 ### Control
 - Each Tool has a Policy: *allow*, *ask* or *deny*.
@@ -101,9 +100,6 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error);
   - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it. A save changes only the Tools it names;
   - Capabilities: the catalog first, each entry with what `.env` still lacks; then custom servers. Connect (through the authorization page and back), on/off, refresh Tools, the Policies of each Capability's Tools, and create, edit or delete for custom servers.
-- Remaining v1 pages:
-  - Skills;
-  - Telegram pairing.
 - The dashboard is in English; Telegram messages are in Italian.
 
 ### Failures
@@ -140,9 +136,14 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - An Italian dashboard. v1 shows it in English only.
 - Routine names made only of non-Latin letters (e.g. `日本`) all slug to `topic`, so only one of them can exist.
 
+- Skills: instruction-only SKILL.md packages, created, edited or uploaded from the dashboard.
+- A Telegram pairing page in the dashboard, showing the pending code or the paired Owner. In v1 the code is only in the Harness log.
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
 - Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.
-- Memory: Markdown notes curated by the Agent (file based).
+- Memory, a wiki of Pages written only through the Memory Faculty ([ADR 0009](adr/0009-memory-is-a-wiki-written-through-a-faculty.md)), in three waves:
+  1. the Memory Faculty (`remember`, `forget`, `recall`), an Obsidian-compatible vault with `index.md` and `log.md`, confirmed and inferred Facts with taint, the Owner's Page and the index in every turn, and a local git repository with one commit per change;
+  2. the Dream: the nightly pass that infers Facts, lints the wiki and asks the Owner to confirm, with read-only Tools only;
+  3. the dashboard: a git remote as a push mirror, Memory as a graph, editing Pages, and full-text search. Later still: two-way sync with the Owner's own vault, an encrypted repository, an initial interview.
 - Sandbox with the shell Faculty (on *ask*), local MCP servers and Skills with scripts.
 - Plugin installation from Claude Code marketplaces.
 - Injecting new messages into the turn already in progress, instead of queueing them.
