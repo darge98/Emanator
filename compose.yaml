@@ -40,7 +40,9 @@ services:
   # Gmail and Calendar for Capabilities, through Google's stable APIs, until Google's own
   # MCP servers leave the Developer Preview. Third-party code that sees Google tokens, so:
   # pinned to a reviewed commit (v2.1.0), stateless (it stores no token: the Harness passes
-  # its own on each call), read-only Tools, no privileges and no other secret.
+  # its own on each call), no privileges and no other secret. Its permissions match the
+  # catalog's scopes: Gmail up to sending (not filters, which act on their own later) and
+  # all of Calendar. Writing Tools start on *ask*.
   # It starts with the rest (`docker compose up -d --build`); without GOOGLE_CLIENT_ID and
   # WORKSPACE_MCP_JWT_KEY in .env it stops at once, and only the Google Capability misses it.
   # Capability URL: http://workspace-mcp:8000/mcp (Harness in Compose) or, with
@@ -51,8 +53,8 @@ services:
       MCP_ENABLE_OAUTH21: "true"
       EXTERNAL_OAUTH21_PROVIDER: "true"
       WORKSPACE_MCP_STATELESS_MODE: "true"
-      WORKSPACE_MCP_READ_ONLY: "true"
-      TOOLS: gmail calendar
+      # Also picks the services it loads; keep it in line with the scopes in catalog.ts.
+      WORKSPACE_MCP_PERMISSIONS: gmail:send calendar:full
       # Must match the URL the Harness uses: the OAuth metadata names it as the resource.
       WORKSPACE_EXTERNAL_URL: ${WORKSPACE_MCP_URL:-http://workspace-mcp:8000}
       # The OAuth client of your Google Cloud project; its secret stays in the Harness.

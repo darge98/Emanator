@@ -41,7 +41,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - sends to it still succeed, and Telegram reports them as delivered to the topic;
   - the Owner's client shows them in General.
 
-  The Harness therefore can't detect the deletion, and the Conversation stays live. Archiving it is left to the UI.
+  The Harness therefore can't detect the deletion, and the Conversation stays live until the Owner archives it, which v1 can't do yet (see Later waves).
 - Context is reset only by the Owner with `/new`, and is compacted automatically when it grows too large.
 - Messages within one Conversation are queued and handled in order.
 - Bot commands are in English (`/start`, `/new`, …). The bot answers only the paired Owner chat, using a pairing code shown in the UI.
@@ -76,10 +76,14 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - workspace-mcp runs as its own Compose service, started with the Harness, not in the Sandbox. It shares a network with the Harness only, so PostgreSQL is out of its reach:
   - it is pinned to a reviewed commit;
   - it runs stateless, so it keeps no token: the Harness sends its own with each call;
-  - it offers only read-only Gmail and Calendar Tools;
+  - it offers only Gmail and Calendar Tools, within the permissions that match the catalog's scopes;
   - it runs read-only, with no privileges and no other secret.
 - Gmail and Google Calendar are the catalog's entries. The Owner's Google Cloud project provides one OAuth client, a Web application marked "Use this client for an AI-powered agent", with the Harness's redirect URI. Its ID and secret go in `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); at every start the Harness brings both Capabilities in line with them.
-- The scopes are `openid` and `userinfo.email` (workspace-mcp checks tokens through userinfo), plus `gmail.readonly` for Gmail or `calendar.readonly` for Calendar. A grant that can only read limits what a compromised workspace-mcp could do with the tokens; write Tools will need the Owner to connect again.
+- The scopes are `openid` and `userinfo.email` (workspace-mcp checks tokens through userinfo), plus the scopes of one workspace-mcp permission level:
+  - Gmail at `send`: read, labels, modify, compose and send. The Agent can search, read, label, archive, draft and send mail. Gmail's `full` level is left out, because its filters keep acting later without an Approval.
+  - Calendar at `full`: read and manage calendars and events.
+- Writing Tools start on *ask*, from their annotations. The grants can write, so a compromised workspace-mcp could act with them while it holds a token; pinning and confinement are what guard against that.
+- A change of scopes disconnects the Capability at the next start, and the Owner connects it again.
 - Moving to Google's own servers is a change of URL; their Tool names differ, so their Policies start over.
 
 ### Engine and quota
@@ -91,13 +95,11 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
 - Currently covers:
   - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel;
-  - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error). Run transcripts are still to come;
+  - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error);
   - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it. A save changes only the Tools it names;
   - Capabilities: the catalog first, each entry with what `.env` still lacks; then custom servers. Connect (through the authorization page and back), on/off, refresh Tools, the Policies of each Capability's Tools, and create, edit or delete for custom servers.
 - Remaining v1 pages:
   - Skills;
-  - Run transcripts in the Routine history;
-  - Conversations;
   - Telegram pairing.
 - The dashboard is in English; Telegram messages are in Italian.
 
@@ -125,7 +127,9 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
   - Tool names too long for the Engine are left out; shortening them with a hash would keep them;
   - more catalog entries, each tried for real first (e.g. hosted servers with dynamic registration such as Notion or Linear);
   - connecting one catalog entry with several accounts, which comes with Areas;
-  - write Tools for Gmail and Calendar, on *ask*.
+  - more of Google's suite on workspace-mcp: Drive with Docs, Sheets, Slides and Forms, and Tasks, writing on *ask* (next);
+  - Google Chat, which needs a Workspace account and a Chat app in the Cloud project; Contacts; Custom Search; Apps Script;
+  - Gmail filters (workspace-mcp's `gmail:full`).
 - Dashboard polish found in the Routines review (October 2026):
   - Run errors in the history are raw Engine text;
   - accessibility: focus moves to the editor when it opens and back after it closes, and history toggles get `aria-controls`;
@@ -145,6 +149,9 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - Handling overlapping Runs of the same Routine. In v1 they run in parallel, which is a known issue.
 - Restricting Capabilities per Routine, and Policies that a Routine overrides.
 - Approvals for Tools that execute real actions, with the patterns in [legacy-ideas.md](legacy-ideas.md#approvals-patterns-to-adopt): binding to a hash of the content shown, atomic *pending* → *executing*, idempotent ids, ETag preconditions, and *uncertain outcome* at startup.
+- An activity view, apart from the dashboard, which only configures the Agent:
+  - Run transcripts, read from each Run's Engine session: prompt, Tool calls with their input and result, Approvals and the final reply;
+  - the list of Conversations, with archiving for those whose topic the Owner deleted.
 - Usage metrics panel: quota per window (five-hour, seven-day), turns, and estimated cost per Routine and Conversation, built on the Engine's `usage.limit` events.
 - UI authentication and deployment to a VPS. On Linux hosts the `./data` bind mount must be writable by the container's `node` user (uid 1000). Docker creates a missing `./data` as root, so the Harness would crash-loop; Docker Desktop on macOS hides this.
 - Multiple Agents, and project workflows with dedicated development containers.
@@ -163,6 +170,6 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - **Subscription token with the Agent SDK:** it works end to end (smoke run on 2026-10-14, see ADR 0001), but it remains a grey area in Anthropic's terms.
 - **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics, and that the bot can rename them (Routine renames; the Bot API documents `editForumTopic` for private chats).
 - **Google official MCP servers:** checked on 2026-10-19. A personal @gmail.com account authorizes fine, but every Tool call is refused until the Cloud project is enrolled in the Workspace Developer Preview; workspace-mcp covers Gmail and Calendar meanwhile. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
-- **workspace-mcp:** third-party code that sees Google tokens during calls. It is pinned and confined (see Google above); updating it means reviewing the new commit.
+- **workspace-mcp:** third-party code that sees Google tokens during calls, and those tokens can send mail and change the calendar. It is pinned and confined (see Google above); updating it means reviewing the new commit.
 - **Service logos in the dashboard:** the catalog shows Gmail's and Google Calendar's logos, single-colour, from Simple Icons (CC0). The icons carry no copyright, but they are Google's trademarks, used here only to name the service; check Google's brand terms before the project goes public.
 - **Built-in Personas named after real characters** (Jarvis, Cortana, Joi): trademark and copyright risk once the project is public.

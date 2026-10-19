@@ -46,14 +46,25 @@ describe('CapabilityCatalog', () => {
     const tools = [
       'search_gmail_messages',
       'get_gmail_thread_content',
+      'send_gmail_message',
       'list_calendars',
       'get_events',
+      'manage_event',
       'query_freebusy',
     ];
     const of = (pattern = '') => tools.filter((name) => new RegExp(pattern).test(name));
 
-    expect(of(gmail?.toolPattern)).toEqual(['search_gmail_messages', 'get_gmail_thread_content']);
-    expect(of(calendar?.toolPattern)).toEqual(['list_calendars', 'get_events', 'query_freebusy']);
+    expect(of(gmail?.toolPattern)).toEqual([
+      'search_gmail_messages',
+      'get_gmail_thread_content',
+      'send_gmail_message',
+    ]);
+    expect(of(calendar?.toolPattern)).toEqual([
+      'list_calendars',
+      'get_events',
+      'manage_event',
+      'query_freebusy',
+    ]);
     expect(gmail?.scopes.some((scope) => scope.includes('calendar'))).toBe(false);
     expect(calendar?.scopes.some((scope) => scope.includes('gmail'))).toBe(false);
   });

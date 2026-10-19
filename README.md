@@ -20,7 +20,7 @@ In *Blade Runner 2049*, the emanator is the device that projects Joi. This proje
 - 🔐 **Talks only to you.** A one-time pairing code links your Telegram account; everyone else is ignored.
 - ☀️ **Routines.** Give the agent goals to pursue on a schedule (days of the week, day of the month, a date, an interval or a cron expression), such as a morning briefing or a heartbeat that writes only when there is something worth saying. Each Routine writes in a Telegram topic of its own, where you can reply with its context. Manage them, run them now and see their history from the dashboard; changes apply without a restart.
 - 🎭 **Shape its Persona.** Set the Agent's name and personality from the dashboard at `http://127.0.0.1:3000`. Presets copy their values into editable fields; saving takes effect from the next turn.
-- 🔌 **Capabilities.** Connect remote MCP servers, one per account, from the dashboard: the Harness signs in with OAuth, keeps the tokens encrypted, and gives the agent each server's Tools under the Policies you set. Gmail and Calendar work through [workspace-mcp](https://github.com/taylorwilsdon/google_workspace_mcp), read-only.
+- 🔌 **Capabilities.** Connect remote MCP servers, one per account, from the dashboard: the Harness signs in with OAuth, keeps the tokens encrypted, and gives the agent each server's Tools under the Policies you set. Gmail and Calendar work through [workspace-mcp](https://github.com/taylorwilsdon/google_workspace_mcp); sending mail and changing events ask you first.
 - 🧠 **Your Claude, your quota.** It runs on your Claude Pro/Max subscription or an Anthropic API key.
 - 🧩 **Swappable parts.** The model engine and the channel sit behind interfaces. The agent is isolated from your own Claude Code setup and gets no built-in tools you didn't choose.
 
@@ -69,7 +69,7 @@ Google's own MCP servers only answer projects in its Workspace Developer Preview
 
 1. In a Google Cloud project, enable the Gmail and Google Calendar APIs. In Google Auth Platform:
    - add yourself as a test user;
-   - add the scopes `gmail.readonly` and `calendar.readonly`;
+   - add the Gmail scopes `gmail.readonly`, `gmail.labels`, `gmail.modify`, `gmail.compose` and `gmail.send`, and the Calendar scopes `calendar.readonly`, `calendar` and `calendar.events`;
    - create an OAuth client of type *Web application*, tick *Use this client for an AI-powered agent*, and add the redirect URI `http://127.0.0.1:3000/api/capabilities/oauth/callback`.
 2. In `.env`, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to the client's ID and secret, and `WORKSPACE_MCP_JWT_KEY` to the output of `openssl rand -base64 32`. Then start everything again, workspace-mcp included:
 

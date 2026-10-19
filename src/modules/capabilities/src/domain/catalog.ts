@@ -54,16 +54,26 @@ const WORKSPACE_MCP = {
 // workspace-mcp checks each token through Google's userinfo, which needs these two.
 const GOOGLE_IDENTITY = ['openid', 'https://www.googleapis.com/auth/userinfo.email'];
 
+function google(scope: string): string {
+  return `https://www.googleapis.com/auth/${scope}`;
+}
+
 export const CATALOG: readonly CatalogEntry[] = [
   {
     id: 'gmail',
     slug: 'gmail',
     title: 'Gmail',
     icon: 'gmail',
-    description: 'Search and read your mail',
+    description: 'Search, read, organize, draft and send your mail',
     ...WORKSPACE_MCP,
-    // Read-only until write Tools exist: then the Owner connects it again to grant more.
-    scopes: [...GOOGLE_IDENTITY, 'https://www.googleapis.com/auth/gmail.readonly'],
+    // workspace-mcp's `gmail:send` level, which it adds up from all the levels below it.
+    // Not `full`: its filters act on their own later, out of an Approval's sight.
+    scopes: [
+      ...GOOGLE_IDENTITY,
+      ...['gmail.readonly', 'gmail.labels', 'gmail.modify', 'gmail.compose', 'gmail.send'].map(
+        google,
+      ),
+    ],
     // Every Gmail Tool of workspace-mcp has "gmail" in its name.
     toolPattern: 'gmail',
   },
@@ -72,9 +82,13 @@ export const CATALOG: readonly CatalogEntry[] = [
     slug: 'calendar',
     title: 'Google Calendar',
     icon: 'calendar',
-    description: 'Read your calendars and events',
+    description: 'Read and manage your calendars and events',
     ...WORKSPACE_MCP,
-    scopes: [...GOOGLE_IDENTITY, 'https://www.googleapis.com/auth/calendar.readonly'],
+    // workspace-mcp's `calendar:full` level, read included.
+    scopes: [
+      ...GOOGLE_IDENTITY,
+      ...['calendar.readonly', 'calendar', 'calendar.events'].map(google),
+    ],
     // None of Gmail's, so that no Tool can belong to both.
     toolPattern: '^(?!.*gmail).*(calendar|event|freebusy|focus_time|out_of_office)',
   },
