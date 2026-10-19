@@ -5,11 +5,12 @@ import {
   type InboundEvent,
   ThreadNotFoundError,
 } from '@emanator/channels';
-import type { Engine, PermissionDecider, UsageTracker } from '@emanator/engine';
+import type { Engine, PermissionDecider, TurnRequest, UsageTracker } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import {
   type Conversation,
   GENERAL_CONVERSATION_NAME,
+  type OpenedBy,
   ROUTINE_TOPIC_SUFFIX,
   slugify,
 } from '../domain/conversation.ts';
@@ -29,8 +30,13 @@ export interface ConversationServiceDeps {
   timeZone: string;
   /** The PermissionDecider of each turn, from Policies. */
   permissions: PermissionsFor;
+  /** The Tools and Faculties of each turn, read again every time Policies may have changed. */
+  abilities: () => Promise<TurnAbilities>;
   logger: Logger;
 }
+
+/** What a turn may use, without the Tools the Owner denied. */
+export type TurnAbilities = Pick<TurnRequest, 'tools' | 'faculties'>;
 
 /** Builds the PermissionDecider of one turn. */
 export type PermissionsFor = (context: TurnContext) => PermissionDecider;
@@ -77,6 +83,18 @@ export class ConversationService {
   async findLive(id: string): Promise<Conversation | undefined> {
     const conversation = await this.deps.store.get(id);
     return conversation && !conversation.archivedAt ? conversation : undefined;
+  }
+
+  /**
+   * Opens a topic for the Agent and sends its first message there, handed to the topic's
+   * next turn so the Owner's reply has that context. Throws if the message was not sent.
+   */
+  async openAgentTopic(title: string, markdown: string): Promise<Conversation> {
+    const topic = await this.openTopicFor(title, 'agent');
+    if (!(await this.deliver(topic, markdown))) {
+      throw new Error('The topic was opened, but it was gone before the message could be sent.');
+    }
+    return topic;
   }
 
   /** Opens the topic of the Routine called `routineName`, named `<slug>-routine`. */
@@ -221,6 +239,7 @@ export class ConversationService {
       systemPrompt,
       model,
       ...(conversation.session && { session: conversation.session }),
+      ...(await this.deps.abilities()),
       decidePermission: this.deps.permissions({ thread: async () => conversation.threadId }),
     })) {
       switch (event.type) {
@@ -278,17 +297,15 @@ export class ConversationService {
   private async openTopic(from: Conversation, title: string): Promise<void> {
     if (!title) return this.reply(from, say.topicUsage);
 
-    const { channel, store } = this.deps;
-    const threadId = await channel.openThread(title);
-    const topic = await store.create({
-      name: slugify(title),
-      title,
-      channel: channel.id,
-      threadId,
-      openedBy: 'owner',
-    });
+    const topic = await this.openTopicFor(title, 'owner');
     await this.reply(topic, say.topicWelcome(title));
     await this.reply(from, say.topicOpened(title));
+  }
+
+  private async openTopicFor(title: string, openedBy: OpenedBy): Promise<Conversation> {
+    const { channel, store } = this.deps;
+    const threadId = await channel.openThread(title);
+    return store.create({ name: slugify(title), title, channel: channel.id, threadId, openedBy });
   }
 
   /** Sends to the Conversation's thread; a thread deleted by the Owner archives it. */

@@ -9,6 +9,11 @@ const harnessPrefix = `mcp__${HARNESS_TOOL_SERVER}__`;
 const facultyTools: Record<EngineFaculty, string> = {
   web_search: 'WebSearch',
   web_fetch: 'WebFetch',
+  read_file: 'Read',
+  find_files: 'Glob',
+  search_files: 'Grep',
+  write_file: 'Write',
+  edit_file: 'Edit',
 };
 
 const facultyOfTool = new Map(

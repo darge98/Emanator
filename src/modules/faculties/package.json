@@ -1,0 +1,14 @@
+{
+  "name": "@emanator/faculties",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts"
+  },
+  "dependencies": {
+    "@emanator/engine": "workspace:*",
+    "@emanator/policies": "workspace:*",
+    "zod": "^4.6.7"
+  }
+}

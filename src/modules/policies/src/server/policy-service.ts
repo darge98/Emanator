@@ -1,6 +1,12 @@
 import type { PermissionDecider, PermissionDecision, PermissionRequest } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
-import { type Policy, type ToolInfo, type ToolPolicy, validatePolicy } from '../domain/policy.ts';
+import {
+  type Policy,
+  PolicyValidationError,
+  type ToolInfo,
+  type ToolPolicy,
+  validatePolicy,
+} from '../domain/policy.ts';
 import type { ApprovalService } from './approval-service.ts';
 import type { PolicyStore } from './policy-store.ts';
 
@@ -41,7 +47,11 @@ export class PolicyService {
 
   async set(tool: string, input: unknown): Promise<ToolPolicy> {
     const policy = validatePolicy(input);
-    this.requireTool(tool);
+    const info = this.requireTool(tool);
+    // A Policy the Engine can't enforce would be ignored without a word.
+    if (info.choices && !info.choices.includes(policy)) {
+      throw new PolicyValidationError(`"${tool}" can only be set to: ${info.choices.join(', ')}.`);
+    }
     await this.deps.store.setPolicy(tool, policy);
     return this.view(tool);
   }
@@ -121,8 +131,10 @@ export class PolicyService {
     }
   }
 
-  private requireTool(tool: string): void {
-    if (!this.deps.tools().some(({ name }) => name === tool)) throw new UnknownToolError(tool);
+  private requireTool(tool: string): ToolInfo {
+    const info = this.deps.tools().find(({ name }) => name === tool);
+    if (!info) throw new UnknownToolError(tool);
+    return info;
   }
 
   private async view(tool: string): Promise<ToolPolicy> {

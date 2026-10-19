@@ -3,6 +3,7 @@ export {
   ConversationService,
   type ConversationServiceDeps,
   type PermissionsFor,
+  type TurnAbilities,
   type TurnContext,
 } from './server/conversation-service.ts';
 export {

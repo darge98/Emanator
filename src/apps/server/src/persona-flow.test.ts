@@ -49,6 +49,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('persona flow', () => {
       defaultModel: 'sonnet',
       timeZone: 'Europe/Rome',
       permissions: () => async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
+      abilities: async () => ({}),
       logger: silentLogger,
     });
     const message = (text: string) => ({

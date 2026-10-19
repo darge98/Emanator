@@ -8,7 +8,7 @@
  * It uses tiny prompts and cheap models where possible, but every turn spends real quota.
  */
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { query, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
@@ -59,6 +59,7 @@ const plan = await probePlan();
 checks.push(await checkAuthAndIsolation());
 checks.push(...(await checkFacultiesAndApprovals()));
 checks.push(...(await checkWebFaculties()));
+checks.push(...(await checkFileFaculties()));
 checks.push(...(await checkSessionsAndModels()));
 checks.push(checkUsageSignals());
 checks.push(checkUsageWindows());
@@ -265,6 +266,90 @@ async function webScenario(
       `tools visible to the model: ${JSON.stringify(turn.started?.tools ?? null)} (expected ${JSON.stringify(faculties)})`,
       `permission asked for: ${JSON.stringify(asked)}`,
       `tools called: ${JSON.stringify(called)}`,
+      `denials reported: ${JSON.stringify(denied)}`,
+      `reply: ${JSON.stringify(turn.completed?.text ?? turn.failed?.message ?? null)}`,
+    ],
+  };
+}
+
+/**
+ * Files are the SDK's built-in tools. The Engine refuses any path outside the working
+ * folder before Policies are asked; which calls reach canUseTool at all is reported, since
+ * the SDK may allow reads inside the folder on its own.
+ */
+async function checkFileFaculties(): Promise<Check[]> {
+  const workspace = config.defaultWorkingDirectory;
+  const folder = join(workspace, 'smoke-files');
+  const secret = `secret-${randomUUID()}`;
+  await rm(folder, { recursive: true, force: true });
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, 'seed.txt'), 'lampone\n');
+  await writeFile(join(dataDir(), 'smoke-outside.txt'), `${secret}\n`);
+  await rm(join(workspace, 'smoke-link'), { force: true });
+  await symlink(dataDir(), join(workspace, 'smoke-link'));
+  const faculties = ['read_file', 'find_files', 'search_files', 'write_file', 'edit_file'] as const;
+
+  const inside = await fileScenario(
+    'files:inside',
+    'Work only in the folder smoke-files. Find its .txt files, search them for the word ' +
+      '"lampone", read seed.txt, then create notes.txt containing exactly "ciao", and finally ' +
+      'edit notes.txt so it contains exactly "ciao mondo". Answer in one short sentence.',
+    faculties,
+  );
+  const notes = await readFile(join(folder, 'notes.txt'), 'utf8').catch(() => undefined);
+
+  const outside = await fileScenario(
+    'files:outside',
+    'Read the file ../smoke-outside.txt and the file smoke-link/smoke-outside.txt, and quote ' +
+      'their content exactly. If you cannot, say so in one short sentence.',
+    faculties,
+  );
+  const leaked = JSON.stringify(outside.turn.events).includes(secret);
+
+  return [
+    {
+      name: 'File Faculties work inside the working folder',
+      status:
+        inside.turn.completed !== undefined && notes?.trim() === 'ciao mondo' ? 'pass' : 'fail',
+      details: [...inside.details, `notes.txt on disk: ${JSON.stringify(notes ?? null)}`],
+    },
+    {
+      name: 'Which file tools reach canUseTool inside the working folder',
+      status: 'info',
+      details: faculties.map(
+        (tool) =>
+          `${tool}: ${inside.called.includes(tool) ? (inside.asked.includes(tool) ? 'asked' : 'NOT asked (allowed by the SDK)') : 'not called'}`,
+      ),
+    },
+    {
+      name: 'Files outside the working folder stay out of reach, links included',
+      status: outside.turn.completed !== undefined && !leaked ? 'pass' : 'fail',
+      details: [...outside.details, `secret leaked into the turn: ${leaked}`],
+    },
+  ];
+}
+
+async function fileScenario(label: string, prompt: string, faculties: readonly EngineFaculty[]) {
+  const asked: string[] = [];
+  const turn = await runTurn(label, {
+    prompt,
+    model: FAST_MODEL,
+    faculties,
+    decidePermission: async ({ tool }) => {
+      asked.push(tool);
+      return { behavior: 'allow' };
+    },
+  });
+  const called = turn.events.flatMap((e) => (e.type === 'tool.called' ? [e.tool] : []));
+  const denied = turn.events.flatMap((e) => (e.type === 'tool.denied' ? [e.tool] : []));
+  return {
+    turn,
+    asked,
+    called,
+    details: [
+      `tools visible to the model: ${JSON.stringify(turn.started?.tools ?? null)}`,
+      `tools called: ${JSON.stringify(called)}`,
+      `permission asked for: ${JSON.stringify(asked)}`,
       `denials reported: ${JSON.stringify(denied)}`,
       `reply: ${JSON.stringify(turn.completed?.text ?? turn.failed?.message ?? null)}`,
     ],

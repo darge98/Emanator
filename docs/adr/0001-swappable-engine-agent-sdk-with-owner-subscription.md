@@ -25,6 +25,7 @@ Run with Agent SDK 0.3.296 and Claude Code 2.1.296 on a Pro plan, using `src/mod
   - `canUseTool` waits for an asynchronous decision; a 3-second simulated Approval held the turn open.
   - A denial reaches the model as an error result, the turn completes normally, and the denial is listed in `permission_denials`.
   - The built-in WebSearch and WebFetch work on the subscription token and go through `canUseTool` on every call, so web Faculties are governed by Policies like Harness Tools (rechecked on 2026-10-19).
+  - The files Faculty uses the built-in Read, Glob, Grep, Write and Edit (2026-10-19). Write and Edit go through `canUseTool`; Read, Glob and Grep inside the working folder do not, because the SDK allows them on its own. Reads can therefore be allowed or denied (a denied Tool is not given to the model), but not asked. Every path outside the working folder, links included, reaches `canUseTool`, where the adapter refuses it before Policies are consulted.
 - **Sessions and models.** A session resumed under the same id with a different model per turn (Haiku 5.5, then Sonnet 5.5) and kept its context. Opus 5.5 is available on Pro.
 - **Quota signals.**
   - A `rate_limit_event` arrives on every turn. Its status and five-hour window reset time (epoch seconds) are enough for the "wait for reset and notify" rule.

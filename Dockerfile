@@ -12,8 +12,10 @@ COPY src/apps/web/package.json src/apps/web/
 COPY src/modules/channels/package.json src/modules/channels/
 COPY src/modules/conversations/package.json src/modules/conversations/
 COPY src/modules/engine/package.json src/modules/engine/
+COPY src/modules/faculties/package.json src/modules/faculties/
 COPY src/modules/shared/package.json src/modules/shared/
 COPY src/modules/personas/package.json src/modules/personas/
+COPY src/modules/policies/package.json src/modules/policies/
 COPY src/modules/routines/package.json src/modules/routines/
 # Install as the runtime user so pnpm's store and workspace modules have matching ownership.
 RUN mkdir -p /data && chown -R node:node /app /data

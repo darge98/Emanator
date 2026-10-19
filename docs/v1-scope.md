@@ -59,6 +59,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - One Policy per Tool, shared by Conversations and Routines.
   - Defaults come from MCP tool annotations: read-only starts as *allow*, write or destructive as *ask*.
   - Faculties have no annotations, so their defaults are fixed: web search, web fetch, reading files and opening Conversations start as *allow*; writing files as *ask*. Web fetch on *allow* can leak data; that risk is accepted until a Capability holds private data, and is reviewed when Google arrives.
+  - Files use the Engine's own tools. Reading, finding and searching files can be *allow* or *deny* but not *ask*, because the Engine reads inside the working folder without asking (ADR 0001). Nothing outside the working folder can be reached, whatever the Policy.
   - The Owner can change Policies only in the UI.
 - Approvals arrive on Telegram as Yes/No buttons, with no "always" option, in the topic of the turn that asked: the Conversation's, or the Routine's for a Run.
   - Each is repeated once after 15 minutes and expires 15 minutes later; expiry counts as a denial.

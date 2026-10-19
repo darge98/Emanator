@@ -11,6 +11,8 @@ export interface ToolInfo {
   /** The Faculty or Capability that exposes the Tool. */
   group: string;
   defaultPolicy: Policy;
+  /** The Policies that can be enforced for it; all of them when omitted. */
+  choices?: readonly Policy[];
 }
 
 /** A Tool with the Policy in force; `custom` when the Owner chose it. */

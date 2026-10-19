@@ -10,8 +10,10 @@ import {
   ConversationService,
   ConversationStore,
 } from '@emanator/conversations/server';
-import { UsageTracker } from '@emanator/engine';
+import { ENGINE_FACULTIES, UsageTracker } from '@emanator/engine';
 import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
+import { FACULTY_TOOLS } from '@emanator/faculties';
+import { conversationTools } from '@emanator/faculties/server';
 import { PersonaStore } from '@emanator/personas/server';
 import { ApprovalService, PolicyService, PolicyStore } from '@emanator/policies/server';
 import { RoutineRunner, RoutineService, RoutineStore } from '@emanator/routines/server';
@@ -61,14 +63,21 @@ async function start() {
     logger: consoleLogger('approvals'),
   });
   await approvals.init();
-  // No Tools are declared yet, so every Tool is denied; Faculties are next.
+  // Faculties are the only Tools so far; Capabilities will add theirs.
   const policies = new PolicyService({
     store: policyStore,
     approvals,
-    tools: () => [],
+    tools: () => FACULTY_TOOLS,
     logger: consoleLogger('policies'),
   });
   const permissions = policies.decider.bind(policies);
+  // Read on every turn, so a Policy saved in the dashboard applies from the next one.
+  const abilities = async () => ({
+    tools: await policies.usable(facultyTools),
+    faculties: (await policies.usable(ENGINE_FACULTIES.map((name) => ({ name })))).map(
+      ({ name }) => name,
+    ),
+  });
 
   const usage = new UsageTracker();
   const agentPrompt = async () => {
@@ -81,11 +90,14 @@ async function start() {
     store,
     usage,
     permissions,
+    abilities,
     systemPrompt: agentPrompt,
     defaultModel: config.defaultModel,
     timeZone: config.timeZone,
     logger: consoleLogger('conversations'),
   });
+  // After the service, which the conversations Faculty needs; turns read it only later.
+  const facultyTools = conversationTools(conversations);
 
   const routineStore = new RoutineStore(db);
   await routineStore.init();
@@ -98,6 +110,7 @@ async function start() {
       store: routineStore,
       usage,
       permissions,
+      abilities,
       systemPrompt: agentPrompt,
       defaultModel: config.defaultModel,
       timeZone: config.timeZone,

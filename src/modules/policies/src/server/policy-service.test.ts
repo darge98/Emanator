@@ -5,6 +5,7 @@ import { PolicyService, UnknownToolError } from './policy-service.ts';
 
 const TOOLS: ToolInfo[] = [
   { name: 'web_search', group: 'web', defaultPolicy: 'allow' },
+  { name: 'read_file', group: 'files', defaultPolicy: 'allow', choices: ['allow', 'deny'] },
   { name: 'write_file', group: 'files', defaultPolicy: 'ask' },
 ];
 
@@ -45,6 +46,13 @@ describe('PolicyService', () => {
     await expect(service.set('web_search', { policy: 'maybe' })).rejects.toThrow(
       /allow, ask, deny/,
     );
+  });
+
+  it('refuses a Policy the Tool cannot enforce', async () => {
+    const { service } = setup();
+
+    await expect(service.set('read_file', { policy: 'ask' })).rejects.toThrow(/allow, deny/);
+    expect(await service.set('read_file', { policy: 'deny' })).toMatchObject({ policy: 'deny' });
   });
 
   it('allows, denies and asks according to the Policy', async () => {

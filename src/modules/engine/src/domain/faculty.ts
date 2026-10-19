@@ -3,6 +3,15 @@
  * They reach the Engine's model only when a turn asks for them, and Policies apply to them
  * like to any other Tool.
  */
-export const ENGINE_FACULTIES = ['web_search', 'web_fetch'] as const;
+export const ENGINE_FACULTIES = [
+  'web_search',
+  'web_fetch',
+  // Files, confined to the turn's working folder.
+  'read_file',
+  'find_files',
+  'search_files',
+  'write_file',
+  'edit_file',
+] as const;
 
 export type EngineFaculty = (typeof ENGINE_FACULTIES)[number];

@@ -1,5 +1,9 @@
 import type { Conversation } from '@emanator/conversations';
-import type { ConversationService, PermissionsFor } from '@emanator/conversations/server';
+import type {
+  ConversationService,
+  PermissionsFor,
+  TurnAbilities,
+} from '@emanator/conversations/server';
 import type { Engine, SessionRef, TurnFailed, UsageTracker } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import { type Routine, SILENT_REPLY } from '../domain/routine.ts';
@@ -14,6 +18,8 @@ export interface RoutineRunnerDeps {
   usage: UsageTracker;
   /** The PermissionDecider of each Run, from Policies. */
   permissions: PermissionsFor;
+  /** The Tools and Faculties of each Run, without those the Owner denied. */
+  abilities: () => Promise<TurnAbilities>;
   /** The Agent's system prompt, built fresh for every Run. */
   systemPrompt: () => Promise<string> | string;
   defaultModel: string;
@@ -256,6 +262,7 @@ export class RoutineRunner {
       prompt: routine.prompt,
       systemPrompt,
       model: routine.model ?? this.deps.defaultModel,
+      ...(await this.deps.abilities()),
       decidePermission,
     })) {
       switch (event.type) {

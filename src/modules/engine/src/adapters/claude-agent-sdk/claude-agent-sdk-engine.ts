@@ -8,6 +8,7 @@ import { buildQueryOptions } from './options.ts';
 import { fromSdkToolName } from './tool-names.ts';
 import { createHarnessToolServer } from './tool-server.ts';
 import { failureFromText, TurnTranslator } from './translate.ts';
+import { leavesWorkingDirectory } from './workspace-guard.ts';
 
 /** Engine backed by the Claude Agent SDK, which spawns one Claude Code process per turn. */
 export class ClaudeAgentSdkEngine implements Engine {
@@ -24,7 +25,10 @@ export class ClaudeAgentSdkEngine implements Engine {
     const options = buildQueryOptions({
       request,
       config: this.config,
-      canUseTool: bridgePermissions(request.decidePermission),
+      canUseTool: bridgePermissions(
+        request.decidePermission,
+        request.workingDirectory ?? this.config.defaultWorkingDirectory,
+      ),
       abortController,
       ...(tools.length > 0 && { toolServer: createHarnessToolServer(tools) }),
     });
@@ -55,8 +59,15 @@ export class ClaudeAgentSdkEngine implements Engine {
   }
 }
 
-function bridgePermissions(decide: PermissionDecider): CanUseTool {
+/**
+ * Asks the Harness before every tool use. File tools reaching outside the working folder
+ * are refused first: that confinement holds whatever the Policies say.
+ */
+function bridgePermissions(decide: PermissionDecider, workingDirectory: string): CanUseTool {
   return async (toolName, input, { signal, toolUseID }) => {
+    if (await leavesWorkingDirectory(workingDirectory, toolName, input)) {
+      return { behavior: 'deny', message: 'Only files inside the working folder can be used.' };
+    }
     const decision = await decide({
       tool: fromSdkToolName(toolName),
       input,

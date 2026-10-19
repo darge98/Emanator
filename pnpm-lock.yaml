@@ -193,6 +193,9 @@ importers:
       '@emanator/engine':
         specifier: workspace:*
         version: link:../../modules/engine
+      '@emanator/faculties':
+        specifier: workspace:*
+        version: link:../../modules/faculties
       '@emanator/personas':
         specifier: workspace:*
         version: link:../../modules/personas
@@ -278,6 +281,18 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.1
         version: 1.32.1(zod@4.6.7)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  src/modules/faculties:
+    dependencies:
+      '@emanator/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@emanator/policies':
+        specifier: workspace:*
+        version: link:../policies
       zod:
         specifier: ^4.6.7
         version: 4.6.7
