@@ -230,11 +230,11 @@ export class CapabilityService {
   /** The cached Tools that belong to the Capability: a catalog entry may take only some. */
   private toolsFor(capability: Capability): CapabilityTool[] {
     const tools = this.tools.get(capability.id) ?? [];
-    const pattern =
-      capability.catalogId && this.deps.catalog?.offer(capability.catalogId)?.entry.toolPattern;
-    if (!pattern) return tools;
-    const belongs = new RegExp(pattern);
-    return tools.filter(({ name }) => belongs.test(name));
+    const names =
+      capability.catalogId && this.deps.catalog?.offer(capability.catalogId)?.entry.tools;
+    if (!names) return tools;
+    const belongs = new Set(names);
+    return tools.filter(({ name }) => belongs.has(name));
   }
 
   /** Brings a catalog Capability in line with `.env`, keeping the Owner's on/off choice. */

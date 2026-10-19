@@ -9,6 +9,8 @@ describe('CapabilityCatalog', () => {
     expect(offers.map(({ entry, missing }) => [entry.id, missing])).toEqual([
       ['gmail', ['GOOGLE_CLIENT_SECRET']],
       ['calendar', ['GOOGLE_CLIENT_SECRET']],
+      ['drive', ['GOOGLE_CLIENT_SECRET']],
+      ['tasks', ['GOOGLE_CLIENT_SECRET']],
     ]);
     expect(offers[0]?.input).toBeUndefined();
   });
@@ -41,31 +43,14 @@ describe('CapabilityCatalog', () => {
     expect(new CapabilityCatalog({}).offer('missing')).toBeUndefined();
   });
 
-  it('splits workspace-mcp between Gmail and Calendar, each with its own scopes', () => {
-    const [gmail, calendar] = CATALOG;
-    const tools = [
-      'search_gmail_messages',
-      'get_gmail_thread_content',
-      'send_gmail_message',
-      'list_calendars',
-      'get_events',
-      'manage_event',
-      'query_freebusy',
-    ];
-    const of = (pattern = '') => tools.filter((name) => new RegExp(pattern).test(name));
+  it('splits workspace-mcp between entries, each with its own Tools and scopes', () => {
+    const identity = ['openid', 'https://www.googleapis.com/auth/userinfo.email'];
+    const tools = CATALOG.flatMap((entry) => entry.tools ?? []);
+    const scopes = CATALOG.flatMap(({ scopes }) => scopes.filter((s) => !identity.includes(s)));
 
-    expect(of(gmail?.toolPattern)).toEqual([
-      'search_gmail_messages',
-      'get_gmail_thread_content',
-      'send_gmail_message',
-    ]);
-    expect(of(calendar?.toolPattern)).toEqual([
-      'list_calendars',
-      'get_events',
-      'manage_event',
-      'query_freebusy',
-    ]);
-    expect(gmail?.scopes.some((scope) => scope.includes('calendar'))).toBe(false);
-    expect(calendar?.scopes.some((scope) => scope.includes('gmail'))).toBe(false);
+    expect(CATALOG.every((entry) => entry.tools?.length)).toBe(true);
+    expect(new Set(tools).size).toBe(tools.length);
+    expect(new Set(scopes).size).toBe(scopes.length);
+    expect(CATALOG.every(({ scopes }) => identity.every((s) => scopes.includes(s)))).toBe(true);
   });
 });

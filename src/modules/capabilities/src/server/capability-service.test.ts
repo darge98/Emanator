@@ -276,8 +276,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('CapabilityService with an MCP s
       await expect(env.capabilities.setEnabled(id, 'no')).rejects.toThrow('true or false');
     });
 
-    it('gives an entry only the Tools that match its pattern', async () => {
-      const env = await setup(true, FAKE_CLIENT, { ...fakeEntry, toolPattern: 'search' });
+    it('gives an entry only the Tools it names', async () => {
+      const env = await setup(true, FAKE_CLIENT, { ...fakeEntry, tools: ['search'] });
       const outcome = await env.capabilities.connectCatalog('fake');
       const { state, code } = env.server.approve(outcome?.authorizationUrl ?? '');
       await env.capabilities.finishAuthorization(state, code);

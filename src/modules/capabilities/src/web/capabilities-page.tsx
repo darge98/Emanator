@@ -16,7 +16,13 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { type SimpleIcon, siGmail, siGooglecalendar } from 'simple-icons';
+import {
+  type SimpleIcon,
+  siGmail,
+  siGooglecalendar,
+  siGoogledrive,
+  siGoogletasks,
+} from 'simple-icons';
 import { type Capability, type CapabilityStatus, suggestSlug } from '../domain/capability.ts';
 import type { CatalogItem } from '../domain/catalog.ts';
 import styles from './capabilities-page.module.css';
@@ -72,7 +78,12 @@ const logo =
 
 const CUSTOM_SERVER: Glyph = ({ size }) => <Plug size={size} />;
 
-const ICONS: Record<string, Glyph> = { gmail: logo(siGmail), calendar: logo(siGooglecalendar) };
+const ICONS: Record<string, Glyph> = {
+  gmail: logo(siGmail),
+  calendar: logo(siGooglecalendar),
+  drive: logo(siGoogledrive),
+  tasks: logo(siGoogletasks),
+};
 
 const t = {
   page: 'Capabilities',

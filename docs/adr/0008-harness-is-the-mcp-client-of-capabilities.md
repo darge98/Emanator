@@ -30,9 +30,9 @@ Capabilities the Harness can set up itself form a catalog: their server, scopes 
 - **Tool names.** A name the Engine can't carry is left out with a warning: one with characters outside `[A-Za-z0-9_-]`, or one longer than 113 characters with its slug. The Claude Agent SDK drops longer names silently.
 - **workspace-mcp is third-party code that sees Google tokens.**
   - It is pinned to a reviewed commit and runs stateless, keeping no token.
-  - It exposes only the Gmail and Calendar Tools its permissions allow (`gmail:send calendar:full`), and those that write start on *ask*.
+  - It loads only the products in the catalog, within its permissions (`gmail:send`, and `full` for Calendar, Drive, Docs, Sheets, Slides, Forms and Tasks). Each catalog entry takes its Tools by name, and those that write start on *ask*.
   - It has no privileges and no other secret, and shares a network with the Harness only, away from PostgreSQL.
-  - Its grants were read-only at first. Since 2026-10-19 they can send mail and manage the calendar, so a compromised workspace-mcp could write with the tokens it is given; Gmail filters stay out.
+  - Its grants were read-only at first. Since 2026-10-19 they can send mail, manage the calendar and tasks, and edit or share any file in Drive, so a compromised workspace-mcp could write with the tokens it is given; Gmail filters stay out.
   - Updating it is a deliberate change.
 - **The catalog follows `.env`.** At every start and connection, a catalog Capability takes its settings from `.env`. A new client or address drops its connection, because its tokens were granted for the old ones. The dashboard can only connect it, turn it on or off, or disconnect it.
 - **Moving to Google's servers.** When Google's own servers become usable, moving is a change of URL. The Tool names differ, so the Owner sets those Policies again.

@@ -50,7 +50,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 ### Agent abilities
 - **Faculties:** web search and fetch, files confined to the working folder, and opening Conversations. There is no shell in v1.
 - **Capabilities:** remote MCP servers only ([ADR 0008](adr/0008-harness-is-the-mcp-client-of-capabilities.md)).
-  - A catalog holds the Capabilities the Harness sets up itself: their server, scopes and OAuth client come from Compose and `.env`, so the Owner only connects them. Each entry is connected once; v1 has Gmail and Google Calendar, two entries the Owner turns on separately, on one workspace-mcp. Each asks only for its own scopes and gets only its own Tools, picked by name. Any other remote MCP server can still be added by hand.
+  - A catalog holds the Capabilities the Harness sets up itself: their server, scopes and OAuth client come from Compose and `.env`, so the Owner only connects them. Each entry is connected once; v1 has Gmail, Google Calendar, Google Drive (with Docs, Sheets, Slides and Forms) and Google Tasks, four entries the Owner turns on separately, on one workspace-mcp. Each asks only for its own scopes and gets only its own Tools, picked by name. Any other remote MCP server can still be added by hand.
   - There is one Capability per account. Its slug is fixed at creation and prefixes its Tool names (`gmail-work__search_gmail_messages`).
   - The Harness is the only MCP and OAuth client. It supports both dynamic client registration and a pre-registered client ID/secret, and asks only for the scopes the Owner lists (the server's own list when there are none).
   - Client secrets and tokens are sealed with `EMANATOR_SECRET_KEY` before they reach PostgreSQL; the dashboard never reads a secret back.
@@ -71,17 +71,20 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - While one is pending, the Owner's new messages in that topic wait in the queue.
   - Approvals still pending when the Harness stops become expired, because their turn ended with the process; their buttons then answer that the request expired.
 
-### Google (Gmail and Calendar)
-- Google's own MCP servers only answer Cloud projects enrolled in the Workspace Developer Preview (checked on 2026-10-19). Until the Owner's project is admitted, Gmail and Calendar come from [workspace-mcp](https://github.com/taylorwilsdon/google_workspace_mcp) on Google's stable APIs.
+### Google (Gmail, Calendar, Drive and Tasks)
+- Google's own MCP servers only answer Cloud projects enrolled in the Workspace Developer Preview (checked on 2026-10-19). Until the Owner's project is admitted, Google's products come from [workspace-mcp](https://github.com/taylorwilsdon/google_workspace_mcp) on Google's stable APIs.
 - workspace-mcp runs as its own Compose service, started with the Harness, not in the Sandbox. It shares a network with the Harness only, so PostgreSQL is out of its reach:
   - it is pinned to a reviewed commit;
   - it runs stateless, so it keeps no token: the Harness sends its own with each call;
-  - it offers only Gmail and Calendar Tools, within the permissions that match the catalog's scopes;
+  - it loads only the products in the catalog, within the permissions that match the catalog's scopes;
   - it runs read-only, with no privileges and no other secret.
-- Gmail and Google Calendar are the catalog's entries. The Owner's Google Cloud project provides one OAuth client, a Web application marked "Use this client for an AI-powered agent", with the Harness's redirect URI. Its ID and secret go in `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); at every start the Harness brings both Capabilities in line with them.
+- Gmail, Google Calendar, Google Drive and Google Tasks are the catalog's entries. The Owner's Google Cloud project provides one OAuth client, a Web application marked "Use this client for an AI-powered agent", with the Harness's redirect URI. Its ID and secret go in `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); at every start the Harness brings their Capabilities in line with them. Each product's API must be enabled in that project.
 - The scopes are `openid` and `userinfo.email` (workspace-mcp checks tokens through userinfo), plus the scopes of one workspace-mcp permission level:
   - Gmail at `send`: read, labels, modify, compose and send. The Agent can search, read, label, archive, draft and send mail. Gmail's `full` level is left out, because its filters keep acting later without an Approval.
   - Calendar at `full`: read and manage calendars and events.
+  - Drive at `full`, with Docs, Sheets, Slides and Forms also at `full`: they are files in Drive, so one entry and one grant cover them. Drive's scope reaches every file, and `manage_drive_access` can share one with anyone; both are on *ask*.
+  - Tasks at `full`, which can also delete.
+- Each entry lists its Tools by name, from the pinned commit. Left out: Gmail's filters, `debug_docs_runtime_info` (it reports the server's own source files) and `start_google_auth`. A Tool a newer commit adds stays out until it is reviewed and listed.
 - Writing Tools start on *ask*, from their annotations. The grants can write, so a compromised workspace-mcp could act with them while it holds a token; pinning and confinement are what guard against that.
 - A change of scopes disconnects the Capability at the next start, and the Owner connects it again.
 - Moving to Google's own servers is a change of URL; their Tool names differ, so their Policies start over.
@@ -127,7 +130,6 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
   - Tool names too long for the Engine are left out; shortening them with a hash would keep them;
   - more catalog entries, each tried for real first (e.g. hosted servers with dynamic registration such as Notion or Linear);
   - connecting one catalog entry with several accounts, which comes with Areas;
-  - more of Google's suite on workspace-mcp: Drive with Docs, Sheets, Slides and Forms, and Tasks, writing on *ask* (next);
   - Google Chat, which needs a Workspace account and a Chat app in the Cloud project; Contacts; Custom Search; Apps Script;
   - Gmail filters (workspace-mcp's `gmail:full`).
 - Dashboard polish found in the Routines review (October 2026):
@@ -169,7 +171,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 
 - **Subscription token with the Agent SDK:** it works end to end (smoke run on 2026-10-14, see ADR 0001), but it remains a grey area in Anthropic's terms.
 - **Telegram topics opened by the bot:** still to confirm that the Owner can write inside them while users are not allowed to create topics, and that the bot can rename them (Routine renames; the Bot API documents `editForumTopic` for private chats).
-- **Google official MCP servers:** checked on 2026-10-19. A personal @gmail.com account authorizes fine, but every Tool call is refused until the Cloud project is enrolled in the Workspace Developer Preview; workspace-mcp covers Gmail and Calendar meanwhile. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
-- **workspace-mcp:** third-party code that sees Google tokens during calls, and those tokens can send mail and change the calendar. It is pinned and confined (see Google above); updating it means reviewing the new commit.
+- **Google official MCP servers:** checked on 2026-10-19. A personal @gmail.com account authorizes fine, but every Tool call is refused until the Cloud project is enrolled in the Workspace Developer Preview; workspace-mcp covers Google's products meanwhile. An unverified Google OAuth app with Gmail scopes must be set to "In production" to avoid 7-day token expiry.
+- **workspace-mcp:** third-party code that sees Google tokens during calls, and those tokens can send mail, change the calendar and edit or share any file in Drive. It is pinned and confined (see Google above); updating it means reviewing the new commit.
 - **Service logos in the dashboard:** the catalog shows Gmail's and Google Calendar's logos, single-colour, from Simple Icons (CC0). The icons carry no copyright, but they are Google's trademarks, used here only to name the service; check Google's brand terms before the project goes public.
 - **Built-in Personas named after real characters** (Jarvis, Cortana, Joi): trademark and copyright risk once the project is public.
