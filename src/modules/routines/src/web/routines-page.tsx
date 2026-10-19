@@ -1,3 +1,17 @@
+import {
+  ArrowClockwise,
+  CalendarBlank,
+  ChatCircleDots,
+  Check,
+  ClockCounterClockwise,
+  Cpu,
+  PencilSimple,
+  Play,
+  Plus,
+  Timer,
+  Trash,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import type { RoutineInput } from '../domain/routine.ts';
 import type { RoutineRun, RunStatus } from '../domain/run.ts';
@@ -5,7 +19,6 @@ import styles from './routines-page.module.css';
 import {
   describeSchedule,
   isComplete,
-  type Language,
   type ScheduleDraft,
   toSchedule,
   toTrigger,
@@ -38,128 +51,80 @@ interface Draft {
 /** Statuses of a Run that hasn't finished yet. */
 const UNFINISHED: readonly RunStatus[] = ['running', 'waiting', 'approval'];
 
-const copy = {
-  it: {
-    settings: 'Impostazioni',
-    routines: 'Routine',
-    eyebrow: 'PROATTIVITÀ',
-    intro:
-      'Obiettivi che l’Agent persegue da solo, a orari stabiliti. Può anche decidere di non scriverti, se non c’è nulla da dire.',
-    add: 'Nuova Routine',
-    empty: 'Nessuna Routine, per ora. Creane una: un briefing mattutino o un controllo periodico.',
-    loading: 'Caricamento Routine…',
-    loadError: 'Non è stato possibile caricare le Routine.',
-    retry: 'Riprova',
-    ready: 'Pronto',
-    saving: 'Salvataggio…',
-    saved: 'Modifiche salvate',
-    enabled: 'Attiva',
-    disabled: 'In pausa',
-    next: 'Prossima',
-    never: 'nessuna esecuzione in programma',
-    runNow: 'Esegui ora',
-    started: 'Esecuzione avviata',
-    edit: 'Modifica',
-    history: 'Cronologia',
-    hideHistory: 'Nascondi cronologia',
-    noRuns: 'Ancora nessuna esecuzione.',
-    newTitle: 'Nuova Routine',
-    editTitle: 'Modifica Routine',
-    editorHint: 'Le modifiche valgono subito, senza riavviare nulla.',
-    name: 'Nome',
-    nameHint: 'Es. Briefing del mattino',
-    prompt: 'Obiettivo',
-    promptHint: 'Cosa deve fare l’Agent, ogni volta che la Routine parte…',
-    model: 'Modello',
-    modelHint: 'Predefinito',
-    modelHelp: 'Vuoto per il modello predefinito. Alias: haiku, sonnet, opus.',
-    topicHint: (name: string) =>
-      `Scrive sempre nel suo topic su Telegram, «${name} · routine», che si apre alla prima esecuzione.`,
-    runningNow: 'In esecuzione…',
-    enabledLabel: 'Attiva',
-    enabledHelp: 'In pausa non parte da sola, ma puoi sempre eseguirla a mano.',
-    cancel: 'Annulla',
-    save: 'Salva Routine',
-    delete: 'Elimina',
-    confirmDelete:
-      'Eliminare questa Routine e la sua cronologia? Il suo topic su Telegram resta: puoi cancellarlo tu dall’app.',
-    confirmDiscard: 'Scartare le modifiche non salvate?',
-    saveError: 'Salvataggio non riuscito.',
-    actionError: 'Operazione non riuscita.',
-    manual: 'a mano',
-    schedule: 'pianificata',
-    tools: 'Strumenti',
-    status: {
-      running: 'In corso',
-      waiting: 'In attesa della quota',
-      approval: 'In attesa di approvazione',
-      delivered: 'Inviata',
-      silent: 'Silenziosa',
-      failed: 'Fallita',
-    } satisfies Record<RunStatus, string>,
+const t = {
+  routines: 'Routines',
+  eyebrow: 'Proactivity',
+  intro:
+    'Goals your Agent pursues on its own, on a schedule. It may also decide not to message you when there is nothing to say.',
+  add: 'New Routine',
+  emptyTitle: 'No Routines yet',
+  empty:
+    'A Routine is a goal your Agent pursues on a schedule: a morning briefing, a weekly review, a periodic check.',
+  loading: 'Loading Routines…',
+  loadError: 'Could not load your Routines.',
+  retry: 'Try again',
+  ready: 'Ready',
+  saving: 'Saving…',
+  saved: 'Changes saved',
+  enabled: 'Active',
+  disabled: 'Paused',
+  next: 'Next Run',
+  never: 'nothing scheduled',
+  runNow: 'Run now',
+  started: 'Run started',
+  edit: 'Edit',
+  history: 'History',
+  hideHistory: 'Hide history',
+  noRuns: 'No Runs yet.',
+  loadingRuns: 'Loading Runs…',
+  newTitle: 'New Routine',
+  editTitle: 'Edit Routine',
+  editorHint: 'Changes apply immediately, with no restart.',
+  name: 'Name',
+  nameHint: 'E.g. Morning briefing',
+  prompt: 'Goal',
+  promptHint: 'What the Agent should do each time the Routine starts…',
+  model: 'Model',
+  modelHint: 'Default',
+  modelHelp: 'Leave empty for the default model. Aliases: haiku, sonnet, opus.',
+  topicHint: (name: string) =>
+    `Always writes in its own Telegram topic, “${name} · routine”, opened on the first Run.`,
+  runningNow: 'Running…',
+  enabledLabel: 'Active',
+  enabledHelp: 'When paused it never starts by itself, but you can still run it by hand.',
+  cancel: 'Cancel',
+  save: 'Save Routine',
+  delete: 'Delete',
+  confirmDelete: (name: string) => ({
+    title: `Delete “${name}”?`,
+    body: 'Its Run history goes with it. Its Telegram topic stays: you can delete it from the app.',
+    confirm: 'Delete Routine',
+    cancel: 'Keep it',
+    tone: 'danger' as const,
+  }),
+  confirmDiscard: {
+    title: 'Discard your changes?',
+    body: 'The edits you made to this Routine have not been saved.',
+    confirm: 'Discard changes',
+    cancel: 'Keep editing',
+    tone: 'danger' as const,
   },
-  en: {
-    settings: 'Settings',
-    routines: 'Routines',
-    eyebrow: 'PROACTIVITY',
-    intro:
-      'Goals your Agent pursues on its own, on a schedule. It may also decide not to message you when there is nothing to say.',
-    add: 'New Routine',
-    empty: 'No Routines yet. Create one: a morning briefing or a periodic check.',
-    loading: 'Loading Routines…',
-    loadError: 'Could not load your Routines.',
-    retry: 'Try again',
-    ready: 'Ready',
-    saving: 'Saving…',
-    saved: 'Changes saved',
-    enabled: 'Active',
-    disabled: 'Paused',
-    next: 'Next',
-    never: 'nothing scheduled',
-    runNow: 'Run now',
-    started: 'Run started',
-    edit: 'Edit',
-    history: 'History',
-    hideHistory: 'Hide history',
-    noRuns: 'No Runs yet.',
-    newTitle: 'New Routine',
-    editTitle: 'Edit Routine',
-    editorHint: 'Changes apply immediately, with no restart.',
-    name: 'Name',
-    nameHint: 'E.g. Morning briefing',
-    prompt: 'Goal',
-    promptHint: 'What the Agent should do each time the Routine starts…',
-    model: 'Model',
-    modelHint: 'Default',
-    modelHelp: 'Leave empty for the default model. Aliases: haiku, sonnet, opus.',
-    topicHint: (name: string) =>
-      `Always writes in its own Telegram topic, “${name} · routine”, opened on the first Run.`,
-    runningNow: 'Running…',
-    enabledLabel: 'Active',
-    enabledHelp: 'When paused it never starts by itself, but you can still run it by hand.',
-    cancel: 'Cancel',
-    save: 'Save Routine',
-    delete: 'Delete',
-    confirmDelete:
-      'Delete this Routine and its history? Its Telegram topic stays: you can delete it from the app.',
-    confirmDiscard: 'Discard your unsaved changes?',
-    saveError: 'Save failed.',
-    actionError: 'The action failed.',
-    manual: 'by hand',
-    schedule: 'scheduled',
-    tools: 'Tools',
-    status: {
-      running: 'Running',
-      waiting: 'Waiting for quota',
-      approval: 'Waiting for approval',
-      delivered: 'Delivered',
-      silent: 'Silent',
-      failed: 'Failed',
-    } satisfies Record<RunStatus, string>,
-  },
+  saveError: 'Save failed.',
+  actionError: 'The action failed.',
+  manual: 'by hand',
+  schedule: 'scheduled',
+  tools: 'Tools',
+  status: {
+    running: 'Running',
+    waiting: 'Waiting for quota',
+    approval: 'Waiting for approval',
+    delivered: 'Delivered',
+    silent: 'Silent',
+    failed: 'Failed',
+  } satisfies Record<RunStatus, string>,
 };
 
-type Copy = (typeof copy)[Language];
+type Copy = typeof t;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -208,31 +173,31 @@ function toInput(draft: Draft): unknown {
   };
 }
 
-function formatDate(iso: string, language: Language): string {
-  return new Date(iso).toLocaleString(language === 'it' ? 'it-IT' : 'en-GB', {
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
 }
 
 interface RoutinesPageProps {
-  language: Language;
-  languageControl: ReactNode;
   footer: ReactNode;
   /** Told whenever unsaved edits appear or go away, so the app can guard navigation. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Asks the Owner a yes/no question in the dashboard's dialog. */
+  confirm: (question: {
+    title: string;
+    body: string;
+    confirm: string;
+    cancel: string;
+    tone?: 'danger' | 'default';
+  }) => Promise<boolean>;
 }
 
 type Editing = { mode: 'new' } | { mode: 'edit'; id: string } | undefined;
 
 /** Routine management: list, edit, run now and Run history. */
-export function RoutinesPage({
-  language,
-  languageControl,
-  footer,
-  onDirtyChange,
-}: RoutinesPageProps) {
-  const t = copy[language];
+export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPageProps) {
   const [routines, setRoutines] = useState<RoutineDto[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [editing, setEditing] = useState<Editing>();
@@ -302,8 +267,8 @@ export function RoutinesPage({
     return () => window.removeEventListener('beforeunload', guard);
   }, [dirty]);
 
-  function open(next: Editing) {
-    if (dirty && !window.confirm(t.confirmDiscard)) return;
+  async function open(next: Editing) {
+    if (dirty && !(await confirm(t.confirmDiscard))) return;
     const routine = next?.mode === 'edit' ? routines.find(({ id }) => id === next.id) : undefined;
     const value = routine ? toDraft(routine) : emptyDraft();
     setEditing(next);
@@ -312,8 +277,8 @@ export function RoutinesPage({
     setMessage(undefined);
   }
 
-  function close() {
-    if (dirty && !window.confirm(t.confirmDiscard)) return;
+  async function close() {
+    if (dirty && !(await confirm(t.confirmDiscard))) return;
     setEditing(undefined);
     setMessage(undefined);
   }
@@ -340,7 +305,8 @@ export function RoutinesPage({
   }
 
   async function remove(id: string) {
-    if (!window.confirm(t.confirmDelete)) return;
+    const routine = routines.find((candidate) => candidate.id === id);
+    if (!(await confirm(t.confirmDelete(routine?.name ?? '')))) return;
     try {
       await request(`/api/routines/${id}`, { method: 'DELETE' });
       setEditing(undefined);
@@ -365,120 +331,127 @@ export function RoutinesPage({
   }
 
   const status = saving ? t.saving : message?.kind === 'success' ? message.text : t.ready;
+  const tone = saving ? 'saving' : message?.kind === 'success' ? 'saved' : 'idle';
 
   return (
-    <>
-      <header className={styles.topbar}>
-        <div className={styles.breadcrumb}>
-          {t.settings}
-          <span>/</span>
-          <strong>{t.routines}</strong>
+    <div className="page">
+      <header className="page-header">
+        <div>
+          <span className="eyebrow">{t.eyebrow}</span>
+          <h1>{t.routines}</h1>
+          <p>{t.intro}</p>
         </div>
-        <div className={styles['top-actions']}>
-          <span className={styles['status-text']} aria-live="polite">
+        <div className="page-actions">
+          <span className="status" data-tone={tone} aria-live="polite">
             {status}
           </span>
-          {languageControl}
-        </div>
-      </header>
-      <div className={styles.content}>
-        <div className={styles['page-heading']}>
-          <div>
-            <div className={styles.eyebrow}>{t.eyebrow}</div>
-            <h1>{t.routines}</h1>
-            <p>{t.intro}</p>
-          </div>
-          {loadState === 'ready' && !editing && (
+          {loadState === 'ready' && !editing && routines.length > 0 && (
             <button
               type="button"
-              className={`${styles.button} ${styles.primary}`}
-              onClick={() => open({ mode: 'new' })}
+              className="btn btn-primary"
+              onClick={() => void open({ mode: 'new' })}
             >
-              <span aria-hidden="true">＋</span>
+              <Plus size={16} weight="bold" aria-hidden="true" />
               {t.add}
             </button>
           )}
         </div>
+      </header>
 
-        {message?.kind === 'error' && !editing && (
-          <div className={styles['inline-error']} role="alert">
-            {message.text}
-          </div>
-        )}
+      {message?.kind === 'error' && !editing && (
+        <div className={`notice ${styles.notice}`} data-tone="error" role="alert">
+          <WarningCircle size={16} aria-hidden="true" />
+          {message.text}
+        </div>
+      )}
 
-        {loadState === 'loading' ? (
-          <div className={styles['state-card']} role="status">
-            <span className={styles.spinner} />
-            {t.loading}
-          </div>
-        ) : loadState === 'error' ? (
-          <div className={`${styles['state-card']} ${styles.error}`} role="alert">
-            <strong>{t.loadError}</strong>
-            <button type="button" className={styles['text-button']} onClick={() => void load()}>
-              {t.retry}
-            </button>
-          </div>
-        ) : (
-          <>
-            {editing && (
-              <RoutineEditor
-                t={t}
-                title={editing.mode === 'new' ? t.newTitle : t.editTitle}
-                language={language}
-                draft={draft}
-                onChange={setDraft}
-                saving={saving}
-                dirty={dirty}
-                error={message?.kind === 'error' ? message.text : undefined}
-                onSave={() => void save()}
-                onCancel={close}
-                {...(editing.mode === 'edit' && {
-                  onDelete: () => void remove(editing.id),
-                })}
-              />
-            )}
-            {routines.length === 0 && !editing ? (
-              <div className={styles['state-card']}>{t.empty}</div>
-            ) : (
-              <ul className={styles.list}>
-                {routines.map((routine) => (
-                  <li key={routine.id} className={styles.panel}>
-                    <RoutineRow
-                      routine={routine}
-                      language={language}
-                      t={t}
-                      editing={editing?.mode === 'edit' && editing.id === routine.id}
-                      running={activeRuns.has(routine.id)}
-                      historyOpen={historyOf === routine.id}
-                      onEdit={() => open({ mode: 'edit', id: routine.id })}
-                      onRun={() => void runNow(routine.id)}
-                      onToggleHistory={() =>
-                        setHistoryOf(historyOf === routine.id ? undefined : routine.id)
-                      }
-                    />
-                    {historyOf === routine.id && (
-                      <RunHistory
-                        key={runsVersion}
-                        routineId={routine.id}
-                        language={language}
-                        t={t}
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-        {footer}
-      </div>
-    </>
+      {loadState === 'loading' ? (
+        <div className="skeleton-stack" role="status" aria-label={t.loading}>
+          <span className="skeleton" />
+          <span className="skeleton" />
+          <span className="skeleton" />
+        </div>
+      ) : loadState === 'error' ? (
+        <div className="state" data-tone="error" role="alert">
+          <span className="state-icon">
+            <WarningCircle size={22} aria-hidden="true" />
+          </span>
+          <h2>{t.loadError}</h2>
+          <button type="button" className="btn btn-secondary" onClick={() => void load()}>
+            <ArrowClockwise size={16} aria-hidden="true" />
+            {t.retry}
+          </button>
+        </div>
+      ) : (
+        <div className={styles.stack}>
+          {editing && (
+            <RoutineEditor
+              t={t}
+              title={editing.mode === 'new' ? t.newTitle : t.editTitle}
+              draft={draft}
+              onChange={setDraft}
+              saving={saving}
+              dirty={dirty}
+              error={message?.kind === 'error' ? message.text : undefined}
+              onSave={() => void save()}
+              onCancel={() => void close()}
+              {...(editing.mode === 'edit' && {
+                onDelete: () => void remove(editing.id),
+              })}
+            />
+          )}
+          {routines.length === 0 && !editing ? (
+            <div className="state">
+              <span className="state-icon">
+                <Timer size={22} aria-hidden="true" />
+              </span>
+              <h2>{t.emptyTitle}</h2>
+              <p>{t.empty}</p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void open({ mode: 'new' })}
+              >
+                <Plus size={16} weight="bold" aria-hidden="true" />
+                {t.add}
+              </button>
+            </div>
+          ) : (
+            <ul className={styles.list}>
+              {routines.map((routine) => (
+                <li
+                  key={routine.id}
+                  className={`panel ${styles.card}`}
+                  data-editing={editing?.mode === 'edit' && editing.id === routine.id}
+                >
+                  <RoutineRow
+                    routine={routine}
+                    t={t}
+                    editing={editing?.mode === 'edit' && editing.id === routine.id}
+                    running={activeRuns.has(routine.id)}
+                    historyOpen={historyOf === routine.id}
+                    onEdit={() => void open({ mode: 'edit', id: routine.id })}
+                    onRun={() => void runNow(routine.id)}
+                    onToggleHistory={() =>
+                      setHistoryOf(historyOf === routine.id ? undefined : routine.id)
+                    }
+                  />
+                  {historyOf === routine.id && (
+                    <RunHistory key={runsVersion} routineId={routine.id} t={t} />
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {footer}
+    </div>
   );
 }
 
 interface RoutineRowProps {
   routine: RoutineDto;
-  language: Language;
   t: Copy;
   editing: boolean;
   running: boolean;
@@ -490,7 +463,6 @@ interface RoutineRowProps {
 
 function RoutineRow({
   routine,
-  language,
   t,
   editing,
   running,
@@ -504,7 +476,7 @@ function RoutineRow({
       <div className={styles['row-main']}>
         <div className={styles['row-title']}>
           <h2>{routine.name}</h2>
-          <span className={`${styles.badge} ${routine.enabled ? styles.on : styles.off}`}>
+          <span className="badge" data-tone={routine.enabled ? 'success' : undefined}>
             {routine.enabled ? t.enabled : t.disabled}
           </span>
         </div>
@@ -512,46 +484,57 @@ function RoutineRow({
         <div className={styles.meta}>
           {routine.triggers.map((trigger, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: triggers have no identity
-            <span key={index} className={styles.chip}>
-              {describeSchedule(toSchedule(trigger), language)}
+            <span key={index} className="chip">
+              <CalendarBlank size={14} aria-hidden="true" />
+              {describeSchedule(toSchedule(trigger))}
             </span>
           ))}
-          {routine.model && <span className={styles.chip}>{routine.model}</span>}
-        </div>
-        <div className={styles.next}>
-          {t.next}: {routine.nextRunAt ? formatDate(routine.nextRunAt, language) : t.never}
+          {routine.model && (
+            <span className="chip">
+              <Cpu size={14} aria-hidden="true" />
+              {routine.model}
+            </span>
+          )}
         </div>
       </div>
-      <div className={styles['row-actions']}>
-        <button
-          type="button"
-          className={`${styles.button} ${styles.secondary}`}
-          onClick={onRun}
-          disabled={running}
-        >
-          {running ? (
-            <span className={`${styles['button-spinner']} ${styles.dark}`} />
-          ) : (
-            <span aria-hidden="true">▶</span>
-          )}
-          {running ? t.runningNow : t.runNow}
-        </button>
-        <button
-          type="button"
-          className={`${styles.button} ${styles.secondary}`}
-          onClick={onEdit}
-          disabled={editing}
-        >
-          {t.edit}
-        </button>
-        <button
-          type="button"
-          className={styles['text-button']}
-          onClick={onToggleHistory}
-          aria-expanded={historyOpen}
-        >
-          {historyOpen ? t.hideHistory : t.history}
-        </button>
+      <div className={styles['row-side']}>
+        <div className={styles.next}>
+          <span>{t.next}</span>
+          <strong>{routine.nextRunAt ? formatDate(routine.nextRunAt) : t.never}</strong>
+        </div>
+        <div className={styles['row-actions']}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={onToggleHistory}
+            aria-expanded={historyOpen}
+          >
+            <ClockCounterClockwise size={16} aria-hidden="true" />
+            {historyOpen ? t.hideHistory : t.history}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={onEdit}
+            disabled={editing}
+          >
+            <PencilSimple size={16} aria-hidden="true" />
+            {t.edit}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={onRun}
+            disabled={running}
+          >
+            {running ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : (
+              <Play size={14} weight="fill" aria-hidden="true" />
+            )}
+            {running ? t.runningNow : t.runNow}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -559,7 +542,6 @@ function RoutineRow({
 
 interface RoutineEditorProps {
   t: Copy;
-  language: Language;
   title: string;
   draft: Draft;
   onChange: (draft: Draft) => void;
@@ -573,7 +555,6 @@ interface RoutineEditorProps {
 
 function RoutineEditor({
   t,
-  language,
   title,
   draft,
   onChange,
@@ -586,7 +567,7 @@ function RoutineEditor({
 }: RoutineEditorProps) {
   return (
     <form
-      className={`${styles.panel} ${styles.editor}`}
+      className={`panel ${styles.editor}`}
       aria-labelledby="routine-editor-title"
       onSubmit={(event) => {
         event.preventDefault();
@@ -598,10 +579,11 @@ function RoutineEditor({
         <p>{t.editorHint}</p>
       </div>
       <div className={styles['field-grid']}>
-        <div className={styles.field}>
+        <div className="field">
           <label htmlFor="routine-name">{t.name}</label>
           <input
             id="routine-name"
+            className="input"
             value={draft.name}
             onChange={(e) => onChange({ ...draft, name: e.target.value })}
             placeholder={t.nameHint}
@@ -609,10 +591,11 @@ function RoutineEditor({
             disabled={saving}
           />
         </div>
-        <div className={styles.field}>
+        <div className="field">
           <label htmlFor="routine-model">{t.model}</label>
           <input
             id="routine-model"
+            className="input"
             value={draft.model}
             onChange={(e) => onChange({ ...draft, model: e.target.value })}
             placeholder={t.modelHint}
@@ -620,16 +603,21 @@ function RoutineEditor({
             disabled={saving}
             aria-describedby="routine-model-help"
           />
-          <small id="routine-model-help">{t.modelHelp}</small>
+          <small id="routine-model-help" className="field-hint">
+            {t.modelHelp}
+          </small>
         </div>
       </div>
-      <div className={styles.field}>
-        <div className={styles['label-row']}>
-          <label htmlFor="routine-prompt">{t.prompt}</label>
-          <span>{draft.prompt.length} / 20000</span>
+      <div className="field">
+        <div className="label-row">
+          <label className="label" htmlFor="routine-prompt">
+            {t.prompt}
+          </label>
+          <span className="counter">{draft.prompt.length} / 20000</span>
         </div>
         <textarea
           id="routine-prompt"
+          className="textarea"
           value={draft.prompt}
           onChange={(e) => onChange({ ...draft, prompt: e.target.value })}
           placeholder={t.promptHint}
@@ -642,52 +630,51 @@ function RoutineEditor({
       <ScheduleEditor
         schedules={draft.schedules}
         onChange={(schedules) => onChange({ ...draft, schedules })}
-        language={language}
         disabled={saving}
       />
 
-      <p className={styles['topic-hint']}>
-        <span aria-hidden="true">ⓘ</span>
-        {t.topicHint(draft.name.trim() || t.nameHint)}
-      </p>
       <label className={styles.toggle}>
-        <input
-          type="checkbox"
-          checked={draft.enabled}
-          onChange={(e) => onChange({ ...draft, enabled: e.target.checked })}
-          disabled={saving}
-        />
         <span>
           <strong>{t.enabledLabel}</strong>
           <small>{t.enabledHelp}</small>
         </span>
+        <input
+          type="checkbox"
+          className="switch"
+          checked={draft.enabled}
+          onChange={(e) => onChange({ ...draft, enabled: e.target.checked })}
+          disabled={saving}
+        />
       </label>
 
-      <div className={styles['form-footer']}>
+      <p className="hint">
+        <ChatCircleDots size={16} aria-hidden="true" />
+        {t.topicHint(draft.name.trim() || t.nameHint)}
+      </p>
+
+      {error && (
+        <div className="notice" data-tone="error" role="alert">
+          <WarningCircle size={16} aria-hidden="true" />
+          {error}
+        </div>
+      )}
+
+      <div className={styles['editor-footer']}>
         {onDelete ? (
-          <button
-            type="button"
-            className={`${styles.button} ${styles.danger}`}
-            onClick={onDelete}
-            disabled={saving}
-          >
+          <button type="button" className="btn btn-danger" onClick={onDelete} disabled={saving}>
+            <Trash size={16} aria-hidden="true" />
             {t.delete}
           </button>
         ) : (
           <span />
         )}
-        <div className={styles['form-actions']}>
-          <button
-            type="button"
-            className={`${styles.button} ${styles.secondary}`}
-            onClick={onCancel}
-            disabled={saving}
-          >
+        <div className="save-bar-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
             {t.cancel}
           </button>
           <button
             type="submit"
-            className={`${styles.button} ${styles.primary}`}
+            className="btn btn-primary"
             disabled={
               saving ||
               !dirty ||
@@ -697,32 +684,19 @@ function RoutineEditor({
             }
           >
             {saving ? (
-              <span className={styles['button-spinner']} />
+              <span className="spinner" aria-hidden="true" />
             ) : (
-              <span aria-hidden="true">✓</span>
+              <Check size={16} weight="bold" aria-hidden="true" />
             )}
             {saving ? t.saving : t.save}
           </button>
         </div>
       </div>
-      {error && (
-        <div className={styles['inline-error']} role="alert">
-          {error}
-        </div>
-      )}
     </form>
   );
 }
 
-function RunHistory({
-  routineId,
-  language,
-  t,
-}: {
-  routineId: string;
-  language: Language;
-  t: Copy;
-}) {
+function RunHistory({ routineId, t }: { routineId: string; t: Copy }) {
   const [runs, setRuns] = useState<RunDto[]>();
   const [failed, setFailed] = useState(false);
   const running = runs?.some(({ status }) => UNFINISHED.includes(status)) ?? false;
@@ -749,36 +723,47 @@ function RunHistory({
     };
   }, [routineId, running]);
 
-  if (failed) return <div className={styles['inline-error']}>{t.actionError}</div>;
-  if (!runs)
+  if (failed)
     return (
       <div className={styles.history}>
-        <span className={styles.spinner} />
+        <p className="notice" data-tone="error">
+          {t.actionError}
+        </p>
+      </div>
+    );
+  if (!runs)
+    return (
+      <div className={`${styles.history} ${styles.muted}`} role="status">
+        <span className="spinner" aria-hidden="true" />
+        {t.loadingRuns}
       </div>
     );
   if (!runs.length) return <div className={`${styles.history} ${styles.muted}`}>{t.noRuns}</div>;
 
   return (
-    <ol className={styles.history}>
+    <ol className={styles.history} aria-label={t.history}>
       {runs.map((run) => (
-        <li key={run.id} className={styles.run}>
-          <span className={`${styles['run-status']} ${styles[run.status]}`}>
-            {UNFINISHED.includes(run.status) && <span className={styles['button-spinner']} />}
+        <li key={run.id} className={styles.run} data-status={run.status}>
+          <span className={styles['run-status']}>
+            {UNFINISHED.includes(run.status) ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : (
+              <span className={styles['run-dot']} aria-hidden="true" />
+            )}
             {t.status[run.status]}
           </span>
           <span className={styles['run-when']}>
-            {formatDate(run.startedAt, language)} ·{' '}
-            {run.origin === 'manual' ? t.manual : t.schedule}
+            {formatDate(run.startedAt)} · {run.origin === 'manual' ? t.manual : t.schedule}
             {run.finishedAt &&
               ` · ${Math.max(1, Math.round((Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 1000))} s`}
           </span>
           {run.tools.length > 0 && (
             <span className={styles['run-detail']}>
-              {t.tools}: {run.tools.join(', ')}
+              {t.tools}: <code>{run.tools.join(', ')}</code>
             </span>
           )}
           {run.error && (
-            <span className={`${styles['run-detail']} ${styles.failed}`}>{run.error}</span>
+            <span className={`${styles['run-detail']} ${styles['run-error']}`}>{run.error}</span>
           )}
         </li>
       ))}

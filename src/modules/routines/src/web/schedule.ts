@@ -1,7 +1,5 @@
 import type { Trigger } from '../domain/trigger.ts';
 
-export type Language = 'it' | 'en';
-
 /**
  * How the editor shows a Trigger. Daily, weekly and monthly schedules are cron
  * expressions underneath; anything the guided forms can't express stays raw cron.
@@ -157,66 +155,40 @@ export function toLocalInput(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const locale = (language: Language) => (language === 'it' ? 'it-IT' : 'en-GB');
-
-export function dayName(day: number, language: Language, width: 'short' | 'long'): string {
+export function dayName(day: number, width: 'short' | 'long'): string {
   // 4 January 2026 was a Sunday, so day `n` of that week has cron number `n`.
-  return new Date(2026, 0, 4 + day).toLocaleDateString(locale(language), { weekday: width });
+  return new Date(2026, 0, 4 + day).toLocaleDateString('en-GB', { weekday: width });
 }
 
-/** One sentence for the editor preview and the list, e.g. "Dal lunedì al venerdì alle 08:00". */
-export function describeSchedule(schedule: ScheduleDraft, language: Language): string {
-  const it = language === 'it';
-  const at = (time: string) => (it ? `alle ${time}` : `at ${time}`);
+/** One sentence for the editor preview and the list, e.g. "Monday to Friday at 08:00". */
+export function describeSchedule(schedule: ScheduleDraft): string {
+  const at = (time: string) => `at ${time}`;
   switch (schedule.kind) {
     case 'daily':
-      return `${it ? 'Ogni giorno' : 'Every day'} ${at(schedule.time)}`;
+      return `Every day ${at(schedule.time)}`;
     case 'weekly': {
       const days = schedule.days;
       const same = (set: number[]) =>
         set.length === days.length && set.every((day) => days.includes(day));
-      if (same(WORKDAYS))
-        return `${it ? 'Dal lunedì al venerdì' : 'Monday to Friday'} ${at(schedule.time)}`;
-      if (same([0, 6])) return `${it ? 'Nel weekend' : 'At weekends'} ${at(schedule.time)}`;
+      if (same(WORKDAYS)) return `Monday to Friday ${at(schedule.time)}`;
+      if (same([0, 6])) return `At weekends ${at(schedule.time)}`;
       const names = WEEK.filter((day) => days.includes(day)).map((day) =>
-        dayName(day, language, days.length === 1 ? 'long' : 'short'),
+        dayName(day, days.length === 1 ? 'long' : 'short'),
       );
       return `${names.join(', ')} ${at(schedule.time)}`;
     }
     case 'monthly':
-      return it
-        ? `Il giorno ${schedule.day} di ogni mese ${at(schedule.time)}`
-        : `On day ${schedule.day} of every month ${at(schedule.time)}`;
+      return `On day ${schedule.day} of every month ${at(schedule.time)}`;
     case 'once': {
       const date = new Date(schedule.local);
-      if (Number.isNaN(date.getTime())) return it ? 'Una volta' : 'Once';
-      const when = date.toLocaleString(locale(language), {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
-      return it ? `Una volta, ${when}` : `Once, ${when}`;
+      if (Number.isNaN(date.getTime())) return 'Once';
+      const when = date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      return `Once, ${when}`;
     }
     case 'every': {
       const amount = Number(schedule.amount);
-      const unit =
-        schedule.unit === 'hours'
-          ? it
-            ? amount === 1
-              ? 'ora'
-              : 'ore'
-            : amount === 1
-              ? 'hour'
-              : 'hours'
-          : it
-            ? amount === 1
-              ? 'minuto'
-              : 'minuti'
-            : amount === 1
-              ? 'minute'
-              : 'minutes';
-      return it
-        ? `Ogni ${amount === 1 ? '' : `${amount} `}${unit}`
-        : `Every ${amount === 1 ? '' : `${amount} `}${unit}`;
+      const unit = schedule.unit === 'hours' ? 'hour' : 'minute';
+      return amount === 1 ? `Every ${unit}` : `Every ${amount} ${unit}s`;
     }
     case 'cron':
       return `cron ${schedule.expression}`;

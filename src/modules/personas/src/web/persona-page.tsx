@@ -1,70 +1,48 @@
+import {
+  ArrowClockwise,
+  ArrowUpRight,
+  Check,
+  Info,
+  Sparkle,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import type { Persona } from '../domain/persona.ts';
 import type { PersonaPreset } from '../domain/presets.ts';
 import styles from './persona-page.module.css';
 
-type Language = 'it' | 'en';
 type State = 'loading' | 'ready' | 'saving' | 'saved' | 'error';
 
-const copy = {
-  it: {
-    persona: 'Persona',
-    settings: 'Impostazioni',
-    page: 'La tua Persona',
-    intro: 'Scegli una base e adattala al modo in cui vuoi che il tuo Agent ti parli.',
-    presets: 'Inizia da una voce',
-    presetsHint: 'Puoi modificare ogni dettaglio prima di salvare.',
-    custom: 'oppure scrivi la tua',
-    name: 'Nome',
-    personality: 'Personalità',
-    nameHint: 'Come vuoi chiamare il tuo Agent?',
-    personalityHint: 'Descrivi tono, stile e modo di ragionare…',
-    helper: 'Queste istruzioni definiscono il carattere dell’Agent nelle conversazioni.',
-    cancel: 'Annulla modifiche',
-    save: 'Salva Persona',
-    saved: 'Modifiche salvate',
-    saving: 'Salvataggio…',
-    loading: 'Caricamento Persona…',
-    error: 'Non è stato possibile caricare la Persona.',
-    saveError: 'Salvataggio non riuscito. Le tue modifiche sono ancora qui.',
-    savedAt: 'Tutto salvato',
-    dirty: 'Modifiche non salvate',
-    idle: 'Pronto',
-    nextTurn: 'Le modifiche si applicano dal prossimo turno. La risposta attiva verrà completata.',
-    loadError: 'Riprova',
-  },
-  en: {
-    persona: 'Persona',
-    settings: 'Settings',
-    page: 'Your Persona',
-    intro: 'Choose a starting point and shape how you want your Agent to speak with you.',
-    presets: 'Start with a voice',
-    presetsHint: 'You can edit every detail before saving.',
-    custom: 'or write your own',
-    name: 'Name',
-    personality: 'Personality',
-    nameHint: 'What would you like to call your Agent?',
-    personalityHint: 'Describe its tone, style and way of thinking…',
-    helper: 'These instructions shape your Agent’s character in conversation.',
-    cancel: 'Discard changes',
-    save: 'Save Persona',
-    saved: 'Changes saved',
-    saving: 'Saving…',
-    loading: 'Loading Persona…',
-    error: 'Could not load your Persona.',
-    saveError: 'Save failed. Your edits are still here.',
-    savedAt: 'All changes saved',
-    dirty: 'Unsaved changes',
-    idle: 'Ready',
-    nextTurn: 'Changes apply from the next turn. The active response will finish.',
-    loadError: 'Try again',
-  },
-} satisfies Record<Language, Record<string, string>>;
-
-const englishPresetDescriptions: Record<string, string> = {
-  jarvis: 'British precision and dry wit',
-  cortana: 'Tactical intelligence and sharp wit',
-  joi: 'Affectionate warmth and imagination',
+const t = {
+  eyebrow: 'Your Agent',
+  page: 'Persona',
+  intro: 'Choose a starting point and shape how you want your Agent to speak with you.',
+  presets: 'Start with a voice',
+  presetsHint: 'Pick one to fill in the fields below. You can edit every detail before saving.',
+  character: 'Character',
+  name: 'Name',
+  personality: 'Personality',
+  nameHint: 'What would you like to call your Agent?',
+  personalityHint: 'Describe its tone, style and way of thinking…',
+  helper: 'These instructions shape your Agent’s character in conversation.',
+  cancel: 'Discard changes',
+  save: 'Save Persona',
+  saved: 'Changes saved',
+  saving: 'Saving…',
+  loading: 'Loading Persona…',
+  error: 'Could not load your Persona.',
+  saveError: 'Save failed. Your edits are still here.',
+  savedAt: 'All changes saved',
+  dirty: 'Unsaved changes',
+  nextTurn: 'Changes apply from the next turn. The active response will finish.',
+  loadError: 'Try again',
+  replace: (name: string) => ({
+    title: `Start from ${name}?`,
+    body: 'Its name and personality will replace the edits you have not saved.',
+    confirm: `Use ${name}`,
+    cancel: 'Keep my edits',
+    tone: 'danger' as const,
+  }),
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -86,27 +64,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 interface PersonaPageProps {
-  language: Language;
-  languageControl: ReactNode;
   footer: ReactNode;
   /** Told whenever unsaved edits appear or go away, so the app can guard navigation. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Asks the Owner a yes/no question in the dashboard's dialog. */
+  confirm: (question: {
+    title: string;
+    body: string;
+    confirm: string;
+    cancel: string;
+    tone?: 'danger' | 'default';
+  }) => Promise<boolean>;
 }
 
 /** Persona configuration owns its loading, editing and persistence behaviour. */
-export function PersonaPage({
-  language,
-  languageControl,
-  footer,
-  onDirtyChange,
-}: PersonaPageProps) {
+export function PersonaPage({ footer, onDirtyChange, confirm }: PersonaPageProps) {
   const [saved, setSaved] = useState<Persona>({ name: '', personality: '' });
   const [draft, setDraft] = useState<Persona>({ name: '', personality: '' });
   const [presets, setPresets] = useState<PersonaPreset[]>([]);
   const [state, setState] = useState<State>('loading');
   const [error, setError] = useState('');
   const [presetMessage, setPresetMessage] = useState('');
-  const t = copy[language];
   const dirty = draft.name !== saved.name || draft.personality !== saved.personality;
 
   useEffect(() => {
@@ -154,7 +132,7 @@ export function PersonaPage({
     if (dirty) return t.dirty;
     if (state === 'saved') return t.saved;
     return t.savedAt;
-  }, [state, dirty, t]);
+  }, [state, dirty]);
 
   async function save() {
     setState('saving');
@@ -174,25 +152,13 @@ export function PersonaPage({
       setError(t.saveError);
     }
   }
-  function applyPreset(preset: PersonaPreset) {
+  async function applyPreset(preset: PersonaPreset) {
     if (state === 'saving') return;
-    if (
-      dirty &&
-      !window.confirm(
-        language === 'it'
-          ? 'Sostituire le modifiche non salvate con questa Persona?'
-          : 'Replace your unsaved edits with this Persona?',
-      )
-    )
-      return;
+    if (dirty && !(await confirm(t.replace(preset.title || preset.name)))) return;
     setDraft({ name: preset.name, personality: preset.personality });
     setState('ready');
     setError('');
-    setPresetMessage(
-      language === 'it'
-        ? `${preset.name} è pronto per essere personalizzato.`
-        : `${preset.name} is ready to customize.`,
-    );
+    setPresetMessage(`${preset.name} is ready to customize.`);
   }
   function cancel() {
     setDraft(saved);
@@ -207,189 +173,178 @@ export function PersonaPage({
     if (state === 'saved') setState('ready');
   }
 
+  const saving = state === 'saving';
+  const tone =
+    state === 'error'
+      ? 'error'
+      : saving
+        ? 'saving'
+        : dirty
+          ? 'dirty'
+          : state === 'saved'
+            ? 'saved'
+            : 'idle';
+
   return (
-    <>
-      <header className={styles.topbar}>
-        <div className={styles.breadcrumb}>
-          {t.settings}
-          <span>/</span>
-          <strong>{t.persona}</strong>
-        </div>
-        <div className={styles['top-actions']}>
-          <span className={`${styles['status-dot']} ${styles[state] ?? ''}`} aria-hidden="true" />
-          <span className={styles['status-text']} aria-live="polite">
-            {status}
-          </span>
-          {languageControl}
-        </div>
-      </header>
-      <div className={styles.content}>
-        <div className={styles['page-heading']}>
-          <div className={styles.eyebrow}>{language === 'it' ? 'IL TUO AGENT' : 'YOUR AGENT'}</div>
+    <div className="page">
+      <header className="page-header">
+        <div>
+          <span className="eyebrow">{t.eyebrow}</span>
           <h1>{t.page}</h1>
           <p>{t.intro}</p>
         </div>
-        {state === 'loading' ? (
-          <div className={styles['loading-card']} role="status">
-            <span className={styles.spinner} />
-            {t.loading}
-          </div>
-        ) : state === 'error' ? (
-          <div className={styles['error-card']} role="alert">
-            <strong>{error || t.error}</strong>
-            <button
-              type="button"
-              className={styles['text-button']}
-              onClick={() => window.location.reload()}
-            >
-              {t.loadError}
-            </button>
-          </div>
-        ) : (
-          <>
-            <section
-              className={`${styles.panel} ${styles['preset-panel']}`}
-              aria-labelledby="preset-title"
-            >
-              <div className={styles['panel-title-row']}>
-                <div>
-                  <h2 id="preset-title">{t.presets}</h2>
-                  <p>{t.presetsHint}</p>
-                </div>
-                <span className={styles.sparkle} aria-hidden="true">
-                  ✳
-                </span>
+        <div className="page-actions">
+          <span className="status" data-tone={tone} aria-live="polite">
+            {status}
+          </span>
+        </div>
+      </header>
+      {state === 'loading' ? (
+        <div className="skeleton-stack" role="status" aria-label={t.loading}>
+          <span className="skeleton" />
+          <span className="skeleton" />
+          <span className="skeleton" />
+        </div>
+      ) : state === 'error' ? (
+        <div className="state" data-tone="error" role="alert">
+          <span className="state-icon">
+            <WarningCircle size={22} aria-hidden="true" />
+          </span>
+          <h2>{error || t.error}</h2>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => window.location.reload()}
+          >
+            <ArrowClockwise size={16} aria-hidden="true" />
+            {t.loadError}
+          </button>
+        </div>
+      ) : (
+        <form
+          aria-label={t.page}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          {presets.length > 0 && (
+            <section className="section" aria-labelledby="preset-title">
+              <div className="section-intro">
+                <h2 id="preset-title">{t.presets}</h2>
+                <p>{t.presetsHint}</p>
               </div>
-              <div className={styles['preset-grid']}>
-                {presets.map((preset, index) => (
-                  <button
-                    type="button"
-                    key={preset.id}
-                    className={styles.preset}
-                    onClick={() => applyPreset(preset)}
-                    disabled={state === 'saving'}
-                    aria-label={`${language === 'it' ? 'Usa' : 'Use'} ${preset.title || preset.name}`}
-                  >
-                    <span
-                      className={`${styles.avatar} ${styles[`avatar-${index % 3}`]}`}
-                      aria-hidden="true"
+              <div className={styles.presets}>
+                {presets.map((preset) => {
+                  const title = preset.title || preset.name;
+                  return (
+                    <button
+                      type="button"
+                      key={preset.id}
+                      className={styles.preset}
+                      onClick={() => void applyPreset(preset)}
+                      disabled={saving}
+                      aria-label={`Use ${title}`}
                     >
-                      {(preset.title || preset.name).slice(0, 1)}
-                    </span>
-                    <span className={styles['preset-copy']}>
-                      <strong>{preset.title || preset.name}</strong>
-                      <small>
-                        {language === 'en'
-                          ? englishPresetDescriptions[preset.id] || preset.description
-                          : preset.description}
-                      </small>
-                    </span>
-                    <span className={styles['preset-arrow']} aria-hidden="true">
-                      ↗
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className={styles['or-divider']}>
-                <span>{t.custom}</span>
+                      <span className={styles.monogram} aria-hidden="true">
+                        {title.slice(0, 1)}
+                      </span>
+                      <span className={styles['preset-copy']}>
+                        <strong>{title}</strong>
+                        <small>{preset.description}</small>
+                      </span>
+                      <ArrowUpRight
+                        className={styles['preset-arrow']}
+                        size={16}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  );
+                })}
               </div>
             </section>
-            <form
-              className={`${styles.panel} ${styles['editor-panel']}`}
-              aria-labelledby="editor-title"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save();
-              }}
-            >
-              <div className={styles['editor-heading']}>
-                <div>
-                  <h2 id="editor-title">{t.persona}</h2>
-                  <p>{t.helper}</p>
-                </div>
-                <span className={styles['edit-icon']} aria-hidden="true">
-                  ✎
-                </span>
-              </div>
-              <div className={styles.field}>
+          )}
+          <section className="section" aria-labelledby="editor-title">
+            <div className="section-intro">
+              <h2 id="editor-title">{t.character}</h2>
+              <p>{t.helper}</p>
+            </div>
+            <div className={`panel ${styles.editor}`}>
+              <div className="field">
                 <label htmlFor="persona-name">{t.name}</label>
                 <input
                   id="persona-name"
+                  className="input"
                   value={draft.name}
                   onChange={(e) => updateDraft({ ...draft, name: e.target.value })}
                   placeholder={t.nameHint}
                   maxLength={100}
-                  disabled={state === 'saving'}
+                  disabled={saving}
                 />
               </div>
-              <div className={styles.field}>
-                <div className={styles['label-row']}>
-                  <label htmlFor="persona-personality">{t.personality}</label>
-                  <span>{draft.personality.length} / 20000</span>
+              <div className="field">
+                <div className="label-row">
+                  <label className="label" htmlFor="persona-personality">
+                    {t.personality}
+                  </label>
+                  <span className="counter">{draft.personality.length} / 20000</span>
                 </div>
                 <textarea
                   id="persona-personality"
+                  className="textarea"
                   value={draft.personality}
                   onChange={(e) => updateDraft({ ...draft, personality: e.target.value })}
                   placeholder={t.personalityHint}
                   maxLength={20000}
-                  rows={6}
-                  disabled={state === 'saving'}
+                  rows={8}
+                  disabled={saving}
                 />
               </div>
-              <div className={styles['form-footer']}>
-                <span className={styles.hint}>
-                  <span aria-hidden="true">ⓘ</span>
-                  {t.nextTurn}
-                </span>
-                <div className={styles['form-actions']}>
-                  <button
-                    type="button"
-                    className={`${styles.button} ${styles.secondary}`}
-                    onClick={cancel}
-                    disabled={!dirty || state === 'saving'}
-                  >
-                    {t.cancel}
-                  </button>
-                  <button
-                    type="submit"
-                    className={`${styles.button} ${styles.primary}`}
-                    disabled={
-                      !dirty ||
-                      state === 'saving' ||
-                      !draft.name.trim() ||
-                      !draft.personality.trim()
-                    }
-                  >
-                    {state === 'saving' ? (
-                      <>
-                        <span className={styles['button-spinner']} />
-                        {t.saving}
-                      </>
-                    ) : (
-                      <>
-                        <span aria-hidden="true">✓</span>
-                        {t.save}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              {error && (
-                <div className={styles['inline-error']} role="alert">
-                  {error}
-                </div>
-              )}
               {presetMessage && (
-                <div className={styles['inline-success']} role="status">
+                <div className="notice" data-tone="success" role="status">
+                  <Sparkle size={16} aria-hidden="true" />
                   {presetMessage}
                 </div>
               )}
-            </form>
-          </>
-        )}
-        {footer}
-      </div>
-    </>
+            </div>
+          </section>
+          {error && (
+            <div className="notice" data-tone="error" role="alert">
+              <WarningCircle size={16} aria-hidden="true" />
+              {error}
+            </div>
+          )}
+          <div className="save-bar" data-dirty={dirty}>
+            <p className="hint">
+              <Info size={16} aria-hidden="true" />
+              {t.nextTurn}
+            </p>
+            <div className="save-bar-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={cancel}
+                disabled={!dirty || saving}
+              >
+                {t.cancel}
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={!dirty || saving || !draft.name.trim() || !draft.personality.trim()}
+              >
+                {saving ? (
+                  <span className="spinner" aria-hidden="true" />
+                ) : (
+                  <Check size={16} weight="bold" aria-hidden="true" />
+                )}
+                {saving ? t.saving : t.save}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+      {footer}
+    </div>
   );
 }

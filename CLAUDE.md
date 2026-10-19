@@ -74,11 +74,12 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 
 **Dashboard.**
 - It is served on `127.0.0.1:3000` without authentication. `dashboard-server.ts` rejects non-loopback hosts and cross-origin writes. For that reason the Vite proxy keeps the Host header (`changeOrigin: false`).
-- Pages receive `language` (`it`/`en`) and report unsaved edits through `onDirtyChange`, so `App.tsx` can ask before navigating away.
+- It is in English only. Pages report unsaved edits through `onDirtyChange`, so `App.tsx` can ask before navigating away, and ask the Owner yes/no questions through the `confirm` prop, which opens the shell's `ConfirmDialog` (never `window.confirm`).
+- `src/apps/web/src/styles.css` is the design system: tokens (4px spacing scale, type scale, colours with a dark variant) and the primitives every page shares (`.page`, `.section`, `.panel`, `.btn`, `.field`, `.save-bar`, …). A module's CSS module holds only its page layout and reads the tokens; it never hardcodes colours or sizes. Icons come from `@phosphor-icons/react`, fonts are Geist via `@fontsource`.
 
 ## Conventions
 
-- Code, comments and docs are in English. User-facing text (the dashboard, and the Telegram messages in `messages.ts` files) is in Italian, with English for the dashboard too.
+- Code, comments and docs are in English. The dashboard is in English; the Telegram messages in `messages.ts` files are in Italian.
 - Biome style: 2 spaces, single quotes, 100 columns. TypeScript is strict with `noUncheckedIndexedAccess`, and imports use explicit `.ts` extensions.
 - Comments are short and explain *why*. Match the density of the surrounding code.
 - A new Tool is declared in its Faculty with its default Policy, or Policies deny it. A new Engine Tool also goes in `ENGINE_TOOLS`, with its SDK name in the adapter's `tool-names.ts`.

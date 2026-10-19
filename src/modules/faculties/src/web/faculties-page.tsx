@@ -1,62 +1,41 @@
 import type { Policy, PolicyGroup, ToolPolicy } from '@emanator/policies';
+import { ArrowClockwise, Check, Info, WarningCircle } from '@phosphor-icons/react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import styles from './faculties-page.module.css';
 
-type Language = 'it' | 'en';
 type State = 'loading' | 'ready' | 'saving' | 'saved' | 'error';
 
 const ALL_POLICIES: readonly Policy[] = ['allow', 'ask', 'deny'];
 
-const copy = {
-  it: {
-    settings: 'Impostazioni',
-    crumb: 'Facoltà',
-    eyebrow: 'IL TUO AGENT',
-    page: 'Facoltà e Policy',
-    intro:
-      'Scegli cosa può fare il tuo Agent da solo, cosa deve chiederti prima e cosa non deve fare mai.',
-    loading: 'Caricamento Policy…',
-    loadError: 'Non è stato possibile caricare le Policy.',
-    retry: 'Riprova',
-    saving: 'Salvataggio…',
-    saved: 'Modifiche salvate',
-    allSaved: 'Tutto salvato',
-    dirty: 'Modifiche non salvate',
-    saveError: 'Salvataggio non riuscito',
-    byDefault: 'predefinita',
-    cancel: 'Annulla modifiche',
-    save: 'Salva',
-    nextTurn:
-      'Le modifiche valgono dal prossimo turno. Le richieste di approvazione arrivano su Telegram.',
-    policy: { allow: 'Consenti', ask: 'Chiedi', deny: 'Nega' },
+const t = {
+  eyebrow: 'Your Agent',
+  page: 'Faculties',
+  intro: 'Choose what your Agent may do on its own, what it must ask you first, and what never.',
+  loading: 'Loading Policies…',
+  loadError: 'Could not load the Policies.',
+  retry: 'Try again',
+  saving: 'Saving…',
+  saved: 'Changes saved',
+  allSaved: 'All changes saved',
+  dirty: 'Unsaved changes',
+  saveError: 'Save failed',
+  byDefault: 'default',
+  cancel: 'Discard changes',
+  save: 'Save Policies',
+  legend: 'What each Policy means',
+  defaultMeaning: 'the default Policy',
+  meaning: {
+    allow: 'uses it on its own',
+    ask: 'asks you on Telegram first',
+    deny: 'never uses it',
   },
-  en: {
-    settings: 'Settings',
-    crumb: 'Faculties',
-    eyebrow: 'YOUR AGENT',
-    page: 'Faculties and Policies',
-    intro: 'Choose what your Agent may do on its own, what it must ask you first, and what never.',
-    loading: 'Loading Policies…',
-    loadError: 'Could not load the Policies.',
-    retry: 'Try again',
-    saving: 'Saving…',
-    saved: 'Changes saved',
-    allSaved: 'All changes saved',
-    dirty: 'Unsaved changes',
-    saveError: 'Save failed',
-    byDefault: 'default',
-    cancel: 'Discard changes',
-    save: 'Save',
-    nextTurn: 'Changes apply from the next turn. Approval requests arrive on Telegram.',
-    policy: { allow: 'Allow', ask: 'Ask', deny: 'Deny' },
-  },
-} satisfies Record<
-  Language,
-  {
-    policy: Record<Policy, string>;
-    [key: string]: unknown;
-  }
->;
+  nextTurn: 'Changes apply from the next turn. Approval requests arrive on Telegram.',
+  policy: { allow: 'Allow', ask: 'Ask', deny: 'Deny' },
+} satisfies {
+  policy: Record<Policy, string>;
+  meaning: Record<Policy, string>;
+  [key: string]: unknown;
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -77,8 +56,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 interface FacultiesPageProps {
-  language: Language;
-  languageControl: ReactNode;
   footer: ReactNode;
   /** Told whenever unsaved edits appear or go away, so the app can guard navigation. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -90,17 +67,11 @@ const choicesOf = (groups: readonly PolicyGroup[]): Choices =>
   Object.fromEntries(groups.flatMap(({ tools }) => tools.map((tool) => [tool.name, tool.policy])));
 
 /** Choices are edited as a draft and saved together, like the Persona. */
-export function FacultiesPage({
-  language,
-  languageControl,
-  footer,
-  onDirtyChange,
-}: FacultiesPageProps) {
+export function FacultiesPage({ footer, onDirtyChange }: FacultiesPageProps) {
   const [groups, setGroups] = useState<PolicyGroup[]>([]);
   const [draft, setDraft] = useState<Choices>({});
   const [state, setState] = useState<State>('loading');
   const [error, setError] = useState('');
-  const t = copy[language];
   const dirty = groups.some(({ tools }) => tools.some((tool) => draft[tool.name] !== tool.policy));
 
   useEffect(() => {
@@ -144,7 +115,7 @@ export function FacultiesPage({
     if (dirty) return t.dirty;
     if (state === 'saved') return t.saved;
     return t.allSaved;
-  }, [state, dirty, t]);
+  }, [state, dirty]);
 
   async function save() {
     setState('saving');
@@ -177,152 +148,162 @@ export function FacultiesPage({
 
   const saving = state === 'saving';
 
+  const tone =
+    state === 'error'
+      ? 'error'
+      : saving
+        ? 'saving'
+        : dirty
+          ? 'dirty'
+          : state === 'saved'
+            ? 'saved'
+            : 'idle';
+
   return (
-    <>
-      <header className={styles.topbar}>
-        <div className={styles.breadcrumb}>
-          {t.settings}
-          <span>/</span>
-          <strong>{t.crumb}</strong>
-        </div>
-        <div className={styles['top-actions']}>
-          <span className={`${styles['status-dot']} ${styles[state] ?? ''}`} aria-hidden="true" />
-          <span className={styles['status-text']} aria-live="polite">
-            {status}
-          </span>
-          {languageControl}
-        </div>
-      </header>
-      <div className={styles.content}>
-        <div className={styles['page-heading']}>
-          <div className={styles.eyebrow}>{t.eyebrow}</div>
+    <div className="page">
+      <header className="page-header">
+        <div>
+          <span className="eyebrow">{t.eyebrow}</span>
           <h1>{t.page}</h1>
           <p>{t.intro}</p>
         </div>
-        {state === 'loading' ? (
-          <div className={styles['loading-card']} role="status">
-            <span className={styles.spinner} />
-            {t.loading}
-          </div>
-        ) : state === 'error' ? (
-          <div className={styles['error-card']} role="alert">
-            <strong>{t.loadError}</strong>
-            <button
-              type="button"
-              className={styles['text-button']}
-              onClick={() => window.location.reload()}
-            >
-              {t.retry}
-            </button>
-          </div>
-        ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
-            }}
+        <div className="page-actions">
+          <span className="status" data-tone={tone} aria-live="polite">
+            {status}
+          </span>
+        </div>
+      </header>
+      {state === 'loading' ? (
+        <div className="skeleton-stack" role="status" aria-label={t.loading}>
+          <span className="skeleton" />
+          <span className="skeleton" />
+          <span className="skeleton" />
+        </div>
+      ) : state === 'error' ? (
+        <div className="state" data-tone="error" role="alert">
+          <span className="state-icon">
+            <WarningCircle size={22} aria-hidden="true" />
+          </span>
+          <h2>{t.loadError}</h2>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => window.location.reload()}
           >
-            {groups.map((group) => (
-              <section
-                key={group.name}
-                className={styles.panel}
-                aria-labelledby={`group-${group.name}`}
-              >
-                <h2 id={`group-${group.name}`}>{group.title}</h2>
-                {group.description && <p className={styles['group-hint']}>{group.description}</p>}
-                <ul className={styles.tools}>
-                  {group.tools.map((tool) => (
-                    <ToolRow
-                      key={tool.name}
-                      tool={tool}
-                      value={draft[tool.name] ?? tool.policy}
-                      t={t}
-                      disabled={saving}
-                      onChange={(policy) => choose(tool.name, policy)}
-                    />
-                  ))}
-                </ul>
-              </section>
+            <ArrowClockwise size={16} aria-hidden="true" />
+            {t.retry}
+          </button>
+        </div>
+      ) : (
+        <form
+          aria-label={t.page}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <ul className={styles.legend} aria-label={t.legend}>
+            {ALL_POLICIES.map((policy) => (
+              <li key={policy}>
+                <strong className={styles[policy]}>{t.policy[policy]}</strong>
+                {t.meaning[policy]}
+              </li>
             ))}
-            <div className={styles['form-footer']}>
-              <p className={styles.hint}>
-                <span aria-hidden="true">ⓘ</span>
-                {t.nextTurn}
-              </p>
-              <div className={styles['form-actions']}>
-                <button
-                  type="button"
-                  className={`${styles.button} ${styles.secondary}`}
-                  onClick={cancel}
-                  disabled={!dirty || saving}
-                >
-                  {t.cancel}
-                </button>
-                <button
-                  type="submit"
-                  className={`${styles.button} ${styles.primary}`}
-                  disabled={!dirty || saving}
-                >
-                  {saving ? (
-                    <>
-                      <span className={styles['button-spinner']} />
-                      {t.saving}
-                    </>
-                  ) : (
-                    <>
-                      <span aria-hidden="true">✓</span>
-                      {t.save}
-                    </>
-                  )}
-                </button>
+            <li>
+              <span className={styles['default-dot']} aria-hidden="true" />
+              {t.defaultMeaning}
+            </li>
+          </ul>
+          {groups.map((group) => (
+            <section key={group.name} className="section" aria-labelledby={`group-${group.name}`}>
+              <div className="section-intro">
+                <h2 id={`group-${group.name}`}>{group.title}</h2>
+                {group.description && <p>{group.description}</p>}
               </div>
+              <ul className={`panel ${styles.tools}`}>
+                {group.tools.map((tool) => (
+                  <ToolRow
+                    key={tool.name}
+                    tool={tool}
+                    value={draft[tool.name] ?? tool.policy}
+                    disabled={saving}
+                    onChange={(policy) => choose(tool.name, policy)}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+          {error && (
+            <div className="notice" data-tone="error" role="alert">
+              <WarningCircle size={16} aria-hidden="true" />
+              {error}
             </div>
-            {error && (
-              <div className={styles['inline-error']} role="alert">
-                {error}
-              </div>
-            )}
-          </form>
-        )}
-        {footer}
-      </div>
-    </>
+          )}
+          <div className="save-bar" data-dirty={dirty}>
+            <p className="hint">
+              <Info size={16} aria-hidden="true" />
+              {t.nextTurn}
+            </p>
+            <div className="save-bar-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={cancel}
+                disabled={!dirty || saving}
+              >
+                {t.cancel}
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={!dirty || saving}>
+                {saving ? (
+                  <span className="spinner" aria-hidden="true" />
+                ) : (
+                  <Check size={16} weight="bold" aria-hidden="true" />
+                )}
+                {saving ? t.saving : t.save}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+      {footer}
+    </div>
   );
 }
 
 function ToolRow({
   tool,
   value,
-  t,
   disabled,
   onChange,
 }: {
   tool: ToolPolicy;
   value: Policy;
-  t: (typeof copy)[Language];
   disabled: boolean;
   onChange: (policy: Policy) => void;
 }) {
   const choices = tool.choices ?? ALL_POLICIES;
   return (
-    <li className={styles.tool}>
+    <li className={styles.tool} data-changed={value !== tool.policy}>
       <div className={styles['tool-copy']}>
         <strong>{tool.title}</strong>
         <code>{tool.name}</code>
       </div>
-      <fieldset className={styles.segmented} disabled={disabled}>
+      <fieldset className={`segmented ${styles.choices}`} disabled={disabled}>
         <legend className="visually-hidden">{tool.title}</legend>
         {choices.map((policy) => (
           <button
             type="button"
             key={policy}
-            className={`${value === policy ? styles.selected : ''} ${styles[policy]}`}
+            className={styles[policy]}
             aria-pressed={value === policy}
             onClick={() => onChange(policy)}
           >
             {t.policy[policy]}
             {policy === tool.defaultPolicy && (
-              <small className={styles['default-mark']}> · {t.byDefault}</small>
+              <>
+                <span className={styles['default-dot']} aria-hidden="true" />
+                <span className="visually-hidden"> ({t.byDefault})</span>
+              </>
             )}
           </button>
         ))}

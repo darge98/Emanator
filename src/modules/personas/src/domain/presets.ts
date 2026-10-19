@@ -11,7 +11,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
   {
     id: 'jarvis',
     title: 'Jarvis',
-    description: 'Precisione britannica, sangue freddo e ironia asciutta',
+    description: 'British precision and dry wit',
     name: 'Jarvis',
     // Reference: J.A.R.V.I.S. in the Iron Man films, including the dry exchanges in the screenplay:
     // https://storyfactory.uk/wp-content/uploads/2019/05/1.-Iron-Man.pdf
@@ -34,7 +34,7 @@ Risposta: «Capito. Riduciamo il carico a ciò che serve davvero. Il resto può 
   {
     id: 'cortana',
     title: 'Cortana',
-    description: 'Intelligenza tattica, battute taglienti e lealtà',
+    description: 'Tactical intelligence and sharp wit',
     name: 'Cortana',
     // Reference: classic Halo 1–4 Cortana; the official profile emphasizes acerbic wit and loyalty.
     // https://www.halowaypoint.com/news/womens-history-month-2024
@@ -57,7 +57,7 @@ Risposta: «Allora per oggi niente eroismi. C'è ancora qualcosa da affrontare, 
   {
     id: 'joi',
     title: 'Joi',
-    description: 'Calore affettuoso, immaginazione e complicità',
+    description: 'Affectionate warmth and imagination',
     name: 'Joi',
     // Reference: Joi in Blade Runner 2049 and Ana de Armas's account of the performance.
     // https://www.alconent.com/news/ana-de-armas-on-when-she-realized-blade-runner-2049-would-be-part-of-the-history-of-cinema-interview

@@ -1,58 +1,35 @@
+import { ArrowRight, Plus, X } from '@phosphor-icons/react';
 import { MAX_TRIGGERS } from '../domain/routine.ts';
 import styles from './routines-page.module.css';
 import {
   blankSchedule,
   dayName,
   describeSchedule,
-  type Language,
   type ScheduleDraft,
   type ScheduleKind,
   WEEK,
 } from './schedule.ts';
 
-const copy = {
-  it: {
-    legend: 'Quando parte',
-    schedule: 'Orario',
-    kinds: {
-      daily: 'Ogni giorno',
-      weekly: 'Giorni della settimana',
-      monthly: 'Giorno del mese',
-      once: 'Una volta',
-      every: 'A intervalli',
-      cron: 'Cron (avanzato)',
-    } satisfies Record<ScheduleKind, string>,
-    at: 'alle',
-    day: 'giorno',
-    every: 'ogni',
-    minutes: 'minuti',
-    hours: 'ore',
-    shortMonths: 'Nei mesi più corti di così non parte.',
-    cronHelp: 'minuto ora giorno mese giorno-settimana, es. 0 8 * * 1-5',
-    add: 'Aggiungi un orario',
-    remove: 'Rimuovi orario',
-  },
-  en: {
-    legend: 'When it runs',
-    schedule: 'Schedule',
-    kinds: {
-      daily: 'Every day',
-      weekly: 'Days of the week',
-      monthly: 'Day of the month',
-      once: 'Once',
-      every: 'At intervals',
-      cron: 'Cron (advanced)',
-    } satisfies Record<ScheduleKind, string>,
-    at: 'at',
-    day: 'day',
-    every: 'every',
-    minutes: 'minutes',
-    hours: 'hours',
-    shortMonths: 'It does not run in months shorter than that.',
-    cronHelp: 'minute hour day month weekday, e.g. 0 8 * * 1-5',
-    add: 'Add a schedule',
-    remove: 'Remove schedule',
-  },
+const t = {
+  legend: 'When it runs',
+  schedule: 'Schedule',
+  kinds: {
+    daily: 'Every day',
+    weekly: 'Days of the week',
+    monthly: 'Day of the month',
+    once: 'Once',
+    every: 'At intervals',
+    cron: 'Cron (advanced)',
+  } satisfies Record<ScheduleKind, string>,
+  at: 'at',
+  day: 'day',
+  every: 'every',
+  minutes: 'minutes',
+  hours: 'hours',
+  shortMonths: 'It does not run in months shorter than that.',
+  cronHelp: 'minute hour day month weekday, e.g. 0 8 * * 1-5',
+  add: 'Add a schedule',
+  remove: 'Remove schedule',
 };
 
 const KINDS: ScheduleKind[] = ['daily', 'weekly', 'monthly', 'once', 'every', 'cron'];
@@ -60,13 +37,11 @@ const KINDS: ScheduleKind[] = ['daily', 'weekly', 'monthly', 'once', 'every', 'c
 interface ScheduleEditorProps {
   schedules: ScheduleDraft[];
   onChange: (schedules: ScheduleDraft[]) => void;
-  language: Language;
   disabled: boolean;
 }
 
 /** Guided schedule forms; each row ends with a sentence saying when the Routine runs. */
-export function ScheduleEditor({ schedules, onChange, language, disabled }: ScheduleEditorProps) {
-  const t = copy[language];
+export function ScheduleEditor({ schedules, onChange, disabled }: ScheduleEditorProps) {
   const set = (index: number, schedule: ScheduleDraft) =>
     onChange(schedules.map((current, i) => (i === index ? schedule : current)));
 
@@ -82,6 +57,7 @@ export function ScheduleEditor({ schedules, onChange, language, disabled }: Sche
             <legend className="visually-hidden">{label}</legend>
             <div className={styles['schedule-row']}>
               <select
+                className="select"
                 aria-label={label}
                 value={schedule.kind}
                 onChange={(e) => set(index, blankSchedule(e.target.value as ScheduleKind))}
@@ -96,23 +72,23 @@ export function ScheduleEditor({ schedules, onChange, language, disabled }: Sche
               <ScheduleFields
                 schedule={schedule}
                 onChange={(next) => set(index, next)}
-                language={language}
                 disabled={disabled}
                 id={id}
               />
               <button
                 type="button"
-                className={styles['icon-button']}
+                className="icon-button"
                 onClick={() => onChange(schedules.filter((_, i) => i !== index))}
                 disabled={disabled || schedules.length === 1}
                 aria-label={`${t.remove} ${index + 1}`}
                 title={t.remove}
               >
-                ×
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
             <p className={styles['schedule-summary']} aria-live="polite">
-              → {describeSchedule(schedule, language)}
+              <ArrowRight size={14} aria-hidden="true" />
+              {describeSchedule(schedule)}
             </p>
             {schedule.kind === 'monthly' && Number(schedule.day) > 28 && (
               <small className={styles['schedule-note']}>{t.shortMonths}</small>
@@ -128,11 +104,12 @@ export function ScheduleEditor({ schedules, onChange, language, disabled }: Sche
       {schedules.length < MAX_TRIGGERS && (
         <button
           type="button"
-          className={styles['text-button']}
+          className="text-button"
           onClick={() => onChange([...schedules, blankSchedule('daily')])}
           disabled={disabled}
         >
-          ＋ {t.add}
+          <Plus size={14} weight="bold" aria-hidden="true" />
+          {t.add}
         </button>
       )}
     </fieldset>
@@ -142,17 +119,16 @@ export function ScheduleEditor({ schedules, onChange, language, disabled }: Sche
 interface ScheduleFieldsProps {
   schedule: ScheduleDraft;
   onChange: (schedule: ScheduleDraft) => void;
-  language: Language;
   disabled: boolean;
   id: string;
 }
 
-function ScheduleFields({ schedule, onChange, language, disabled, id }: ScheduleFieldsProps) {
-  const t = copy[language];
+function ScheduleFields({ schedule, onChange, disabled, id }: ScheduleFieldsProps) {
   const time = (value: string, update: (time: string) => void) => (
     <label className={styles['inline-field']}>
       {t.at}
       <input
+        className="input"
         type="time"
         value={value}
         onChange={(e) => update(e.target.value)}
@@ -181,7 +157,7 @@ function ScheduleFields({ schedule, onChange, language, disabled, id }: Schedule
                   type="button"
                   className={`${styles.day} ${on ? styles['day-on'] : ''}`}
                   aria-pressed={on}
-                  aria-label={dayName(day, language, 'long')}
+                  aria-label={dayName(day, 'long')}
                   onClick={() =>
                     onChange({
                       ...schedule,
@@ -190,7 +166,7 @@ function ScheduleFields({ schedule, onChange, language, disabled, id }: Schedule
                   }
                   disabled={disabled}
                 >
-                  {dayName(day, language, 'short').slice(0, 3)}
+                  {dayName(day, 'short').slice(0, 3)}
                 </button>
               );
             })}
@@ -208,7 +184,7 @@ function ScheduleFields({ schedule, onChange, language, disabled, id }: Schedule
               min={1}
               max={31}
               step={1}
-              className={styles.narrow}
+              className={`input ${styles.narrow}`}
               value={schedule.day}
               onChange={(e) => onChange({ ...schedule, day: e.target.value })}
               disabled={disabled}
@@ -222,6 +198,7 @@ function ScheduleFields({ schedule, onChange, language, disabled, id }: Schedule
         <div className={styles['schedule-fields']}>
           <input
             type="datetime-local"
+            className={`input ${styles.grow}`}
             aria-label={t.kinds.once}
             value={schedule.local}
             onChange={(e) => onChange({ ...schedule, local: e.target.value })}
@@ -238,13 +215,14 @@ function ScheduleFields({ schedule, onChange, language, disabled, id }: Schedule
               type="number"
               min={1}
               step={1}
-              className={styles.narrow}
+              className={`input ${styles.narrow}`}
               value={schedule.amount}
               onChange={(e) => onChange({ ...schedule, amount: e.target.value })}
               disabled={disabled}
             />
           </label>
           <select
+            className="select"
             aria-label={`${t.minutes} / ${t.hours}`}
             value={schedule.unit}
             onChange={(e) => onChange({ ...schedule, unit: e.target.value as 'minutes' | 'hours' })}
@@ -259,7 +237,7 @@ function ScheduleFields({ schedule, onChange, language, disabled, id }: Schedule
       return (
         <div className={styles['schedule-fields']}>
           <input
-            className={styles.mono}
+            className={`input mono ${styles.grow}`}
             aria-label={t.kinds.cron}
             aria-describedby={`${id}-help`}
             value={schedule.expression}

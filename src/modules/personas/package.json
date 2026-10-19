@@ -12,9 +12,11 @@
     "fastify": "^5.0.0"
   },
   "peerDependencies": {
-    "react": "^19.1.0"
+    "react": "^19.1.0",
+    "@phosphor-icons/react": "^2.1.10"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0"
+    "@types/react": "^19.1.0",
+    "@phosphor-icons/react": "^2.1.10"
   }
 }

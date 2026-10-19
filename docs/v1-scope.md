@@ -8,7 +8,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 
 ### Agent and Persona
 - There is one Agent.
-- Its Persona has a name and free-form personality text, editable from the dashboard in Italian or English.
+- Its Persona has a name and free-form personality text, editable from the dashboard.
 - Built-in presets (Jarvis, Cortana, Joi) copy their name and personality into the editable fields. The saved Persona has no preset identity or link.
 - Presets draw their voices from MCU J.A.R.V.I.S., Halo 1–4 Cortana and Blade Runner 2049 Joi. They include original dialogue examples; their references never assign an identity to the Owner.
 - The Persona determines the register and forms of address, adapted to the Owner's explicit preferences. The Agent uses the Owner's name only when supplied in the available context and never invents a name, title or gender. Memory will later carry the learned name across Conversations and resets.
@@ -81,8 +81,6 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel;
   - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error). Run transcripts are still to come;
   - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it.
-
-  The language choice is stored locally in the browser.
 - Remaining v1 pages:
   - Areas;
   - Capabilities, including the OAuth "Connect" button;
@@ -90,7 +88,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - Run transcripts in the Routine history;
   - Conversations;
   - Telegram pairing.
-- The dashboard language is Italian or English.
+- The dashboard is in English; Telegram messages are in Italian.
 
 ### Failures
 A failed Run is always logged and detailed in the Run history. When the Engine reports the failure, the Owner also gets a notice in the Routine's topic.
@@ -104,15 +102,16 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - **Storage:** PostgreSQL is the sole application database for structured configuration and runtime state. Skills and Memory remain files; Claude Agent SDK transcripts remain under `./data/claude` and the Engine's working folder is `./data/workspace`, with opaque session references in PostgreSQL ([ADR 0007](adr/0007-postgresql-config-and-state.md)). ADR 0003 records the superseded file/SQLite decision.
 - **Containers:** the Harness container holds the secrets. A single Sandbox container runs local and third-party code, with one unprivileged Linux user per process ([ADR 0004](adr/0004-separate-harness-and-sandbox.md)).
 - **Hosting:** Docker, starting on a local machine; a VPS or home server later.
-- **Language:** code and docs in English; UI in Italian and English.
+- **Language:** code, docs and dashboard in English; Telegram messages in Italian.
 
 ## Later waves
 
 - Dashboard polish found in the Routines review (October 2026):
-  - validation errors from the server are in English, also in the Italian UI; Run errors in the history are raw Engine text;
+  - Run errors in the history are raw Engine text;
   - accessibility: focus moves to the editor when it opens and back after it closes, and history toggles get `aria-controls`;
   - the Owner is told about every failed Run in Telegram, not only those the Engine reports.
 - Two Policy saves at the same moment can collide, and the second fails with a server error instead of replacing the first. Unlikely with one Owner; a lock at the start of the transaction fixes it.
+- An Italian dashboard. v1 shows it in English only.
 - Routine names made only of non-Latin letters (e.g. `日本`) all slug to `topic`, so only one of them can exist.
 
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.

@@ -50,21 +50,20 @@ describe('guided schedules', () => {
     });
   });
 
-  it('describes schedules in Italian and English', () => {
+  it('describes schedules', () => {
     const weekdays = { kind: 'weekly', days: [1, 2, 3, 4, 5], time: '08:00' } as const;
-    expect(describeSchedule(weekdays, 'it')).toBe('Dal lunedì al venerdì alle 08:00');
-    expect(describeSchedule(weekdays, 'en')).toBe('Monday to Friday at 08:00');
-    expect(describeSchedule({ kind: 'weekly', days: [0, 6], time: '10:00' }, 'it')).toBe(
-      'Nel weekend alle 10:00',
+    expect(describeSchedule(weekdays)).toBe('Monday to Friday at 08:00');
+    expect(describeSchedule({ kind: 'weekly', days: [0, 6], time: '10:00' })).toBe(
+      'At weekends at 10:00',
     );
-    expect(describeSchedule({ kind: 'weekly', days: [3], time: '10:00' }, 'it')).toBe(
-      'mercoledì alle 10:00',
+    expect(describeSchedule({ kind: 'weekly', days: [3], time: '10:00' })).toBe(
+      'Wednesday at 10:00',
     );
-    expect(describeSchedule({ kind: 'monthly', day: '1', time: '09:00' }, 'it')).toBe(
-      'Il giorno 1 di ogni mese alle 09:00',
+    expect(describeSchedule({ kind: 'monthly', day: '1', time: '09:00' })).toBe(
+      'On day 1 of every month at 09:00',
     );
-    expect(describeSchedule({ kind: 'every', amount: '1', unit: 'hours' }, 'it')).toBe('Ogni ora');
-    expect(describeSchedule({ kind: 'every', amount: '30', unit: 'minutes' }, 'en')).toBe(
+    expect(describeSchedule({ kind: 'every', amount: '1', unit: 'hours' })).toBe('Every hour');
+    expect(describeSchedule({ kind: 'every', amount: '30', unit: 'minutes' })).toBe(
       'Every 30 minutes',
     );
   });
