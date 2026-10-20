@@ -48,8 +48,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('persona flow', () => {
         systemPrompt(new Date('2026-10-18T10:00:00Z'), 'Europe/Rome', await personas.get()),
       defaultModel: 'sonnet',
       timeZone: 'Europe/Rome',
-      permissions: () => async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
-      abilities: async () => ({}),
+      prepareTurn: async () => ({
+        decidePermission: async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
+      }),
       logger: silentLogger,
     });
     const message = (text: string) => ({

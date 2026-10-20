@@ -17,4 +17,11 @@ describe('systemPrompt', () => {
   it('keeps Emanator as the default persona', () => {
     expect(systemPrompt(new Date('2026-10-14T10:00:00Z'), 'Europe/Rome')).toContain('Sei Emanator');
   });
+
+  it('ends with the Memory section, and no longer claims the Agent has no Tools', () => {
+    const prompt = systemPrompt(new Date(), 'Europe/Rome', undefined, '## Memoria\n…');
+
+    expect(prompt).toMatch(/\n\n## Memoria\n…$/);
+    expect(prompt).not.toContain('non hai strumenti');
+  });
 });

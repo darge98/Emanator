@@ -17,10 +17,18 @@ import {
   CONVERSATION_COMMANDS,
   ConversationService,
   ConversationStore,
+  type PrepareTurn,
 } from '@emanator/conversations/server';
 import { UsageTracker } from '@emanator/engine';
 import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
-import { agentFaculties, turnAbilities } from '@emanator/faculties/server';
+import {
+  agentFaculties,
+  type MemoryConfirmation,
+  taintsTurn,
+  turnAbilities,
+} from '@emanator/faculties/server';
+import { memoryPrompt, TurnTrust } from '@emanator/memory';
+import { MemoryService } from '@emanator/memory/server';
 import { PersonaStore } from '@emanator/personas/server';
 import { ApprovalService, PolicyService, PolicyStore } from '@emanator/policies/server';
 import { RoutineRunner, RoutineService, RoutineStore } from '@emanator/routines/server';
@@ -80,7 +88,6 @@ async function start() {
     groups: () => [...faculties, ...capabilities.groups()],
     logger: consoleLogger('policies'),
   });
-  const permissions = policies.decider.bind(policies);
 
   const capabilityStore = new CapabilityStore(db, config.secrets, consoleLogger('capabilities'));
   await capabilityStore.init();
@@ -104,36 +111,59 @@ async function start() {
   });
   await capabilities.init();
 
-  // Read on every turn, so a Policy or a Capability saved in the dashboard applies from the next one.
-  const abilities = async () => {
+  // Outside the working folder, so the Engine's file Tools can't write it (ADR 0009).
+  const memory = new MemoryService({
+    dir: join(config.dataDir, 'memory'),
+    timeZone: config.timeZone,
+    logger: consoleLogger('memory'),
+  });
+  await memory.init();
+
+  // Built for every turn, so a Policy or a Capability saved in the dashboard applies from the
+  // next one, and Memory knows whether the turn still speaks for the Owner.
+  const prepareTurn: PrepareTurn = async (context) => {
+    const trust = new TurnTrust(context.origin, context.tainted);
+    const confirm = async ({ message, input }: MemoryConfirmation) =>
+      (await approvals.request({
+        tool: 'memory',
+        input,
+        message,
+        threadId: await context.thread(),
+        // The tool waits for the answer, so the turn can't end before it; expiry still applies.
+        signal: new AbortController().signal,
+      })) === 'approved';
+    const turnFaculties = agentFaculties({ conversations, memory }, { trust, confirm });
     const { tools, engineTools } = turnAbilities(
-      await policies.usable(faculties.flatMap(({ tools }) => tools)),
+      await policies.usable(turnFaculties.flatMap(({ tools }) => tools)),
     );
     return {
       tools: [...tools, ...(await policies.usable(capabilities.turnTools()))],
       engineTools,
+      decidePermission: policies.decider(context),
+      onToolUse: (tool) => {
+        if (taintsTurn(tool)) trust.taint();
+      },
     };
   };
 
   const usage = new UsageTracker();
   const agentPrompt = async () => {
     const persona = await personas.get();
-    return systemPrompt(new Date(), config.timeZone, persona);
+    return systemPrompt(new Date(), config.timeZone, persona, memoryPrompt(await memory.pages()));
   };
   const conversations = new ConversationService({
     channel,
     engine,
     store,
     usage,
-    permissions,
-    abilities,
+    prepareTurn,
     systemPrompt: agentPrompt,
     defaultModel: config.defaultModel,
     timeZone: config.timeZone,
     logger: consoleLogger('conversations'),
   });
   // After the service, which the conversations Faculty needs; turns read it only later.
-  const faculties = agentFaculties({ conversations });
+  const faculties = agentFaculties({ conversations, memory });
 
   const routineStore = new RoutineStore(db);
   await routineStore.init();
@@ -145,8 +175,7 @@ async function start() {
       conversations,
       store: routineStore,
       usage,
-      permissions,
-      abilities,
+      prepareTurn,
       systemPrompt: agentPrompt,
       defaultModel: config.defaultModel,
       timeZone: config.timeZone,

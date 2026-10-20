@@ -23,4 +23,8 @@ export const policyMigrations: Migration[] = [
       CREATE INDEX approvals_pending ON approvals (requested_at) WHERE status = 'pending';
     `,
   },
+  {
+    id: '002-approval-messages',
+    sql: 'ALTER TABLE approvals ADD COLUMN message TEXT;',
+  },
 ];

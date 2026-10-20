@@ -1,7 +1,7 @@
 import type { CanUseTool, McpServerConfig, Options } from '@anthropic-ai/claude-agent-sdk';
 import type { TurnRequest } from '../../domain/engine.ts';
 import type { ClaudeAgentSdkEngineConfig } from './config.ts';
-import { HARNESS_TOOL_SERVER, sdkToolOf } from './tool-names.ts';
+import { fromSdkToolName, HARNESS_TOOL_SERVER, sdkToolOf } from './tool-names.ts';
 
 export interface QueryOptionsInput {
   request: TurnRequest;
@@ -31,6 +31,7 @@ export function buildQueryOptions({
     tools: (request.engineTools ?? []).map(sdkToolOf),
     mcpServers: toolServer ? { [HARNESS_TOOL_SERVER]: toolServer } : {},
     canUseTool,
+    ...(request.onToolUse && { hooks: toolUseHooks(request.onToolUse) }),
     permissionMode: 'default',
     model: request.model ?? config.defaultModel,
     // Persona edits must apply to existing Conversations too, so the prompt is not frozen on first use.
@@ -41,6 +42,22 @@ export function buildQueryOptions({
     cwd: request.workingDirectory ?? config.defaultWorkingDirectory,
     env: buildEnv(config),
     abortController,
+  };
+}
+
+/** canUseTool misses tools the SDK allows on its own, such as reads in the working folder. */
+function toolUseHooks(onToolUse: (tool: string) => void): Options['hooks'] {
+  return {
+    PreToolUse: [
+      {
+        hooks: [
+          async (input) => {
+            if (input.hook_event_name === 'PreToolUse') onToolUse(fromSdkToolName(input.tool_name));
+            return { continue: true };
+          },
+        ],
+      },
+    ],
   };
 }
 

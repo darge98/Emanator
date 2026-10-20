@@ -24,6 +24,11 @@ export interface TurnRequest {
   /** Tools the Engine implements itself; none when omitted. */
   engineTools?: readonly EngineTool[];
   decidePermission: PermissionDecider;
+  /**
+   * Told the Harness name of every Tool the model is about to use, before it runs, including
+   * those that need no PermissionDecider, such as reading inside the working folder.
+   */
+  onToolUse?: (tool: string) => void;
   workingDirectory?: string;
   signal?: AbortSignal;
 }

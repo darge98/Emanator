@@ -105,4 +105,33 @@ describe('buildQueryOptions', () => {
 
     expect(options.mcpServers).toEqual({ emanator: toolServer });
   });
+
+  it('reports every tool use by its Harness name, before the tool runs', async () => {
+    const used: string[] = [];
+    const hooks = build({ onToolUse: (tool) => used.push(tool) }).hooks?.PreToolUse ?? [];
+    const signal = new AbortController().signal;
+    for (const tool_name of ['Read', 'mcp__emanator__recall']) {
+      for (const hook of hooks.flatMap((matcher) => matcher.hooks)) {
+        await hook(
+          {
+            hook_event_name: 'PreToolUse',
+            tool_name,
+            tool_input: {},
+            tool_use_id: 'x',
+            session_id: 's',
+            transcript_path: '',
+            cwd: '/data/workspace',
+          },
+          'x',
+          { signal },
+        );
+      }
+    }
+
+    expect(used).toEqual(['read_file', 'recall']);
+  });
+
+  it('adds no hooks when nobody listens for tool uses', () => {
+    expect(build().hooks).toBeUndefined();
+  });
 });

@@ -77,6 +77,30 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ApprovalService', () => {
     ]);
   });
 
+  it('asks with the message the asker wrote, and keeps it in the outcome', async () => {
+    const { channel, service } = await setup();
+    const message = '🔐 **Posso ricordarmi questa preferenza?**\n\n> Ama il mare.';
+    const decision = service.request({
+      tool: 'memory',
+      input: { fact: 'Ama il mare.' },
+      message,
+      threadId: '7',
+      signal: new AbortController().signal,
+    });
+    await vi.waitFor(() => expect(channel.sent).toHaveLength(1));
+
+    expect(channel.sent[0]?.markdown).toBe(message);
+    await service.answer({
+      type: 'action',
+      actionId: `ap:${approvalId(channel)}:n`,
+      messageId: '1',
+      receivedAt: new Date(),
+    });
+
+    expect(await decision).toBe('denied');
+    expect(channel.edited).toEqual([{ messageId: '1', markdown: `${message}\n\n❌ Negata.` }]);
+  });
+
   it('denies on no', async () => {
     const { channel, service, ask } = await setup();
     const decision = ask();

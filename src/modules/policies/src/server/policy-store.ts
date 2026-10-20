@@ -38,20 +38,29 @@ export class PolicyStore {
     tool: string,
     input: Record<string, unknown>,
     threadId: string | undefined,
+    message?: string,
   ): Promise<Approval> {
     const approval: Approval = {
       id: randomUUID(),
       tool,
       input,
+      ...(message !== undefined && { message }),
       ...(threadId !== undefined && { threadId }),
       status: 'pending',
       messageIds: [],
       requestedAt: new Date(),
     };
     await this.db.query(
-      `INSERT INTO approvals (id, tool, input, thread_id, status, requested_at)
-       VALUES ($1, $2, $3, $4, 'pending', $5)`,
-      [approval.id, tool, JSON.stringify(input), threadId ?? null, approval.requestedAt],
+      `INSERT INTO approvals (id, tool, input, message, thread_id, status, requested_at)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6)`,
+      [
+        approval.id,
+        tool,
+        JSON.stringify(input),
+        message ?? null,
+        threadId ?? null,
+        approval.requestedAt,
+      ],
     );
     return approval;
   }
@@ -101,6 +110,7 @@ function toApproval(row: Row): Approval {
     id: String(row.id),
     tool: String(row.tool),
     input: row.input as Record<string, unknown>,
+    ...(row.message !== null && { message: String(row.message) }),
     ...(row.thread_id !== null && { threadId: String(row.thread_id) }),
     status: row.status as ApprovalStatus,
     messageIds: row.message_ids as string[],

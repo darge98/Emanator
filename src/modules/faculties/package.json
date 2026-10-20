@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@emanator/engine": "workspace:*",
+    "@emanator/memory": "workspace:*",
     "@emanator/policies": "workspace:*",
     "zod": "^4.6.7"
   },
@@ -17,7 +18,8 @@
     "@phosphor-icons/react": "^2.1.10"
   },
   "devDependencies": {
-    "@types/react": "^19.1.0",
-    "@phosphor-icons/react": "^2.1.10"
+    "@emanator/shared": "workspace:*",
+    "@phosphor-icons/react": "^2.1.10",
+    "@types/react": "^19.1.0"
   }
 }

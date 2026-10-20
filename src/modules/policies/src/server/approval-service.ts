@@ -22,6 +22,8 @@ export interface ApprovalServiceDeps {
 export interface ApprovalRequest {
   tool: string;
   input: Record<string, unknown>;
+  /** Markdown to ask with instead of the Tool's name and its input. */
+  message?: string;
   /** Where to ask: the thread of the turn that needs the Tool; undefined for General. */
   threadId: string | undefined;
   /** Aborted when the turn ends while waiting: the request then expires. */
@@ -67,9 +69,15 @@ export class ApprovalService {
   }
 
   /** Resolves with the decision, never `pending`. */
-  async request({ tool, input, threadId, signal }: ApprovalRequest): Promise<ApprovalDecision> {
+  async request({
+    tool,
+    input,
+    message,
+    threadId,
+    signal,
+  }: ApprovalRequest): Promise<ApprovalDecision> {
     if (this.stopped || signal.aborted) return 'expired';
-    const approval = await this.deps.store.createApproval(tool, input, threadId);
+    const approval = await this.deps.store.createApproval(tool, input, threadId, message);
     const { id } = approval;
     const decided = new Promise<ApprovalDecision>((resolve) => {
       this.waiting.set(id, { resolve, cancelTimers: [], decided: false });

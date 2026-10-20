@@ -8,9 +8,9 @@ export const DENY_LABEL = 'No';
 /** Long inputs are cut: the message has to fit on a phone screen. */
 const MAX_INPUT_CHARS = 800;
 
-export function approvalRequest({ tool, input }: Approval, reminder: boolean): string {
-  const ask = `🔐 **Posso usare ${tool}?**`;
-  return [reminder ? `⏰ **Promemoria** · ${ask}` : ask, ...inputBlock(input)].join('\n\n');
+export function approvalRequest({ tool, input, message }: Approval, reminder: boolean): string {
+  const ask = message ?? [`🔐 **Posso usare ${tool}?**`, ...inputBlock(input)].join('\n\n');
+  return reminder ? `⏰ **Promemoria** · ${ask}` : ask;
 }
 
 const OUTCOMES: Record<ApprovalDecision, string> = {

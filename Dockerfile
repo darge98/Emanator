@@ -3,6 +3,9 @@
 FROM node:24-bookworm-slim
 
 RUN npm install --global pnpm@12.9.1
+# Memory's vault keeps one git commit per change (ADR 0009).
+RUN apt-get update && apt-get install --yes --no-install-recommends git \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -14,6 +17,7 @@ COPY src/modules/channels/package.json src/modules/channels/
 COPY src/modules/conversations/package.json src/modules/conversations/
 COPY src/modules/engine/package.json src/modules/engine/
 COPY src/modules/faculties/package.json src/modules/faculties/
+COPY src/modules/memory/package.json src/modules/memory/
 COPY src/modules/shared/package.json src/modules/shared/
 COPY src/modules/personas/package.json src/modules/personas/
 COPY src/modules/policies/package.json src/modules/policies/

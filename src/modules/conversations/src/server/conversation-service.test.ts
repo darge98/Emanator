@@ -3,7 +3,11 @@ import { type EngineEvent, UsageTracker } from '@emanator/engine';
 import { FakeEngine, replyWith, type ScriptedTurn } from '@emanator/engine/testing';
 import { createTestDatabase, silentLogger } from '@emanator/shared/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { type ConversationEvent, ConversationService } from './conversation-service.ts';
+import {
+  type ConversationEvent,
+  ConversationService,
+  type TurnContext,
+} from './conversation-service.ts';
 import { ConversationStore } from './conversation-store.ts';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -17,6 +21,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
   const store = new ConversationStore(fixture.db);
   await store.init();
   let prompt = 'You are a test agent.';
+  const contexts: TurnContext[] = [];
   const service = new ConversationService({
     channel,
     engine,
@@ -25,8 +30,12 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     systemPrompt: () => prompt,
     defaultModel: 'sonnet',
     timeZone: 'Europe/Rome',
-    permissions: () => async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
-    abilities: async () => ({}),
+    prepareTurn: async (context) => {
+      contexts.push(context);
+      return {
+        decidePermission: async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
+      };
+    },
     logger: silentLogger,
   });
   const send = async (...events: ConversationEvent[]) => {
@@ -39,6 +48,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     store,
     service,
     send,
+    contexts,
     setPrompt: (next: string) => {
       prompt = next;
     },
@@ -442,6 +452,18 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
       expect(engine.requests[0]?.prompt).toContain('**⏰ Briefing**\n\nPioverà.');
       expect(engine.requests[0]?.prompt).toMatch(/Prendo l’ombrello\?$/);
       expect(engine.requests[1]?.prompt).toBe('Grazie');
+    });
+
+    it("marks a turn that starts with a handoff as not the Owner's words alone", async () => {
+      const { contexts, service, send } = await setup();
+      await service.deliver(await service.openRoutineTopic('B', 'B · routine'), 'Promemoria');
+
+      await send(message('Ok', '100'), message('Grazie', '100'));
+
+      expect(contexts.map(({ origin, tainted }) => ({ origin, tainted }))).toEqual([
+        { origin: 'owner', tainted: true },
+        { origin: 'owner', tainted: false },
+      ]);
     });
 
     it('keeps handoffs for the next attempt when the Engine does not start the turn', async () => {

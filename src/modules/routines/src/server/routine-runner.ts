@@ -1,9 +1,5 @@
 import type { Conversation } from '@emanator/conversations';
-import type {
-  ConversationService,
-  PermissionsFor,
-  TurnAbilities,
-} from '@emanator/conversations/server';
+import type { ConversationService, PrepareTurn } from '@emanator/conversations/server';
 import type { Engine, SessionRef, TurnFailed, UsageTracker } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import { type Routine, SILENT_REPLY } from '../domain/routine.ts';
@@ -16,10 +12,8 @@ export interface RoutineRunnerDeps {
   conversations: Pick<ConversationService, 'findLive' | 'openRoutineTopic' | 'deliver' | 'notify'>;
   store: RoutineStore;
   usage: UsageTracker;
-  /** The PermissionDecider of each Run, from Policies. */
-  permissions: PermissionsFor;
-  /** The Tools of each Run, the Engine's included, without those the Owner denied. */
-  abilities: () => Promise<TurnAbilities>;
+  /** The Tools of each Run, the Engine's included, and its PermissionDecider. */
+  prepareTurn: PrepareTurn;
   /** The Agent's system prompt, built fresh for every Run. */
   systemPrompt: () => Promise<string> | string;
   defaultModel: string;
@@ -246,7 +240,9 @@ export class RoutineRunner {
     // Approvals go to the Routine's own topic, opened now if the Run is the first to need it.
     // Parallel Tool calls may wait together: the Run waits until the last one is answered.
     let pendingApprovals = 0;
-    const decidePermission = this.deps.permissions({
+    const prepared = await this.deps.prepareTurn({
+      origin: 'routine',
+      tainted: true,
       thread: async () => (await this.topic(routine)).threadId,
       onWaiting: async (waiting) => {
         pendingApprovals += waiting ? 1 : -1;
@@ -262,8 +258,7 @@ export class RoutineRunner {
       prompt: routine.prompt,
       systemPrompt,
       model: routine.model ?? this.deps.defaultModel,
-      ...(await this.deps.abilities()),
-      decidePermission,
+      ...prepared,
     })) {
       switch (event.type) {
         case 'turn.started':

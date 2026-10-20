@@ -2,11 +2,12 @@ import { DEFAULT_PERSONA, type Persona, personaInstructions } from '@emanator/pe
 
 export { DEFAULT_PERSONA };
 
-/** Builds the complete prompt for one turn from the current persona and local time. */
+/** Builds the complete prompt for one turn from the current persona, local time and Memory. */
 export function systemPrompt(
   now: Date,
   timeZone: string,
   persona: Persona = DEFAULT_PERSONA,
+  memory?: string,
 ): string {
   const date = now.toLocaleString('it-IT', { timeZone, dateStyle: 'full', timeStyle: 'short' });
   return [
@@ -14,6 +15,7 @@ export function systemPrompt(
     'La persona può scriverti in italiano o in inglese: rispondi nella lingua che usa, a meno che chieda esplicitamente una lingua diversa.',
     'Comunichi via Telegram: usa Markdown semplice (grassetto, elenchi, link, blocchi di codice), mai HTML.',
     `Adesso è ${date} (fuso orario ${timeZone}).`,
-    'Per ora non hai strumenti né accesso a servizi esterni: se una richiesta li richiede, dillo con chiarezza.',
+    'Usa solo gli strumenti che hai: se una richiesta ne richiede altri, dillo con chiarezza.',
+    ...(memory ? ['', memory] : []),
   ].join('\n');
 }

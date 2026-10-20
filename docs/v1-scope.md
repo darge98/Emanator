@@ -11,7 +11,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Its Persona has a name and free-form personality text, editable from the dashboard.
 - Built-in presets (Jarvis, Cortana, Joi) copy their name and personality into the editable fields. The saved Persona has no preset identity or link.
 - Presets draw their voices from MCU J.A.R.V.I.S., Halo 1–4 Cortana and Blade Runner 2049 Joi. They include original dialogue examples; their references never assign an identity to the Owner.
-- The Persona determines the register and forms of address, adapted to the Owner's explicit preferences. The Agent uses the Owner's name only when supplied in the available context and never invents a name, title or gender. Memory will later carry the learned name across Conversations and resets.
+- The Persona determines the register and forms of address, adapted to the Owner's explicit preferences. The Agent uses the Owner's name only when supplied in the available context and never invents a name, title or gender. Memory carries the learned name across Conversations and resets.
 - Saving applies changes from the next Turn; a Turn already in progress completes with its existing instructions.
 
 ### Routines
@@ -46,9 +46,10 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Messages within one Conversation are queued and handled in order.
 - Bot commands are in English (`/start`, `/new`, …). The bot answers only the paired Owner chat, using a one-time pairing code that the Harness writes to its log at start.
 - Telegram is used in long-polling mode, so no public URL is needed.
+- **Suggested replies:** when a question of the Agent has a few likely answers (yes/no, or up to four choices), a Tool attaches them to its reply as buttons. A press enters the Conversation as the Owner's message with that text, and the buttons go. The turn does not wait, so there is no reminder or expiry, and the Owner can still write anything else. Open questions stay text.
 
 ### Agent abilities
-- **Faculties:** web search and fetch, files confined to the working folder, and opening Conversations. There is no shell in v1.
+- **Faculties:** web search and fetch, files confined to the working folder, Memory, and opening Conversations. There is no shell in v1.
 - **Capabilities:** remote MCP servers only ([ADR 0008](adr/0008-harness-is-the-mcp-client-of-capabilities.md)).
   - A catalog holds the Capabilities the Harness sets up itself: their server, scopes and OAuth client come from Compose and `.env`, so the Owner only connects them. Each entry is connected once; v1 has Gmail, Google Calendar, Google Drive (with Docs, Sheets, Slides and Forms) and Google Tasks, four entries the Owner turns on separately, on one workspace-mcp. Each asks only for its own scopes and gets only its own Tools, picked by name. Any other remote MCP server can still be added by hand.
   - There is one Capability per account. Its slug is fixed at creation and prefixes its Tool names (`gmail-work__search_gmail_messages`).
@@ -57,11 +58,18 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - The Tools a server lists are cached, so Policies and the dashboard work while it is offline. A disabled Capability gives no Tools to turns; an offline one fails its calls with an error the model can explain.
   - Access tokens refresh during calls. A grant that can't be refreshed makes the Capability *needs authorization* and tells the Owner once, in General.
 
+- **Memory** ([ADR 0009](adr/0009-memory-is-a-wiki-written-through-a-faculty.md)), its first wave:
+  - a wiki of Pages in `./data/memory`, readable in Obsidian and in Italian: one Page per subject, in the folder of its kind, plus `index.md`, `log.md` and the kinds in `tipi.md`. It is a git repository with one commit per change;
+  - the Memory Faculty writes it, through `remember`, `forget` and `recall`. The Engine's file Tools can't reach it;
+  - each Fact is *confirmed* or *inferred*. A turn the Owner started confirms until outside content reaches it: a handoff, or any Tool but Memory's and opening a Conversation;
+  - in such a tainted turn, preferences, instructions and changes to confirmed Facts need the Owner's Approval, and a new kind of Page falls back to `altro`. Runs only read;
+  - every turn gets the confirmed preferences and instructions as instructions, and the Owner's Page and the index as data, within fixed budgets.
+
 ### Control
 - Each Tool has a Policy: *allow*, *ask* or *deny*.
   - One Policy per Tool, shared by Conversations and Routines.
   - Defaults come from MCP tool annotations: read-only starts as *allow*, write or destructive as *ask*.
-  - Faculties have no annotations, so their defaults are fixed: web search, reading files and opening Conversations start as *allow*; web fetch and writing files as *ask*. Web fetch asks because Capabilities hold private data: mail could tell the Agent to put it in a URL and fetch it. The Owner can still set it to *allow*, accepting that risk.
+  - Faculties have no annotations, so their defaults are fixed: web search, reading files, Memory and opening Conversations start as *allow*; web fetch and writing files as *ask*. Web fetch asks because Capabilities hold private data: mail could tell the Agent to put it in a URL and fetch it. The Owner can still set it to *allow*, accepting that risk.
   - A custom server's Tools start from the annotations the server declares, which nothing checks: a server can call a destructive Tool read-only. Adding one is trusting it, and the dashboard says so; the catalog's entries are reviewed.
   - Files use the Engine's own tools. Reading, finding and searching files can be *allow* or *deny* but not *ask*, because the Engine reads inside the working folder without asking (ADR 0001). Nothing outside the working folder can be reached, whatever the Policy.
   - The Owner can change Policies only in the UI.
@@ -140,8 +148,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - A Telegram pairing page in the dashboard, showing the pending code or the paired Owner. In v1 the code is only in the Harness log.
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
 - Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.
-- Memory, a wiki of Pages written only through the Memory Faculty ([ADR 0009](adr/0009-memory-is-a-wiki-written-through-a-faculty.md)), in three waves:
-  1. the Memory Faculty (`remember`, `forget`, `recall`), an Obsidian-compatible vault with `index.md` and `log.md`, confirmed and inferred Facts with taint, the Owner's Page and the index in every turn, and a local git repository with one commit per change;
+- Memory, after its first wave (see Agent abilities):
   2. the Dream: the nightly pass that infers Facts, lints the wiki and asks the Owner to confirm, with read-only Tools only;
   3. the dashboard: a git remote as a push mirror, Memory as a graph, editing Pages, and full-text search. Later still: two-way sync with the Owner's own vault, an encrypted repository, an initial interview.
 - Sandbox with the shell Faculty (on *ask*), local MCP servers and Skills with scripts.

@@ -3,7 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { agentFaculties, turnAbilities } from './faculties.ts';
 
 const opener = { openAgentTopic: async () => ({ name: 'x', title: 'x' }) };
-const tools = agentFaculties({ conversations: opener }).flatMap((faculty) => faculty.tools);
+const memory = {
+  remember: async () => {
+    throw new Error('unused');
+  },
+  forget: async () => {
+    throw new Error('unused');
+  },
+  page: async () => undefined,
+  pages: async () => [],
+};
+const tools = agentFaculties({ conversations: opener, memory }).flatMap((faculty) => faculty.tools);
 
 describe('Faculties', () => {
   it('expose every Engine Tool, each Tool once', () => {
@@ -25,7 +35,12 @@ describe('Faculties', () => {
     const { tools: harness, engineTools } = turnAbilities(tools);
 
     expect(engineTools).toEqual([...ENGINE_TOOLS]);
-    expect(harness.map(({ name }) => name)).toEqual(['open_conversation']);
+    expect(harness.map(({ name }) => name)).toEqual([
+      'remember',
+      'forget',
+      'recall',
+      'open_conversation',
+    ]);
     expect(harness[0]?.run).toBeTypeOf('function');
   });
 });

@@ -3,6 +3,8 @@ export interface Approval {
   id: string;
   tool: string;
   input: Record<string, unknown>;
+  /** Markdown the asker wrote for the Owner, instead of the Tool's name and its input. */
+  message?: string;
   /** The Channel thread the request was sent to; undefined for General. */
   threadId?: string;
   status: ApprovalStatus;

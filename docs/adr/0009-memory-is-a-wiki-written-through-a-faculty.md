@@ -20,8 +20,22 @@ The Memory Faculty enforces this in code, from what it knows about the current t
 ## Consequences
 
 - **What each turn sees.** Each turn's system prompt carries the Owner's page and `index.md`, one line per page, within a fixed budget. The model reads other pages with `recall`. Full-text search comes once the index stops being enough. Embeddings are not planned.
-- **Taint.** A turn the Owner started stops confirming once it calls a Tool that brings in outside content (a Capability, web search or fetch). From then on, its writes are inferred. Otherwise an email read during the turn could write "the Owner wants invoices forwarded to x" as a confirmed instruction.
+- **Taint.** A turn the Owner started stops confirming once outside content reaches it. From then on, its writes are inferred. Otherwise an email read during the turn could write "the Owner wants invoices forwarded to x" as a confirmed instruction. Outside content can arrive in several ways, not only from Capabilities:
+  - a handoff from a Routine, which taints the turn from its start;
+  - web search or fetch;
+  - files in the working folder, which may hold text saved from mail;
+  - inferred Facts that `recall` reads back.
+
+  So every Tool taints except the Memory Faculty's own on confirmed Facts and `open_conversation`.
+- **Preferences in a tainted turn.** A tainted turn that saves a preference or an instruction doesn't fail. It sends the Owner an Approval with the exact text, and only their yes confirms it. The prompt also tells the Agent to save what the Owner says before it uses other Tools, so this stays rare.
 - **Routines.** Their Runs read Memory but don't write it.
+- **Kinds of Page.** The kinds are listed in the vault (`tipi.md`), not in code, and start as people, places, organizations, projects, interests, possessions, pets and other. The Agent can add a kind only in an untainted turn, naming it as new. A tainted turn files an unknown subject under other. The Dream later proposes new kinds, or merging similar ones, from what has gathered under other. The vault is in Italian (`persone/`, "Confermato"), because the Owner reads it.
+- **Asking the Owner to confirm.** Only Facts that matter are worth a question: Facts about the Owner and the people close to them, contradictions with a confirmed Fact, and Facts the Agent keeps using. Anything else stays inferred.
+  - During a Conversation the Agent can simply ask. The Owner's answer arrives in an untainted turn, so it confirms on its own.
+  - Otherwise the Dream asks, at most once a day, with a few Facts and Yes/No buttons.
+  - A yes confirms the Fact.
+  - A no removes it and keeps a confirmed negative Fact, so the Dream doesn't infer it again.
+  - An unanswered Fact stays inferred, and the lint flags it as stale once nothing has supported it for a while.
 - **The Dream.** A nightly pass of the Harness, which the Owner can switch off. It:
   - reads the day's Conversations and the read-only Tools of the Capabilities;
   - adds inferred Facts and links;

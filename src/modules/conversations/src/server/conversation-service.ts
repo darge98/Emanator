@@ -5,7 +5,7 @@ import {
   type InboundEvent,
   ThreadNotFoundError,
 } from '@emanator/channels';
-import type { Engine, PermissionDecider, TurnRequest, UsageTracker } from '@emanator/engine';
+import type { Engine, TurnRequest, UsageTracker } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import {
   type Conversation,
@@ -28,20 +28,27 @@ export interface ConversationServiceDeps {
   defaultModel: string;
   /** IANA time zone used when showing times to the Owner, e.g. `Europe/Rome`. */
   timeZone: string;
-  /** The PermissionDecider of each turn, from Policies. */
-  permissions: PermissionsFor;
-  /** Each turn's Tools, the Engine's included, read anew since Policies may change. */
-  abilities: () => Promise<TurnAbilities>;
+  /**
+   * Each turn's Tools, the Engine's included, and its PermissionDecider. Built anew for every
+   * turn, since Policies may change and Memory's Tools depend on the turn.
+   */
+  prepareTurn: PrepareTurn;
   logger: Logger;
 }
 
-/** What a turn may use, without the Tools the Owner denied. */
-export type TurnAbilities = Pick<TurnRequest, 'tools' | 'engineTools'>;
+/** What a turn may use, without the Tools the Owner denied, and how it is decided. */
+export type PreparedTurn = Pick<
+  TurnRequest,
+  'tools' | 'engineTools' | 'decidePermission' | 'onToolUse'
+>;
 
-/** Builds the PermissionDecider of one turn. */
-export type PermissionsFor = (context: TurnContext) => PermissionDecider;
+export type PrepareTurn = (context: TurnContext) => Promise<PreparedTurn>;
 
 export interface TurnContext {
+  /** Who started the turn: only the Owner's own turns may confirm Memory (ADR 0009). */
+  origin: 'owner' | 'routine';
+  /** True when the turn starts with content the Owner didn't write, e.g. a Routine's handoff. */
+  tainted: boolean;
   /** The thread to ask the Owner in; may open it. Undefined is General. */
   thread: () => Promise<string | undefined>;
   /** Called while the turn waits for the Owner's answer. */
@@ -206,12 +213,14 @@ export class ConversationService {
           );
         }
       };
-      const sessionLost = await this.turn(conversation, input, prompt, handedOff);
+      // A Routine's handoff is someone else's words: Memory must not take them as the Owner's.
+      const tainted = handoffs.length > 0;
+      const sessionLost = await this.turn(conversation, input, prompt, tainted, handedOff);
       if (sessionLost) {
         // The Engine no longer has this session (e.g. its storage was wiped): start over, once.
         await store.setSession(conversation.id, undefined);
         const { session: _lost, ...fresh } = conversation;
-        await this.turn(fresh, input, prompt, handedOff, say.sessionLost);
+        await this.turn(fresh, input, prompt, tainted, handedOff, say.sessionLost);
       }
     } finally {
       await channel.showProgress(conversation.threadId, null);
@@ -227,6 +236,7 @@ export class ConversationService {
     conversation: Conversation,
     text: string,
     systemPrompt: string,
+    tainted: boolean,
     started: () => Promise<void>,
     preface?: string,
   ): Promise<boolean> {
@@ -239,8 +249,11 @@ export class ConversationService {
       systemPrompt,
       model,
       ...(conversation.session && { session: conversation.session }),
-      ...(await this.deps.abilities()),
-      decidePermission: this.deps.permissions({ thread: async () => conversation.threadId }),
+      ...(await this.deps.prepareTurn({
+        origin: 'owner',
+        tainted,
+        thread: async () => conversation.threadId,
+      })),
     })) {
       switch (event.type) {
         case 'turn.started':

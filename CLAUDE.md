@@ -67,11 +67,16 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 
 **Policies and Faculties** (`modules/policies`, `modules/faculties`).
 - Every Tool has a Policy: the Owner's choice in `tool_policies`, else its default. Tools nobody declared are denied, and denied Tools are not given to the model: each turn gets its `abilities` (Harness Tools and Engine Tools) filtered by `PolicyService.usable`.
-- `PolicyService.decider()` builds each turn's `PermissionDecider`. *ask* sends an Approval with Yes/No buttons to the turn's thread; it is repeated after 15 minutes and expires 15 minutes later. Any error while deciding denies the Tool.
+- `PolicyService.decider()` builds each turn's `PermissionDecider`. *ask* sends an Approval with Yes/No buttons to the turn's thread; it is repeated after 15 minutes and expires 15 minutes later. Callers outside Policies, like Memory, may word the request themselves (`ApprovalRequest.message`). Any error while deciding denies the Tool.
 - Button presses (`InboundAction`) go straight to `ApprovalService.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
 - Each Faculty is one file in `faculties/src/server` that describes its Tools once: name, dashboard title, default Policy, allowed `choices` and, for a Harness Tool, its implementation. Policies, turns and the dashboard all read from there, so the dashboard has no per-Tool code.
 - Policy groups carry a `kind` (`faculty` or `capability`): each dashboard page shows and saves only its own, and a save changes only the Tools it names.
 - Web and files are Engine Tools (`ENGINE_TOOLS`, `TurnRequest.engineTools`); the adapter refuses any file path outside the working folder before Policies are asked. The SDK reads inside the folder without asking, so reading Tools declare `choices` without *ask*. `open_conversation` is a Harness Tool.
+
+**Memory** (`modules/memory`, ADR 0009). An Obsidian-compatible wiki of Pages in `./data/memory`, in Italian: one Page per subject, filed under its kind's folder (`persone/Marco Rossi.md`), with `Utente.md`, `index.md`, `log.md` and the kinds in `tipi.md`. It sits outside the working folder, so only `MemoryService` writes it: one write at a time, each a git commit.
+- Each Fact is *confirmed* or *inferred*. A `TurnTrust` per turn decides which: the turns the Owner starts confirm until outside content reaches them. Then they are tainted: a handoff taints from the start, and `TurnRequest.onToolUse` taints on any Tool but Memory's and `open_conversation`. `recall` taints when it reads inferred Facts.
+- In a tainted turn, a preference, an instruction, or a change to a confirmed Fact needs the Owner's Approval; a new kind falls back to `altro`. Runs get only `recall`.
+- `prepareTurn(context)` builds each turn's Tools and decider, Memory's included. `memoryPrompt` puts confirmed preferences and instructions in the system prompt as instructions, and the Owner's Page and the index as data, within fixed budgets.
 
 **Capabilities** (`modules/capabilities`, ADR 0008). Each is a remote MCP server for one account. The Harness is its only MCP and OAuth client; the Engine never sees a token.
 - `CapabilityConnections` connects, authorizes through the Owner's browser (`/api/capabilities/oauth/callback`), refreshes tokens and calls Tools. Secrets are sealed by `SecretBox` (`EMANATOR_SECRET_KEY`) before they reach PostgreSQL.

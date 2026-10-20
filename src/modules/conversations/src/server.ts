@@ -2,8 +2,8 @@ export {
   type ConversationEvent,
   ConversationService,
   type ConversationServiceDeps,
-  type PermissionsFor,
-  type TurnAbilities,
+  type PreparedTurn,
+  type PrepareTurn,
   type TurnContext,
 } from './server/conversation-service.ts';
 export {

@@ -11,6 +11,7 @@
     "@emanator/conversations": "workspace:*",
     "@emanator/engine": "workspace:*",
     "@emanator/faculties": "workspace:*",
+    "@emanator/memory": "workspace:*",
     "@emanator/personas": "workspace:*",
     "@emanator/policies": "workspace:*",
     "@emanator/routines": "workspace:*",
