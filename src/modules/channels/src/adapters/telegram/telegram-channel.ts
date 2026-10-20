@@ -275,11 +275,12 @@ export class TelegramChannel implements Channel {
 
 function replyMarkup({ actions }: Pick<OutboundMessage, 'actions'>) {
   if (!actions?.length) return {};
-  return {
-    reply_markup: {
-      inline_keyboard: [actions.map(({ id, label }) => ({ text: label, callback_data: id }))],
-    },
-  };
+  const rows = new Map<number, { text: string; callback_data: string }[]>();
+  for (const { id, label, row = 0 } of actions) {
+    rows.set(row, [...(rows.get(row) ?? []), { text: label, callback_data: id }]);
+  }
+  const keyboard = [...rows].sort(([a], [b]) => a - b).map(([, buttons]) => buttons);
+  return { reply_markup: { inline_keyboard: keyboard } };
 }
 
 function threadOptions(threadId: string | undefined) {

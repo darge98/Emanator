@@ -11,6 +11,7 @@ export {
   type FactTrust,
   OWNER_KIND,
   OWNER_PAGE,
+  oneLine,
   type Page,
   renderPage,
   sameTitle,

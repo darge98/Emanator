@@ -1,4 +1,5 @@
 import { CapabilitiesPage } from '@emanator/capabilities/web';
+import { DreamPanel } from '@emanator/dreams/web';
 import { FacultiesPage } from '@emanator/faculties/web';
 import { MemoryPage } from '@emanator/memory/web';
 import { PersonaPage } from '@emanator/personas/web';
@@ -159,7 +160,7 @@ export default function App() {
         ) : page === 'faculties' ? (
           <FacultiesPage footer={footer} onDirtyChange={onDirtyChange} />
         ) : page === 'memory' ? (
-          <MemoryPage footer={footer} confirm={confirm} />
+          <MemoryPage footer={footer} dream={<DreamPanel />} confirm={confirm} />
         ) : page === 'routines' ? (
           <RoutinesPage footer={footer} onDirtyChange={onDirtyChange} confirm={confirm} />
         ) : (

@@ -7,6 +7,7 @@ import {
   type ConversationEvent,
   ConversationService,
   type PreparedTurn,
+  type SpokenEntry,
   type TurnContext,
 } from './conversation-service.ts';
 import { ConversationStore } from './conversation-store.ts';
@@ -24,6 +25,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
   let prompt = 'You are a test agent.';
   const contexts: TurnContext[] = [];
   let epilogue: PreparedTurn['epilogue'];
+  const journal: SpokenEntry[] = [];
   const service = new ConversationService({
     channel,
     engine,
@@ -39,6 +41,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
         ...(epilogue && { epilogue }),
       };
     },
+    journal: (entry) => journal.push(entry),
     logger: silentLogger,
   });
   const send = async (...events: ConversationEvent[]) => {
@@ -52,6 +55,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     service,
     send,
     contexts,
+    journal,
     setPrompt: (next: string) => {
       prompt = next;
     },
@@ -535,6 +539,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
     await send(command('new'), message('Ciao'));
 
     expect(contexts.map(({ tainted }) => tainted)).toEqual([false, false, true, false]);
+  });
+
+  it('tells the Journal what the Owner and the Agent say, and where', async () => {
+    const { journal, send } = await setup();
+
+    await send(message('Ciao'));
+
+    expect(journal).toEqual([
+      { place: 'Generale', author: 'owner', text: 'Ciao' },
+      { place: 'Generale', author: 'agent', text: 'ok' },
+    ]);
   });
 
   it("sends the turn's epilogue after its answer", async () => {

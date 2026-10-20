@@ -20,7 +20,8 @@ import {
   isSuggestedReply,
   type PrepareTurn,
 } from '@emanator/conversations/server';
-import { UsageTracker } from '@emanator/engine';
+import { DreamService, DreamStore } from '@emanator/dreams/server';
+import { type JsonSchemaToolDefinition, UsageTracker } from '@emanator/engine';
 import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
 import {
   agentFaculties,
@@ -122,6 +123,28 @@ async function start() {
   });
   await memory.init();
   const memoryReview = new MemoryReview({ channel, memory, logger: consoleLogger('memory') });
+  const dreamStore = new DreamStore(db);
+  await dreamStore.init();
+  const dreams = new DreamService({
+    store: dreamStore,
+    engine,
+    memory,
+    channel,
+    model: config.defaultModel,
+    timeZone: config.timeZone,
+    logger: consoleLogger('dream'),
+  });
+  await dreams.init();
+  /** What a Capability returns tells the Dream about the Owner's world, so it is kept. */
+  const journaled = (tool: JsonSchemaToolDefinition, place: string): JsonSchemaToolDefinition => ({
+    ...tool,
+    run: async (input) => {
+      const output = await tool.run(input);
+      if (!output.isError)
+        dreams.record({ place, author: 'tool', tool: tool.name, text: output.text });
+      return output;
+    },
+  });
 
   // Built for every turn, so a Policy or a Capability saved in the dashboard applies from the
   // next one, and Memory knows whether the turn still speaks for the Owner.
@@ -150,7 +173,12 @@ async function start() {
       await policies.usable(turnFaculties.flatMap(({ tools }) => tools)),
     );
     return {
-      tools: [...tools, ...(await policies.usable(capabilities.turnTools()))],
+      tools: [
+        ...tools,
+        ...(await policies.usable(capabilities.turnTools())).map((tool) =>
+          journaled(tool, context.place),
+        ),
+      ],
       engineTools,
       decidePermission: policies.decider(context),
       onToolUse: (tool) => {
@@ -171,6 +199,7 @@ async function start() {
     store,
     usage,
     prepareTurn,
+    journal: (entry) => dreams.record(entry),
     systemPrompt: agentPrompt,
     defaultModel: config.defaultModel,
     timeZone: config.timeZone,
@@ -206,6 +235,7 @@ async function start() {
     policies,
     capabilities,
     memory,
+    dreams,
     logger: consoleLogger('dashboard'),
   });
   try {
@@ -216,6 +246,7 @@ async function start() {
       // suggested reply is a message of the Owner's, so only it goes through the queue.
       if (event.type !== 'action' || isSuggestedReply(event)) conversations.handle(event);
       else if (memoryReview.handles(event)) void memoryReview.answer(event);
+      else if (dreams.handles(event)) void dreams.answer(event);
       else void approvals.answer(event);
     });
     await routines.start();
@@ -238,6 +269,8 @@ async function start() {
     // Pending Approvals expire first, or their turns would keep the steps below waiting.
     await approvals.stop();
     await routines.stop();
+    // A Dream cut short is marked failed at the next start, and its Journal kept.
+    dreams.stop();
     await channel.stop();
     await conversations.idle();
     await capabilityConnections.close();

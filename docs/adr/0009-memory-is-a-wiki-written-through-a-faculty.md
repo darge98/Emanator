@@ -42,12 +42,16 @@ The Memory Faculty enforces this in code, from what it knows about the current t
   - A no removes it and keeps a confirmed negative Fact, so the Dream doesn't infer it again.
   - An unanswered Fact stays inferred, and the lint flags it as stale once nothing has supported it for a while.
 - **The Dream.** A nightly pass of the Harness, which the Owner can switch off. It:
-  - reads the day's Conversations and the read-only Tools of the Capabilities;
-  - adds inferred Facts and links;
+  - reads the Journal: what the Owner wrote, what the Agent answered and what Capabilities returned since the last Dream (mail read, events, chats), in Conversations and Runs alike;
+  - adds inferred Facts and links, with their source (*chat con Mamma*);
   - lints the wiki: contradictions, stale Facts, subjects with no page;
-  - asks the Owner one batched question in Telegram, with Yes/No buttons, to confirm what matters.
+  - asks the Owner one batched question in Telegram, with a few Facts and a Yes/No pair for each, to confirm what matters.
 
-  Its Tools are fixed: only those that read, plus the Memory Faculty. It has no web fetch and no Tool that writes elsewhere, so an injected instruction has no way out. Reading a day's Conversations needs a new Engine port method that returns a session's transcript.
+  Its Tools are fixed: `recall`, and a Tool that only writes inferred Facts. It has no web fetch and no Tool that writes elsewhere, so an injected instruction has no way out.
+
+  The Harness keeps the Journal itself, in PostgreSQL, instead of reading the Engine's transcripts. That keeps the Dream independent of the Engine (ADR 0006), and leaves out what it doesn't need: web pages, files, the Engine's own reasoning. Capability results are what tells the Agent about the Owner's world, so they stay, each cut to a fixed length and marked with its source. The Journal holds mail and chats, so it is deleted as soon as the Dream has read it, and after a week at the latest. It is not kept while the Dream is off.
+
+  Its first wave reads only what the Agent read during the day. Reading the Capabilities on its own at night, and linting, come later.
 - **Git.** The vault is a git repository with one commit per change. The Agent reads only the current state, never the history, so `forget` really forgets for the Agent. The history keeps the old text until the Owner rewrites it.
 - **Remote.** From the dashboard, the Owner can add a git remote (GitHub, Gitea, any URL) with a credential limited to that one repository and sealed by `SecretBox`. The Harness pushes to it as a mirror. Two-way sync (the Owner editing in Obsidian elsewhere while the Dream writes) brings merge conflicts, so it waits for a later wave.
 - **Memory is the most sensitive data the Harness holds.** A remote, even a private one, puts it with a third party. That is the Owner's explicit choice, and the dashboard says so. Encrypting the repository (e.g. git-crypt) is a later option.

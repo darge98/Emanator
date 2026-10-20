@@ -9,6 +9,7 @@
     "@emanator/capabilities": "workspace:*",
     "@emanator/channels": "workspace:*",
     "@emanator/conversations": "workspace:*",
+    "@emanator/dreams": "workspace:*",
     "@emanator/engine": "workspace:*",
     "@emanator/faculties": "workspace:*",
     "@emanator/memory": "workspace:*",

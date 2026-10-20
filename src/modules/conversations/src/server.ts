@@ -4,6 +4,7 @@ export {
   type ConversationServiceDeps,
   type PreparedTurn,
   type PrepareTurn,
+  type SpokenEntry,
   type TurnContext,
 } from './server/conversation-service.ts';
 export {

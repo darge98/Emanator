@@ -9,6 +9,7 @@ export {
   type MemoryConfirmation,
   type MemoryKeeper,
   type MemoryTurn,
+  memoryFaculty,
   taintsTurn,
 } from './server/memory-faculty.ts';
 export { MemoryReview, type NotedFact } from './server/memory-review.ts';

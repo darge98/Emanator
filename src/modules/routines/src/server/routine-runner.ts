@@ -242,6 +242,7 @@ export class RoutineRunner {
     let pendingApprovals = 0;
     const prepared = await this.deps.prepareTurn({
       origin: 'routine',
+      place: routine.name,
       tainted: true,
       thread: async () => (await this.topic(routine)).threadId,
       onWaiting: async (waiting) => {

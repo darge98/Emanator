@@ -36,7 +36,17 @@ export interface ConversationServiceDeps {
    * turn, since Policies may change and Memory's Tools depend on the turn.
    */
   prepareTurn: PrepareTurn;
+  /** Told what the Owner and the Agent say, for the Dream's Journal. */
+  journal?: (entry: SpokenEntry) => void;
   logger: Logger;
+}
+
+/** Something said in a Conversation, by the Owner or by the Agent. */
+export interface SpokenEntry {
+  /** The Conversation's title. */
+  place: string;
+  author: 'owner' | 'agent';
+  text: string;
 }
 
 /** What a turn may use, without the Tools the Owner denied, and how it is decided. */
@@ -53,6 +63,8 @@ export type PrepareTurn = (context: TurnContext) => Promise<PreparedTurn>;
 export interface TurnContext {
   /** Who started the turn: only the Owner's own turns may confirm Memory (ADR 0009). */
   origin: 'owner' | 'routine';
+  /** Where the turn happens, for the Journal: a Conversation's title, or a Routine's name. */
+  place: string;
   /**
    * True when the turn starts with content the Owner didn't write: a Routine's handoff, or a
    * session that already took some in.
@@ -158,6 +170,7 @@ export class ConversationService {
    */
   async deliver(conversation: Conversation, markdown: string): Promise<boolean> {
     if ((await this.trySend(conversation, markdown)) === undefined) return false;
+    this.deps.journal?.({ place: conversation.title, author: 'agent', text: markdown });
     try {
       await this.deps.store.addHandoff(conversation.id, markdown, MAX_HANDOFFS);
     } catch (error) {
@@ -252,6 +265,7 @@ export class ConversationService {
   private async converse(conversation: Conversation, text: string): Promise<void> {
     const { channel, store } = this.deps;
     await channel.showProgress(conversation.threadId, say.thinking);
+    this.deps.journal?.({ place: conversation.title, author: 'owner', text });
     try {
       // Resolve once before entering the Engine. A persona change during this turn
       // takes effect on the next queued turn, including after a lost-session retry.
@@ -316,6 +330,7 @@ export class ConversationService {
     };
     const { epilogue, ...abilities } = await this.deps.prepareTurn({
       origin: 'owner',
+      place: conversation.title,
       tainted,
       onTaint,
       thread: async () => conversation.threadId,
@@ -343,6 +358,7 @@ export class ConversationService {
           usage.record(event);
           break;
         case 'turn.completed':
+          this.deps.journal?.({ place: conversation.title, author: 'agent', text: event.text });
           await this.answer(conversation, withPreface(event.text), replies);
           break;
         case 'turn.failed':

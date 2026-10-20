@@ -55,6 +55,8 @@ export interface RememberInput {
   source: string;
   /** The id of a Fact this one replaces. */
   replaces?: string;
+  /** Who wrote it, for the log and the commit, when not the Agent in a turn: `dal Sogno`. */
+  by?: string;
 }
 
 export interface RememberResult {
@@ -151,7 +153,8 @@ export class MemoryService {
       page.facts.push(fact);
       await this.save(page);
       const verb = input.replaces === undefined ? 'ricordato' : 'aggiornato';
-      await this.record(`${verb} in [[${page.title}]] (${trustLabel(fact.trust)}): ${text}`);
+      const by = input.by ? ` ${input.by}` : '';
+      await this.record(`${verb}${by} in [[${page.title}]] (${trustLabel(fact.trust)}): ${text}`);
       return { page, fact, ...(fellBackFrom !== undefined && { fellBackFrom }) };
     });
   }

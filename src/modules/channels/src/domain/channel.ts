@@ -88,6 +88,8 @@ export interface MessageAction {
   /** Comes back in the `InboundAction`; at most 64 bytes, Telegram's limit. */
   id: string;
   label: string;
+  /** Actions with the same row share a line, in order; without one they share the first. */
+  row?: number;
 }
 
 export class ThreadNotFoundError extends Error {

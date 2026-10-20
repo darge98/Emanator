@@ -64,6 +64,11 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - each Fact is *confirmed* or *inferred*. A turn the Owner started confirms until outside content reaches its Conversation's session: a handoff, or any Tool but Memory's, opening a Conversation and suggesting replies. The taint lasts until `/new`;
   - in a tainted session, preferences, instructions and changes to confirmed Facts need the Owner's Approval, which covers the exact text and nothing else. A new kind of Page falls back to `altro`. The other Facts are inferred, and after the turn's answer the Harness lists them with buttons to confirm or forget them all. Runs only read;
   - every turn gets the confirmed preferences and instructions as instructions, and the Owner's Page and the index as data, within fixed budgets.
+- **The Dream**, Memory's second wave:
+  - while it is on, the Harness keeps a Journal: what the Owner writes, what the Agent answers and what Capability Tools return, in Conversations and Runs, each entry cut to 4,000 characters. Web pages and files stay out;
+  - every night at the Owner's time (07:00 by default) it reads the Journal in a fresh session, with only `recall` and `note`, which writes inferred Facts with their source. A failed Dream keeps the Journal for the next one; a read one is deleted, and anything older than a week goes anyway;
+  - it then asks the Owner in General about at most five Facts that matter, with ✓/✕ for each and ✓ Tutti;
+  - the Memory page switches it on or off, sets its time, starts it now and shows the last outcome.
 
 ### Control
 - Each Tool has a Policy: *allow*, *ask* or *deny*.
@@ -150,7 +155,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
 - Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.
 - Memory, after its first wave (see Agent abilities):
-  2. the Dream: the nightly pass that infers Facts, lints the wiki and asks the Owner to confirm, with read-only Tools only;
+  2. the Dream, after its first wave: linting the wiki (duplicate Pages, stale Facts, new kinds from what gathers under `altro`), reading the Capabilities on its own at night, web results in the Journal, and a confirmed negative Fact when the Owner says no;
   - left from the review of its first wave (October 2026):
     - Facts the Owner adds by hand in Obsidian get an id only on the next write, so until then the dashboard can't confirm or forget them;
     - vault writes aren't atomic, and every turn reads the whole vault for its prompt; a temp file and rename, and a cache cleared on writes;

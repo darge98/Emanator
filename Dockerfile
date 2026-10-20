@@ -15,6 +15,7 @@ COPY src/apps/web/package.json src/apps/web/
 COPY src/modules/capabilities/package.json src/modules/capabilities/
 COPY src/modules/channels/package.json src/modules/channels/
 COPY src/modules/conversations/package.json src/modules/conversations/
+COPY src/modules/dreams/package.json src/modules/dreams/
 COPY src/modules/engine/package.json src/modules/engine/
 COPY src/modules/faculties/package.json src/modules/faculties/
 COPY src/modules/memory/package.json src/modules/memory/

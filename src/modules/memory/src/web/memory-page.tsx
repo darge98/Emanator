@@ -84,6 +84,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 interface MemoryPageProps {
   footer: ReactNode;
+  /** Shown under the pages: the Dream's panel, which another module provides. */
+  dream?: ReactNode;
   /** Asks the Owner a yes/no question in the dashboard's dialog. */
   confirm: (question: {
     title: string;
@@ -124,7 +126,7 @@ function linksTo(pages: readonly Page[], title: string): Page[] {
 const LINK = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
 /** Browse, review and correct Memory; every change is a commit in the vault. */
-export function MemoryPage({ footer, confirm }: MemoryPageProps) {
+export function MemoryPage({ footer, dream, confirm }: MemoryPageProps) {
   const [snapshot, setSnapshot] = useState<MemorySnapshot>();
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<string>();
@@ -233,13 +235,16 @@ export function MemoryPage({ footer, confirm }: MemoryPageProps) {
           </button>
         </div>
       ) : pages.length === 0 ? (
-        <div className={`state ${styles.top}`}>
-          <span className="state-icon">
-            <Brain size={22} aria-hidden="true" />
-          </span>
-          <h2>{t.emptyTitle}</h2>
-          <p>{t.empty}</p>
-        </div>
+        <>
+          <div className={`state ${styles.top}`}>
+            <span className="state-icon">
+              <Brain size={22} aria-hidden="true" />
+            </span>
+            <h2>{t.emptyTitle}</h2>
+            <p>{t.empty}</p>
+          </div>
+          {dream}
+        </>
       ) : (
         <>
           <div className={styles.layout}>
@@ -267,6 +272,7 @@ export function MemoryPage({ footer, confirm }: MemoryPageProps) {
               />
             )}
           </div>
+          {dream}
           <Activity
             changes={snapshot?.changes ?? []}
             pages={pages}

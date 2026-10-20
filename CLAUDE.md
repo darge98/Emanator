@@ -39,7 +39,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **A modular monolith with vertical feature slices (ADR 0005).**
 - `src/apps/server/src/main.ts` is the composition root: one Fastify process runs the dashboard API, the Routine scheduler and the Telegram long-polling bot, and serves the built SPA.
 - `src/apps/web` is the React/Vite shell. It only composes the pages that the modules export.
-- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `policies`, `faculties`, `capabilities`, `shared`), with up to three entry points:
+- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `policies`, `faculties`, `capabilities`, `memory`, `dreams`, `shared`), with up to three entry points:
   - `@emanator/<feature>`: domain types, pure;
   - `@emanator/<feature>/server`: stores, services, Fastify routes;
   - `@emanator/<feature>/web`: React pages.
@@ -69,7 +69,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **Policies and Faculties** (`modules/policies`, `modules/faculties`).
 - Every Tool has a Policy: the Owner's choice in `tool_policies`, else its default. Tools nobody declared are denied, and denied Tools are not given to the model: each turn gets its `abilities` (Harness Tools and Engine Tools) filtered by `PolicyService.usable`.
 - `PolicyService.decider()` builds each turn's `PermissionDecider`. *ask* sends an Approval with Yes/No buttons to the turn's thread; it is repeated after 15 minutes and expires 15 minutes later. Callers outside Policies, like Memory, may word the request themselves (`ApprovalRequest.message`). Any error while deciding denies the Tool.
-- Button presses (`InboundAction`) for Approvals go straight to `ApprovalService.answer()`, and those of Memory reviews to `MemoryReview.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
+- Button presses (`InboundAction`) for Approvals go straight to `ApprovalService.answer()`, those of Memory reviews to `MemoryReview.answer()` and the Dream's to `DreamService.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
 - Each Faculty is one file in `faculties/src/server` that describes its Tools once: name, dashboard title, default Policy, allowed `choices` and, for a Harness Tool, its implementation. Policies, turns and the dashboard all read from there, so the dashboard has no per-Tool code.
 - Policy groups carry a `kind` (`faculty` or `capability`): each dashboard page shows and saves only its own, and a save changes only the Tools it names.
 - Web and files are Engine Tools (`ENGINE_TOOLS`, `TurnRequest.engineTools`); the adapter refuses any file path outside the working folder before Policies are asked. The SDK reads inside the folder without asking, so reading Tools declare `choices` without *ask*. `open_conversation` is a Harness Tool.
@@ -79,6 +79,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - The taint lasts for the session: `TurnContext.onTaint` marks the Conversation (`session_tainted`), its next turns start tainted, and clearing the session (`/new`) cleans it.
 - In a tainted turn, a preference, an instruction, or a change to a confirmed Fact needs the Owner's Approval, which covers that text only (no new kind, no summary or aliases on an existing Page). Other Facts are inferred, and `MemoryReview` lists them after the answer (`PreparedTurn.epilogue`) with buttons (`mr:<token>:y|n`) that confirm or forget them all. Runs get only `recall`.
 - The dashboard reads it through `/api/memory` (one snapshot: Pages, kinds, latest changes) and confirms or forgets through `MemoryService` too, so the Owner's changes are commits marked *dalla dashboard*.
+- **The Dream** (`modules/dreams`): `DreamService` keeps the Journal while it is on (`ConversationServiceDeps.journal` for what is said, and in `main.ts` a wrapper on Capability Tools for what they return, under `TurnContext.place`). Every night (croner, at `dream_settings.time`) it runs one Engine turn in a fresh session with only `recall` and `note` (inferred Facts, written *dal Sogno*), deletes the Journal it read, and asks in General about up to five Facts with per-row buttons (`dq:<run>:<i>:y|n`, `dq:<run>:all`; `MessageAction.row`). Answers are stored on the Run, so they survive restarts. The Memory page shows its panel, which `App.tsx` passes in.
 - `prepareTurn(context)` builds each turn's Tools and decider, Memory's included. `memoryPrompt` puts confirmed preferences and instructions in the system prompt as instructions, and the Owner's Page and the index as data, within fixed budgets.
 
 **Capabilities** (`modules/capabilities`, ADR 0008). Each is a remote MCP server for one account. The Harness is its only MCP and OAuth client; the Engine never sees a token.

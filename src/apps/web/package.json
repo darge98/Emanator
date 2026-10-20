@@ -10,6 +10,7 @@
   "dependencies": {
     "@emanator/capabilities": "workspace:*",
     "@emanator/faculties": "workspace:*",
+    "@emanator/dreams": "workspace:*",
     "@emanator/memory": "workspace:*",
     "@emanator/personas": "workspace:*",
     "@emanator/policies": "workspace:*",

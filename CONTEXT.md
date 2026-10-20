@@ -49,6 +49,10 @@ _Avoid_: memory, note, claim
 The Harness's nightly pass over Memory. It infers new Facts from the day, links and tidies Pages, finds contradictions, and asks the Owner to confirm what matters.
 _Avoid_: consolidation, sync, digest
 
+**Journal** (it: *Diario*):
+What the Harness keeps of the days for the Dream: the Owner's messages, the Agent's answers and what Capabilities returned. It is deleted once the Dream has read it.
+_Avoid_: transcript, history, log
+
 ### Agent abilities
 
 **Faculty** (it: *Facoltà*):
