@@ -21,6 +21,7 @@ export class FakeChannel implements Channel {
   }[] = [];
   readonly edited: { messageId: string; markdown: string; actions?: readonly MessageAction[] }[] =
     [];
+  readonly actionsSet: { messageId: string; actions: readonly MessageAction[] }[] = [];
   readonly progress: { threadId: string | undefined; status: string | null }[] = [];
   readonly opened: string[] = [];
   readonly renamed: { threadId: string; title: string }[] = [];
@@ -51,6 +52,10 @@ export class FakeChannel implements Channel {
 
   async editMessage(messageId: string, { markdown, actions }: OutboundMessage): Promise<void> {
     this.edited.push({ messageId, markdown, ...(actions?.length && { actions }) });
+  }
+
+  async setActions(messageId: string, actions: readonly MessageAction[]): Promise<void> {
+    this.actionsSet.push({ messageId, actions });
   }
 
   async openThread(title: string): Promise<string> {

@@ -25,7 +25,13 @@ export interface MemoryTurn {
 }
 
 /** Tools whose output is the Owner's own or nobody's, so using them leaves a turn trusted. */
-const KEEP_TRUST = new Set(['remember', 'forget', 'recall', 'open_conversation']);
+const KEEP_TRUST = new Set([
+  'remember',
+  'forget',
+  'recall',
+  'open_conversation',
+  'suggest_replies',
+]);
 
 /** Whether a Tool brings in content the Owner didn't write; `recall` taints on its own. */
 export function taintsTurn(tool: string): boolean {

@@ -19,6 +19,11 @@ export interface Channel {
    * A message that no longer exists is left alone.
    */
   editMessage(messageId: string, message: OutboundMessage): Promise<void>;
+  /**
+   * Replaces only the buttons of a message sent earlier, keeping its text; none removes them.
+   * A message that no longer exists is left alone.
+   */
+  setActions(messageId: string, actions: readonly MessageAction[]): Promise<void>;
   /** Opens a new thread (e.g. a Telegram topic) and returns its id. */
   openThread(title: string): Promise<string>;
   /** Renames a thread the Channel opened. Throws `ThreadNotFoundError` when it no longer exists. */

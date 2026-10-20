@@ -17,6 +17,7 @@ import {
   CONVERSATION_COMMANDS,
   ConversationService,
   ConversationStore,
+  isSuggestedReply,
   type PrepareTurn,
 } from '@emanator/conversations/server';
 import { UsageTracker } from '@emanator/engine';
@@ -132,7 +133,14 @@ async function start() {
         // The tool waits for the answer, so the turn can't end before it; expiry still applies.
         signal: new AbortController().signal,
       })) === 'approved';
-    const turnFaculties = agentFaculties({ conversations, memory }, { trust, confirm });
+    const turnFaculties = agentFaculties(
+      { conversations, memory },
+      {
+        trust,
+        confirm,
+        ...(context.suggestReplies && { suggestReplies: context.suggestReplies }),
+      },
+    );
     const { tools, engineTools } = turnAbilities(
       await policies.usable(turnFaculties.flatMap(({ tools }) => tools)),
     );
@@ -198,7 +206,7 @@ async function start() {
     await channel.setCommands(CONVERSATION_COMMANDS);
     await channel.start((event) => {
       // Presses answer turns that may hold their Conversation's queue: they skip it.
-      if (event.type === 'action') void approvals.answer(event);
+      if (event.type === 'action' && !isSuggestedReply(event)) void approvals.answer(event);
       else conversations.handle(event);
     });
     await routines.start();

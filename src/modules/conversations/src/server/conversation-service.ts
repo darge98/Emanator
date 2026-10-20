@@ -3,6 +3,7 @@ import {
   type InboundAction,
   type InboundCommand,
   type InboundEvent,
+  type MessageAction,
   ThreadNotFoundError,
 } from '@emanator/channels';
 import type { Engine, TurnRequest, UsageTracker } from '@emanator/engine';
@@ -17,6 +18,7 @@ import {
 import type { ConversationStore } from './conversation-store.ts';
 import { KeyedQueue } from './keyed-queue.ts';
 import * as say from './messages.ts';
+import { chosenAction, chosenReply, replyActions } from './suggested-replies.ts';
 
 export interface ConversationServiceDeps {
   channel: Channel;
@@ -53,15 +55,17 @@ export interface TurnContext {
   thread: () => Promise<string | undefined>;
   /** Called while the turn waits for the Owner's answer. */
   onWaiting?: (waiting: boolean) => void | Promise<void>;
+  /** Puts these replies as buttons under the turn's answer; absent where nobody can press. */
+  suggestReplies?: (replies: readonly string[]) => void;
 }
 
 const routineTopicName = (routineName: string) => `${slugify(routineName)}${ROUTINE_TOPIC_SUFFIX}`;
 
 /**
- * What the Owner sends into a Conversation. Button presses are left out: they answer a
- * turn that may be holding the Conversation's queue, so they must not wait in it.
+ * What the Owner sends into a Conversation. Of the button presses, only suggested replies
+ * belong here: the others answer a turn that may be holding the Conversation's queue.
  */
-export type ConversationEvent = Exclude<InboundEvent, InboundAction>;
+export type ConversationEvent = InboundEvent;
 
 /** Routine messages kept for one turn at most; older ones are dropped. */
 const MAX_HANDOFFS = 10;
@@ -73,6 +77,10 @@ const MAX_HANDOFFS = 10;
  */
 export class ConversationService {
   private readonly queue = new KeyedQueue();
+  /** Per thread, the message whose suggested replies still stand. Lost on restart: harmless. */
+  private readonly suggestions = new Map<string, string>();
+  /** Messages whose reply was chosen, so a double press counts once. */
+  private readonly chosen = new Set<string>();
 
   constructor(private readonly deps: ConversationServiceDeps) {}
 
@@ -140,7 +148,7 @@ export class ConversationService {
    * Conversation's next turn. Returns false, after archiving it, if the thread is gone.
    */
   async deliver(conversation: Conversation, markdown: string): Promise<boolean> {
-    if (!(await this.trySend(conversation, markdown))) return false;
+    if ((await this.trySend(conversation, markdown)) === undefined) return false;
     try {
       await this.deps.store.addHandoff(conversation.id, markdown, MAX_HANDOFFS);
     } catch (error) {
@@ -155,7 +163,7 @@ export class ConversationService {
 
   /** Sends a notice from the Harness itself, which stays out of the Conversation's context. */
   async notify(conversation: Conversation, markdown: string): Promise<boolean> {
-    return this.trySend(conversation, markdown);
+    return (await this.trySend(conversation, markdown)) !== undefined;
   }
 
   async archive(id: string): Promise<void> {
@@ -185,7 +193,10 @@ export class ConversationService {
   }
 
   private async process(event: ConversationEvent): Promise<void> {
+    if (event.type === 'action') return this.choose(event);
     const conversation = await this.resolve(event.threadId);
+    // Whatever the Owner sends answers the last question: its buttons no longer apply.
+    await this.dropSuggestions(event.threadId);
     switch (event.type) {
       case 'message':
         return this.converse(conversation, event.text);
@@ -193,6 +204,34 @@ export class ConversationService {
         return this.command(conversation, event);
       case 'unsupported':
         return this.reply(conversation, say.unsupported(event.kind));
+    }
+  }
+
+  /**
+   * A suggested reply goes in as if the Owner had written it, and the choice stays visible.
+   * Buttons left from before a restart still work: pressing them is the Owner's choice.
+   */
+  private async choose(press: InboundAction): Promise<void> {
+    const reply = chosenReply(press);
+    if (!reply || this.chosen.has(press.messageId)) return;
+    this.chosen.add(press.messageId);
+    if (this.suggestions.get(press.threadId ?? '') === press.messageId) {
+      this.suggestions.delete(press.threadId ?? '');
+    } else {
+      await this.dropSuggestions(press.threadId);
+    }
+    await this.deps.channel.setActions(press.messageId, [chosenAction(reply)]);
+    await this.converse(await this.resolve(press.threadId), reply);
+  }
+
+  private async dropSuggestions(threadId: string | undefined): Promise<void> {
+    const messageId = this.suggestions.get(threadId ?? '');
+    if (messageId === undefined) return;
+    this.suggestions.delete(threadId ?? '');
+    try {
+      await this.deps.channel.setActions(messageId, []);
+    } catch (error) {
+      this.deps.logger.warn('Could not remove suggested replies', { error: errorMessage(error) });
     }
   }
 
@@ -243,6 +282,7 @@ export class ConversationService {
     const { channel, engine, store, usage } = this.deps;
     const model = this.modelOf(conversation);
     const withPreface = (markdown: string) => (preface ? `${preface}\n\n${markdown}` : markdown);
+    let replies: readonly string[] = [];
 
     for await (const event of engine.runTurn({
       prompt: text,
@@ -253,6 +293,9 @@ export class ConversationService {
         origin: 'owner',
         tainted,
         thread: async () => conversation.threadId,
+        suggestReplies: (suggested) => {
+          replies = suggested;
+        },
       })),
     })) {
       switch (event.type) {
@@ -267,7 +310,7 @@ export class ConversationService {
           usage.record(event);
           break;
         case 'turn.completed':
-          await this.reply(conversation, withPreface(event.text));
+          await this.answer(conversation, withPreface(event.text), replies);
           break;
         case 'turn.failed':
           if (event.reason === 'session-not-found' && conversation.session) return true;
@@ -321,21 +364,40 @@ export class ConversationService {
     return store.create({ name: slugify(title), title, channel: channel.id, threadId, openedBy });
   }
 
+  /** The turn's answer, with its suggested replies as buttons. */
+  private async answer(
+    conversation: Conversation,
+    markdown: string,
+    replies: readonly string[],
+  ): Promise<void> {
+    const actions = replyActions(replies);
+    const messageId = await this.trySend(conversation, markdown, actions);
+    if (messageId !== undefined && actions.length) {
+      this.suggestions.set(conversation.threadId ?? '', messageId);
+    }
+  }
+
   /** Sends to the Conversation's thread; a thread deleted by the Owner archives it. */
   private async reply(conversation: Conversation, markdown: string): Promise<void> {
     await this.trySend(conversation, markdown);
   }
 
-  /** Like `reply`, returning whether the message was sent. */
-  private async trySend(conversation: Conversation, markdown: string): Promise<boolean> {
+  /** Like `reply`, returning the id of the message sent, or undefined if the thread is gone. */
+  private async trySend(
+    conversation: Conversation,
+    markdown: string,
+    actions: readonly MessageAction[] = [],
+  ): Promise<string | undefined> {
     try {
-      await this.deps.channel.send(conversation.threadId, { markdown });
-      return true;
+      return await this.deps.channel.send(conversation.threadId, {
+        markdown,
+        ...(actions.length && { actions }),
+      });
     } catch (error) {
       if (!(error instanceof ThreadNotFoundError)) throw error;
       await this.deps.store.archive(conversation.id);
       this.deps.logger.warn('Thread is gone, Conversation archived', { name: conversation.name });
-      return false;
+      return undefined;
     }
   }
 

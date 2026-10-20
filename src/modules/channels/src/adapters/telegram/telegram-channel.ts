@@ -6,6 +6,7 @@ import {
   type Channel,
   type CommandInfo,
   type InboundHandler,
+  type MessageAction,
   type OutboundMessage,
   ThreadNotFoundError,
 } from '../../domain/channel.ts';
@@ -160,6 +161,20 @@ export class TelegramChannel implements Channel {
     }
   }
 
+  async setActions(messageId: string, actions: readonly MessageAction[]): Promise<void> {
+    const { chatId } = await this.requireOwner();
+    try {
+      await this.bot.api.editMessageReplyMarkup(
+        chatId,
+        Number(messageId),
+        replyMarkup({ actions }),
+      );
+    } catch (error) {
+      if (isMessageNotModified(error) || isMessageGone(error)) return;
+      throw error;
+    }
+  }
+
   async openThread(title: string): Promise<string> {
     const { chatId } = await this.requireOwner();
     const topic = await this.bot.api.createForumTopic(chatId, title.slice(0, 128));
@@ -258,7 +273,7 @@ export class TelegramChannel implements Channel {
   }
 }
 
-function replyMarkup({ actions }: OutboundMessage) {
+function replyMarkup({ actions }: Pick<OutboundMessage, 'actions'>) {
   if (!actions?.length) return {};
   return {
     reply_markup: {

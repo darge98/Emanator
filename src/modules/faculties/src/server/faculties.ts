@@ -6,7 +6,11 @@ import type {
   FacultyTool,
   HarnessFacultyTool,
 } from '../domain/faculty.ts';
-import { type ConversationOpener, conversationsFaculty } from './conversations-faculty.ts';
+import {
+  type ConversationOpener,
+  conversationsFaculty,
+  type ReplySuggester,
+} from './conversations-faculty.ts';
 import { filesFaculty } from './files-faculty.ts';
 import { type MemoryKeeper, type MemoryTurn, memoryFaculty } from './memory-faculty.ts';
 import { webFaculty } from './web-faculty.ts';
@@ -16,22 +20,32 @@ export interface FacultyDeps {
   memory: MemoryKeeper;
 }
 
+/** One turn as the Faculties see it. */
+export interface AgentTurn extends MemoryTurn {
+  /** Absent where nobody can press a button, e.g. in a Run. */
+  suggestReplies?: ReplySuggester;
+}
+
 /** A turn of the Owner's that asks nobody: enough to list every Tool, for Policies. */
-const LISTING_TURN: MemoryTurn = { trust: new TurnTrust('owner'), confirm: async () => false };
+const LISTING_TURN: AgentTurn = {
+  trust: new TurnTrust('owner'),
+  confirm: async () => false,
+  suggestReplies: () => {},
+};
 
 /**
- * Every Faculty of the Agent in v1; there is no shell yet. Memory's Tools depend on the
- * turn they serve, so each turn builds its own.
+ * Every Faculty of the Agent in v1; there is no shell yet. Memory's and Conversations' Tools
+ * depend on the turn they serve, so each turn builds its own.
  */
 export function agentFaculties(
   { conversations, memory }: FacultyDeps,
-  turn: MemoryTurn = LISTING_TURN,
+  turn: AgentTurn = LISTING_TURN,
 ): Faculty[] {
   return [
     webFaculty,
     filesFaculty,
     memoryFaculty(memory, turn),
-    conversationsFaculty(conversations),
+    conversationsFaculty(conversations, turn.suggestReplies),
   ];
 }
 

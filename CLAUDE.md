@@ -56,6 +56,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **Conversations** (`modules/conversations`). Each Telegram topic maps to a Conversation with its own Engine session.
 - `ConversationService` queues events per thread (`KeyedQueue`): turns run in order within a thread and in parallel across threads.
 - A Conversation name identifies a *live* Conversation: a partial unique index, so archiving frees the name. `general` is reserved for the General thread, and the `-routine` suffix is reserved for Routine topics.
+- *Suggested replies*: the `suggest_replies` Tool puts up to four short replies as buttons under the turn's answer. The reply travels in the button id (`rp:<text>`), so a press needs no stored state. Presses go through the Conversation's queue and count as the Owner's message; the buttons go when the Owner writes anything else.
 - Messages a Routine delivers are stored as *handoffs*. They are prepended to the Owner's next turn in that Conversation and cleared once the Engine starts that turn.
 
 **Routines** (`modules/routines`). A Routine is a prompt plus Triggers: `once` with an ISO offset, `interval` anchored to `updatedAt`, or 5-field `cron` read in `EMANATOR_TIMEZONE` via `croner`.
@@ -68,7 +69,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **Policies and Faculties** (`modules/policies`, `modules/faculties`).
 - Every Tool has a Policy: the Owner's choice in `tool_policies`, else its default. Tools nobody declared are denied, and denied Tools are not given to the model: each turn gets its `abilities` (Harness Tools and Engine Tools) filtered by `PolicyService.usable`.
 - `PolicyService.decider()` builds each turn's `PermissionDecider`. *ask* sends an Approval with Yes/No buttons to the turn's thread; it is repeated after 15 minutes and expires 15 minutes later. Callers outside Policies, like Memory, may word the request themselves (`ApprovalRequest.message`). Any error while deciding denies the Tool.
-- Button presses (`InboundAction`) go straight to `ApprovalService.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
+- Button presses (`InboundAction`) for Approvals go straight to `ApprovalService.answer()`, never through a Conversation's queue: the turn waiting for the answer may hold it.
 - Each Faculty is one file in `faculties/src/server` that describes its Tools once: name, dashboard title, default Policy, allowed `choices` and, for a Harness Tool, its implementation. Policies, turns and the dashboard all read from there, so the dashboard has no per-Tool code.
 - Policy groups carry a `kind` (`faculty` or `capability`): each dashboard page shows and saves only its own, and a save changes only the Tools it names.
 - Web and files are Engine Tools (`ENGINE_TOOLS`, `TurnRequest.engineTools`); the adapter refuses any file path outside the working folder before Policies are asked. The SDK reads inside the folder without asking, so reading Tools declare `choices` without *ask*. `open_conversation` is a Harness Tool.

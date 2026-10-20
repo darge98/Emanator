@@ -511,4 +511,59 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
       expect(await service.findLive(topic.id)).toBeUndefined();
     });
   });
+
+  describe('suggested replies', () => {
+    const press = (actionId: string, messageId = '1'): ConversationEvent => ({
+      type: 'action',
+      actionId,
+      messageId,
+      receivedAt: at,
+    });
+    /** A turn whose answer suggests `replies`. */
+    const suggesting =
+      (contexts: TurnContext[], replies: string[], text = 'Vuoi il treno?'): ScriptedTurn =>
+      (request) => {
+        contexts.at(-1)?.suggestReplies?.(replies);
+        return replyWith(text)(request);
+      };
+
+    it('come as buttons under the answer, and a press is the Owner speaking', async () => {
+      const engine = new FakeEngine();
+      const { channel, send, contexts } = await setup(engine);
+      engine.script(suggesting(contexts, ['Sì', 'No']));
+
+      await send(message('Come vado a Milano?'));
+      expect(channel.sent[0]?.actions).toEqual([
+        { id: 'rp:Sì', label: 'Sì' },
+        { id: 'rp:No', label: 'No' },
+      ]);
+
+      await send(press('rp:Sì'), press('rp:No'));
+
+      expect(engine.requests.map(({ prompt }) => prompt)).toEqual(['Come vado a Milano?', 'Sì']);
+      expect(channel.actionsSet).toEqual([
+        { messageId: '1', actions: [{ id: 'rp:', label: '✓ Sì' }] },
+      ]);
+    });
+
+    it('go once the Owner writes something else', async () => {
+      const engine = new FakeEngine();
+      const { channel, send, contexts } = await setup(engine);
+      engine.script(suggesting(contexts, ['Sì', 'No']));
+
+      await send(message('Come vado a Milano?'), message('In auto, grazie'));
+
+      expect(channel.actionsSet).toEqual([{ messageId: '1', actions: [] }]);
+      expect(channel.sent[1]?.actions).toBeUndefined();
+    });
+
+    it('ignore the choice already made and other buttons', async () => {
+      const engine = new FakeEngine();
+      const { send } = await setup(engine);
+
+      await send(message('Ciao'), press('rp:'), press('ap:x:y'));
+
+      expect(engine.requests).toHaveLength(1);
+    });
+  });
 });

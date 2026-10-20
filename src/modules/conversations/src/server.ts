@@ -12,3 +12,4 @@ export {
   type NewConversation,
 } from './server/conversation-store.ts';
 export { COMMANDS as CONVERSATION_COMMANDS } from './server/messages.ts';
+export { isSuggestedReply } from './server/suggested-replies.ts';
