@@ -23,6 +23,7 @@ import {
   sameTitle,
   validTitle,
 } from '../domain/page.ts';
+import type { MemoryChange } from '../domain/snapshot.ts';
 import { VaultGit } from './vault-git.ts';
 
 const KINDS_FILE = 'tipi.md';
@@ -153,21 +154,51 @@ export class MemoryService {
     });
   }
 
+  /**
+   * The Owner confirms an inferred Fact, e.g. from the dashboard: from now on it is theirs, so
+   * its source becomes `tu`.
+   */
+  async confirm(title: string, factId: string, by: string): Promise<Page> {
+    return this.exclusive(async () => {
+      const page = await this.page(title);
+      if (!page) throw new MemoryError(`There is no Page called "${title}".`);
+      const fact = page.facts.find(({ id }) => id === factId);
+      if (!fact) throw new MemoryError(`"${page.title}" has no Fact ^${factId}.`);
+      if (fact.trust === 'confirmed') return page;
+      Object.assign(fact, { trust: 'confirmed', source: 'tu', date: this.today() });
+      await this.save(page);
+      await this.record(`confermato ${by} in [[${page.title}]]: ${fact.text}`);
+      return page;
+    });
+  }
+
+  /** The latest changes first, as `log.md` keeps them. */
+  async changes(limit: number): Promise<MemoryChange[]> {
+    const log = (await this.readText(LOG_FILE)) ?? '';
+    return log
+      .split('\n')
+      .map((line) => LOG_LINE.exec(line))
+      .filter((match) => match !== null)
+      .map(([, at = '', change = '']) => ({ at, change }))
+      .reverse()
+      .slice(0, limit);
+  }
+
   /** Forgets one Fact, or the whole Page when no Fact is named. */
-  async forget(title: string, factId?: string): Promise<Page> {
+  async forget(title: string, factId?: string, by?: string): Promise<Page> {
     return this.exclusive(async () => {
       const page = await this.page(title);
       if (!page) throw new MemoryError(`There is no Page called "${title}".`);
       if (factId === undefined) {
         await rm(this.file(`${pagePath(page)}.md`), { force: true });
-        await this.record(`dimenticata la pagina ${page.title}`);
+        await this.record(`dimenticata${by ? ` ${by}` : ''} la pagina ${page.title}`);
         return page;
       }
       const fact = page.facts.find(({ id }) => id === factId);
       if (!fact) throw new MemoryError(`"${page.title}" has no Fact ^${factId}.`);
       page.facts = page.facts.filter((other) => other !== fact);
       await this.save(page);
-      await this.record(`dimenticato in [[${page.title}]]: ${fact.text}`);
+      await this.record(`dimenticato${by ? ` ${by}` : ''} in [[${page.title}]]: ${fact.text}`);
       return page;
     });
   }
@@ -294,6 +325,8 @@ function indexLine(page: Page): string {
 function matches(page: Page, title: string): boolean {
   return sameTitle(page.title, title) || page.aliases.some((alias) => sameTitle(alias, title));
 }
+
+const LOG_LINE = /^- (\d{4}-\d{2}-\d{2} \d{2}:\d{2}) · (.+)$/;
 
 const names = (kinds: readonly PageKind[]) => kinds.map(({ name }) => name).join(', ');
 

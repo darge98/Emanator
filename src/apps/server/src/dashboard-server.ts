@@ -2,6 +2,7 @@ import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type CapabilityService, capabilityRoutes } from '@emanator/capabilities/server';
+import { type MemoryService, memoryRoutes } from '@emanator/memory/server';
 import { type PersonaStore, personaRoutes } from '@emanator/personas/server';
 import { type PolicyService, policyRoutes } from '@emanator/policies/server';
 import { type RoutineService, routineRoutes } from '@emanator/routines/server';
@@ -19,6 +20,7 @@ interface DashboardDeps {
   routines?: RoutineService;
   policies?: PolicyService;
   capabilities?: CapabilityService;
+  memory?: MemoryService;
   logger: Logger;
   webRoot?: string;
 }
@@ -29,6 +31,7 @@ export async function createDashboardServer({
   routines,
   policies,
   capabilities,
+  memory,
   logger,
   webRoot,
 }: DashboardDeps) {
@@ -62,6 +65,7 @@ export async function createDashboardServer({
   app.register(personaRoutes, { prefix: '/api/persona', personas });
   if (routines) app.register(routineRoutes, { prefix: '/api/routines', routines });
   if (policies) app.register(policyRoutes, { prefix: '/api/policies', policies });
+  if (memory) app.register(memoryRoutes, { prefix: '/api/memory', memory });
   if (capabilities) {
     app.register(capabilityRoutes, {
       prefix: CAPABILITIES_PREFIX,

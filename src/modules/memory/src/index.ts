@@ -15,4 +15,5 @@ export {
   renderPage,
   sameTitle,
 } from './domain/page.ts';
+export type { MemoryChange, MemorySnapshot } from './domain/snapshot.ts';
 export { type TurnOrigin, TurnTrust } from './domain/turn-trust.ts';

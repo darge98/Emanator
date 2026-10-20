@@ -4,9 +4,19 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./web": "./src/web.ts"
   },
   "dependencies": {
-    "@emanator/shared": "workspace:*"
+    "@emanator/shared": "workspace:*",
+    "fastify": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "^19.1.0",
+    "@phosphor-icons/react": "^2.1.10"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@phosphor-icons/react": "^2.1.10"
   }
 }

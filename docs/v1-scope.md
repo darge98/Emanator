@@ -105,6 +105,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
 - Currently covers:
   - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel;
+  - Memory: Pages by kind, with search and a "to review" filter for inferred Facts; each Page with its Facts, its `[[links]]` and the Pages linking to it; confirm an inferred Fact, delete a Fact or a Page, each a commit marked *dalla dashboard*; the latest changes from `log.md`;
   - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error);
   - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it. A save changes only the Tools it names;
   - Capabilities: the catalog first, each entry with what `.env` still lacks; then custom servers. Connect (through the authorization page and back), on/off, refresh Tools, the Policies of each Capability's Tools, and create, edit or delete for custom servers.
@@ -150,7 +151,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.
 - Memory, after its first wave (see Agent abilities):
   2. the Dream: the nightly pass that infers Facts, lints the wiki and asks the Owner to confirm, with read-only Tools only;
-  3. the dashboard: a git remote as a push mirror, Memory as a graph, editing Pages, and full-text search. Later still: two-way sync with the Owner's own vault, an encrypted repository, an initial interview.
+  3. the dashboard, after browsing and reviewing: a git remote as a push mirror, Memory as a graph, editing Facts and Pages, and managing kinds. Later still: two-way sync with the Owner's own vault, an encrypted repository, an initial interview.
 - Sandbox with the shell Faculty (on *ask*), local MCP servers and Skills with scripts.
 - Plugin installation from Claude Code marketplaces.
 - Injecting new messages into the turn already in progress, instead of queueing them.

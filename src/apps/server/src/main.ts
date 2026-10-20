@@ -199,6 +199,7 @@ async function start() {
     routines,
     policies,
     capabilities,
+    memory,
     logger: consoleLogger('dashboard'),
   });
   try {

@@ -149,6 +149,36 @@ describe('MemoryService', () => {
     expect(commits()[0]).toBe('dimenticata la pagina Auto');
   });
 
+  it('lets the Owner confirm an inferred Fact, which becomes theirs', async () => {
+    const { fact: inferred } = await fact({
+      page: 'Fido',
+      kind: 'animali',
+      fact: 'Ha 3 anni.',
+      trust: 'inferred',
+      source: 'mail del veterinario',
+    });
+
+    await memory.confirm('fido', inferred.id, 'dalla dashboard');
+
+    expect((await memory.page('Fido'))?.facts[0]).toMatchObject({
+      trust: 'confirmed',
+      source: 'tu',
+    });
+    expect(commits()[0]).toBe('confermato dalla dashboard in [[Fido]]: Ha 3 anni.');
+    await expect(memory.confirm('Fido', 'nope', 'dalla dashboard')).rejects.toThrow(/no Fact/);
+  });
+
+  it('lists the latest changes first', async () => {
+    await fact({ page: 'Auto', kind: 'possedimenti', fact: 'Una Panda.' });
+    await memory.forget('Auto', undefined, 'dalla dashboard');
+
+    expect(await memory.changes(10)).toEqual([
+      { at: '2026-10-19 14:30', change: 'dimenticata dalla dashboard la pagina Auto' },
+      { at: '2026-10-19 14:30', change: 'ricordato in [[Auto]] (confermato): Una Panda.' },
+    ]);
+    expect(await memory.changes(1)).toHaveLength(1);
+  });
+
   it('reads the Owner’s own edits, and gives their Facts an id on the next write', async () => {
     await writeFile(join(dir, 'luoghi.md'), 'ignored');
     await fact({ page: 'Casa', kind: 'luoghi', fact: 'A Bologna.' });

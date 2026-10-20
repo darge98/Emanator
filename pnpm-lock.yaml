@@ -229,6 +229,9 @@ importers:
       '@emanator/faculties':
         specifier: workspace:*
         version: link:../../modules/faculties
+      '@emanator/memory':
+        specifier: workspace:*
+        version: link:../../modules/memory
       '@emanator/personas':
         specifier: workspace:*
         version: link:../../modules/personas
@@ -370,6 +373,19 @@ importers:
       '@emanator/shared':
         specifier: workspace:*
         version: link:../shared
+      fastify:
+        specifier: ^5.0.0
+        version: 5.12.7
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
 
   src/modules/personas:
     dependencies:

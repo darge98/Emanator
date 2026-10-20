@@ -1,3 +1,4 @@
+export { memoryRoutes } from './server/memory-routes.ts';
 export {
   MemoryError,
   MemoryService,
