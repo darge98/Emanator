@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   type ConversationEvent,
   ConversationService,
+  type PreparedTurn,
   type TurnContext,
 } from './conversation-service.ts';
 import { ConversationStore } from './conversation-store.ts';
@@ -22,6 +23,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
   await store.init();
   let prompt = 'You are a test agent.';
   const contexts: TurnContext[] = [];
+  let epilogue: PreparedTurn['epilogue'];
   const service = new ConversationService({
     channel,
     engine,
@@ -34,6 +36,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
       contexts.push(context);
       return {
         decidePermission: async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
+        ...(epilogue && { epilogue }),
       };
     },
     logger: silentLogger,
@@ -51,6 +54,9 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     contexts,
     setPrompt: (next: string) => {
       prompt = next;
+    },
+    setEpilogue: (next: PreparedTurn['epilogue']) => {
+      epilogue = next;
     },
   };
 }
@@ -454,13 +460,15 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
       expect(engine.requests[1]?.prompt).toBe('Grazie');
     });
 
-    it("marks a turn that starts with a handoff as not the Owner's words alone", async () => {
+    it("marks the turns after a handoff as not the Owner's words alone, until /new", async () => {
       const { contexts, service, send } = await setup();
       await service.deliver(await service.openRoutineTopic('B', 'B · routine'), 'Promemoria');
 
       await send(message('Ok', '100'), message('Grazie', '100'));
+      await send(command('new', '', '100'), message('Ciao', '100'));
 
       expect(contexts.map(({ origin, tainted }) => ({ origin, tainted }))).toEqual([
+        { origin: 'owner', tainted: true },
         { origin: 'owner', tainted: true },
         { origin: 'owner', tainted: false },
       ]);
@@ -512,6 +520,35 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
     });
   });
 
+  it('keeps a session tainted once outside content reached one of its turns', async () => {
+    const engine = new FakeEngine();
+    const { contexts, send } = await setup(engine);
+    engine.script(
+      (request) => replyWith('Ciao')(request),
+      (request) => {
+        contexts.at(-1)?.onTaint?.();
+        return replyWith('Letta la mail')(request);
+      },
+    );
+
+    await send(message('Ciao'), message('Leggi la mail'), message('Ok grazie'));
+    await send(command('new'), message('Ciao'));
+
+    expect(contexts.map(({ tainted }) => tainted)).toEqual([false, false, true, false]);
+  });
+
+  it("sends the turn's epilogue after its answer", async () => {
+    const { channel, send, setEpilogue } = await setup();
+    setEpilogue(() => ({ markdown: 'Annotato', actions: [{ id: 'mr:x:y', label: 'Conferma' }] }));
+
+    await send(message('Ciao'));
+
+    expect(channel.sent.map(({ markdown, actions }) => ({ markdown, actions }))).toEqual([
+      { markdown: 'ok', actions: undefined },
+      { markdown: 'Annotato', actions: [{ id: 'mr:x:y', label: 'Conferma' }] },
+    ]);
+  });
+
   describe('suggested replies', () => {
     const press = (actionId: string, messageId = '1'): ConversationEvent => ({
       type: 'action',
@@ -555,6 +592,17 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
 
       expect(channel.actionsSet).toEqual([{ messageId: '1', actions: [] }]);
       expect(channel.sent[1]?.actions).toBeUndefined();
+    });
+
+    it("still take the Owner's choice when its buttons can't be updated", async () => {
+      const engine = new FakeEngine();
+      const { channel, send, contexts } = await setup(engine);
+      engine.script(suggesting(contexts, ['Sì', 'No']));
+      vi.spyOn(channel, 'setActions').mockRejectedValue(new Error('Telegram is down'));
+
+      await send(message('Come vado a Milano?'), press('rp:Sì'));
+
+      expect(engine.requests.map(({ prompt }) => prompt)).toEqual(['Come vado a Milano?', 'Sì']);
     });
 
     it('ignore the choice already made and other buttons', async () => {

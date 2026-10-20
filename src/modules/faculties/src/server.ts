@@ -11,3 +11,4 @@ export {
   type MemoryTurn,
   taintsTurn,
 } from './server/memory-faculty.ts';
+export { MemoryReview, type NotedFact } from './server/memory-review.ts';

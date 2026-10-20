@@ -4,6 +4,7 @@ import {
   type InboundCommand,
   type InboundEvent,
   type MessageAction,
+  type OutboundMessage,
   ThreadNotFoundError,
 } from '@emanator/channels';
 import type { Engine, TurnRequest, UsageTracker } from '@emanator/engine';
@@ -42,15 +43,23 @@ export interface ConversationServiceDeps {
 export type PreparedTurn = Pick<
   TurnRequest,
   'tools' | 'engineTools' | 'decidePermission' | 'onToolUse'
->;
+> & {
+  /** A message from the Harness to send after the turn's answer, e.g. what Memory noted. */
+  epilogue?: () => OutboundMessage | undefined;
+};
 
 export type PrepareTurn = (context: TurnContext) => Promise<PreparedTurn>;
 
 export interface TurnContext {
   /** Who started the turn: only the Owner's own turns may confirm Memory (ADR 0009). */
   origin: 'owner' | 'routine';
-  /** True when the turn starts with content the Owner didn't write, e.g. a Routine's handoff. */
+  /**
+   * True when the turn starts with content the Owner didn't write: a Routine's handoff, or a
+   * session that already took some in.
+   */
   tainted: boolean;
+  /** Called when content the Owner didn't write reaches the turn, e.g. through a Tool. */
+  onTaint?: () => void;
   /** The thread to ask the Owner in; may open it. Undefined is General. */
   thread: () => Promise<string | undefined>;
   /** Called while the turn waits for the Owner's answer. */
@@ -220,7 +229,12 @@ export class ConversationService {
     } else {
       await this.dropSuggestions(press.threadId);
     }
-    await this.deps.channel.setActions(press.messageId, [chosenAction(reply)]);
+    try {
+      await this.deps.channel.setActions(press.messageId, [chosenAction(reply)]);
+    } catch (error) {
+      // Only the ✓ is lost: the Owner's choice still goes in.
+      this.deps.logger.warn('Could not mark the chosen reply', { error: errorMessage(error) });
+    }
     await this.converse(await this.resolve(press.threadId), reply);
   }
 
@@ -252,14 +266,12 @@ export class ConversationService {
           );
         }
       };
-      // A Routine's handoff is someone else's words: Memory must not take them as the Owner's.
-      const tainted = handoffs.length > 0;
-      const sessionLost = await this.turn(conversation, input, prompt, tainted, handedOff);
+      const sessionLost = await this.turn(conversation, input, prompt, handoffs.length, handedOff);
       if (sessionLost) {
         // The Engine no longer has this session (e.g. its storage was wiped): start over, once.
         await store.setSession(conversation.id, undefined);
-        const { session: _lost, ...fresh } = conversation;
-        await this.turn(fresh, input, prompt, tainted, handedOff, say.sessionLost);
+        const { session: _lost, tainted: _gone, ...fresh } = conversation;
+        await this.turn(fresh, input, prompt, handoffs.length, handedOff, say.sessionLost);
       }
     } finally {
       await channel.showProgress(conversation.threadId, null);
@@ -275,7 +287,7 @@ export class ConversationService {
     conversation: Conversation,
     text: string,
     systemPrompt: string,
-    tainted: boolean,
+    handoffs: number,
     started: () => Promise<void>,
     preface?: string,
   ): Promise<boolean> {
@@ -284,19 +296,40 @@ export class ConversationService {
     const withPreface = (markdown: string) => (preface ? `${preface}\n\n${markdown}` : markdown);
     let replies: readonly string[] = [];
 
+    // A Routine's handoff is someone else's words, and so is anything a Tool brings in. Once in
+    // the session the model may repeat them on any later turn, so the taint stays until a reset.
+    let tainted = conversation.tainted === true;
+    if (!tainted && handoffs > 0) {
+      tainted = true;
+      await store.taint(conversation.id);
+    }
+    let marking: Promise<void> | undefined;
+    const onTaint = () => {
+      if (tainted) return;
+      tainted = true;
+      marking = store.taint(conversation.id).catch((error: unknown) => {
+        this.deps.logger.error('Could not mark a session as tainted', {
+          name: conversation.name,
+          error: errorMessage(error),
+        });
+      });
+    };
+    const { epilogue, ...abilities } = await this.deps.prepareTurn({
+      origin: 'owner',
+      tainted,
+      onTaint,
+      thread: async () => conversation.threadId,
+      suggestReplies: (suggested) => {
+        replies = suggested;
+      },
+    });
+
     for await (const event of engine.runTurn({
       prompt: text,
       systemPrompt,
       model,
       ...(conversation.session && { session: conversation.session }),
-      ...(await this.deps.prepareTurn({
-        origin: 'owner',
-        tainted,
-        thread: async () => conversation.threadId,
-        suggestReplies: (suggested) => {
-          replies = suggested;
-        },
-      })),
+      ...abilities,
     })) {
       switch (event.type) {
         case 'turn.started':
@@ -321,7 +354,27 @@ export class ConversationService {
           break;
       }
     }
+    // Marked before the Conversation's next turn reads it.
+    await marking;
+    await this.sendEpilogue(conversation, epilogue);
     return false;
+  }
+
+  /** The answer is out already, so a failure here is only logged. */
+  private async sendEpilogue(
+    conversation: Conversation,
+    epilogue: PreparedTurn['epilogue'],
+  ): Promise<void> {
+    const message = epilogue?.();
+    if (!message) return;
+    try {
+      await this.trySend(conversation, message.markdown, message.actions);
+    } catch (error) {
+      this.deps.logger.error('Could not send the message after a turn', {
+        name: conversation.name,
+        error: errorMessage(error),
+      });
+    }
   }
 
   private async command(conversation: Conversation, command: InboundCommand): Promise<void> {

@@ -2,7 +2,7 @@
 
 /** Why a Memory write needs the Owner: words from outside may be steering it (ADR 0009). */
 const TAINTED =
-  '_In questo turno ho letto contenuti esterni (web, mail…), quindi prima lo chiedo a te._';
+  '_In questa conversazione ho letto contenuti esterni (web, mail…), quindi prima lo chiedo a te._';
 
 const KIND_NAMES = { preference: 'preferenza', instruction: 'istruzione' } as const;
 
@@ -39,3 +39,18 @@ function ask(question: string, page: string, body: string): string {
 const quote = (text: string) => `> ${oneLine(text)}`;
 
 const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+export const REVIEW_CONFIRM = '✓ Conferma';
+export const REVIEW_FORGET = '✕ Dimentica';
+export const REVIEW_CONFIRMED = '✓ Confermati';
+export const REVIEW_FORGOTTEN = '✕ Dimenticati';
+export const REVIEW_EXPIRED = 'Scaduto: usa la dashboard';
+
+/** The Facts a tainted turn noted, which the Owner confirms or forgets in one tap. */
+export function reviewNoted(facts: readonly { page: string; text: string }[]): string {
+  return [
+    `📝 **Ho annotato, da confermare:**`,
+    facts.map(({ page, text }) => `- **${oneLine(page)}**: ${oneLine(text)}`).join('\n'),
+    '_In questa conversazione ho letto contenuti esterni, quindi non li do per certi finché non me lo confermi._',
+  ].join('\n\n');
+}

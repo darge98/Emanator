@@ -8,9 +8,11 @@
     "./web": "./src/web.ts"
   },
   "dependencies": {
+    "@emanator/channels": "workspace:*",
     "@emanator/engine": "workspace:*",
     "@emanator/memory": "workspace:*",
     "@emanator/policies": "workspace:*",
+    "@emanator/shared": "workspace:*",
     "zod": "^4.6.7"
   },
   "peerDependencies": {

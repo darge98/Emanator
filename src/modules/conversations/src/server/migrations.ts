@@ -47,4 +47,9 @@ export const conversationMigrations: Migration[] = [
         ON conversation_handoffs (conversation_id, created_at);
     `,
   },
+  {
+    // Whether the Engine session holds content the Owner didn't write (ADR 0009).
+    id: '004-session-taint',
+    sql: 'ALTER TABLE conversations ADD COLUMN session_tainted BOOLEAN NOT NULL DEFAULT false;',
+  },
 ];

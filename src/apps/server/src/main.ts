@@ -25,6 +25,8 @@ import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
 import {
   agentFaculties,
   type MemoryConfirmation,
+  MemoryReview,
+  type NotedFact,
   taintsTurn,
   turnAbilities,
 } from '@emanator/faculties/server';
@@ -119,11 +121,13 @@ async function start() {
     logger: consoleLogger('memory'),
   });
   await memory.init();
+  const memoryReview = new MemoryReview({ channel, memory, logger: consoleLogger('memory') });
 
   // Built for every turn, so a Policy or a Capability saved in the dashboard applies from the
   // next one, and Memory knows whether the turn still speaks for the Owner.
   const prepareTurn: PrepareTurn = async (context) => {
-    const trust = new TurnTrust(context.origin, context.tainted);
+    const trust = new TurnTrust(context.origin, context.tainted, context.onTaint);
+    const noted: NotedFact[] = [];
     const confirm = async ({ message, input }: MemoryConfirmation) =>
       (await approvals.request({
         tool: 'memory',
@@ -138,6 +142,7 @@ async function start() {
       {
         trust,
         confirm,
+        noted: (fact) => noted.push(fact),
         ...(context.suggestReplies && { suggestReplies: context.suggestReplies }),
       },
     );
@@ -151,6 +156,7 @@ async function start() {
       onToolUse: (tool) => {
         if (taintsTurn(tool)) trust.taint();
       },
+      epilogue: () => memoryReview.message(noted),
     };
   };
 
@@ -206,9 +212,11 @@ async function start() {
     await dashboard.listen({ host: config.httpHost, port: config.httpPort });
     await channel.setCommands(CONVERSATION_COMMANDS);
     await channel.start((event) => {
-      // Presses answer turns that may hold their Conversation's queue: they skip it.
-      if (event.type === 'action' && !isSuggestedReply(event)) void approvals.answer(event);
-      else conversations.handle(event);
+      // Presses answer turns that may hold their Conversation's queue: they skip it. Only a
+      // suggested reply is a message of the Owner's, so only it goes through the queue.
+      if (event.type !== 'action' || isSuggestedReply(event)) conversations.handle(event);
+      else if (memoryReview.handles(event)) void memoryReview.answer(event);
+      else void approvals.answer(event);
     });
     await routines.start();
     logger.info('Emanator is running', {

@@ -32,8 +32,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationStore', () => {
       engine: 'claude-agent-sdk',
       id: 'session-1',
     });
+    await conversations.taint(general.id);
+    await conversations.setSession(general.id, { engine: 'claude-agent-sdk', id: 'session-2' });
+    expect((await conversations.findByName('general'))?.tainted).toBe(true);
     await conversations.setSession(general.id, undefined);
     expect(await conversations.findByName('general')).not.toHaveProperty('session');
+    expect(await conversations.findByName('general')).not.toHaveProperty('tainted');
   });
 
   it('frees the name of an archived Conversation', async () => {

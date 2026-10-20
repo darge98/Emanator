@@ -10,7 +10,7 @@ describe('Memory confirmations', () => {
         '🔐 **Posso ricordarmi questa preferenza?**',
         '📄 Utente',
         '> Ama il mare. ✅ Approvata.',
-        '_In questo turno ho letto contenuti esterni (web, mail…), quindi prima lo chiedo a te._',
+        '_In questa conversazione ho letto contenuti esterni (web, mail…), quindi prima lo chiedo a te._',
       ].join('\n\n'),
     );
   });

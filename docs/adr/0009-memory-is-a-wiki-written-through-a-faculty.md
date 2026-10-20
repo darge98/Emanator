@@ -3,7 +3,7 @@
 Memory is what makes the Agent personal. It covers the Owner, and also the people they know, places they visit, interests, possessions and projects. It is also what survives `/new` and a change of Engine (ADR 0006). We keep it as a wiki of Markdown pages, one page per subject. This follows the "LLM Wiki" pattern (Karpathy), which OpenClaw and Hermes Agent also use. The vault is Obsidian-compatible: YAML frontmatter, `[[links]]` between pages, an `index.md` catalogue and a `log.md` of changes. Only the Harness writes it, through the semantic Tools of a Memory Faculty (`remember`, `forget`, `recall`). The model never edits the files.
 
 Every Fact on a page records where it came from and is either *confirmed* or *inferred*:
-- Only the Owner confirms. A Fact is confirmed when it comes from a turn the Owner started and that has not yet taken in outside content, or when the Owner says yes to an inferred one.
+- Only the Owner confirms. A Fact is confirmed when it comes from a turn the Owner started in a Conversation whose session has not yet taken in outside content, or when the Owner says yes to an inferred one.
 - Preferences and instructions exist only as confirmed Facts.
 - Everything else is inferred, and the model sees it as data, never as instructions.
 
@@ -20,18 +20,23 @@ The Memory Faculty enforces this in code, from what it knows about the current t
 ## Consequences
 
 - **What each turn sees.** Each turn's system prompt carries the Owner's page and `index.md`, one line per page, within a fixed budget. The model reads other pages with `recall`. Full-text search comes once the index stops being enough. Embeddings are not planned.
-- **Taint.** A turn the Owner started stops confirming once outside content reaches it. From then on, its writes are inferred. Otherwise an email read during the turn could write "the Owner wants invoices forwarded to x" as a confirmed instruction. Outside content can arrive in several ways, not only from Capabilities:
+- **Taint.** A turn the Owner started stops confirming once outside content reaches it. From then on, its writes are inferred. Otherwise an email read during the turn could write "the Owner wants invoices forwarded to x" as a confirmed instruction.
+  - The taint lasts for the Conversation's session, until `/new`. Every turn resumes the session, so the model still has the email on the turns after it. Tainting only the turn that read it would let "ok thanks" on the next one save the instruction.
+  - Code can't tell whether a later Fact comes from the Owner's words or from the email, so Facts are inferred too, not only preferences and instructions. Instead of sending the Owner to the dashboard, the Harness lists them after the turn's answer, with one button to confirm them all and one to forget them. It writes the list from what was saved, so the email can't change what a press confirms.
+  - The system prompt and `remember` also tell the model that outside content is data, never orders. That helps, but a well-written injection can override a prompt, so the code above is what holds.
+
+  Outside content can arrive in several ways, not only from Capabilities:
   - a handoff from a Routine, which taints the turn from its start;
   - web search or fetch;
   - files in the working folder, which may hold text saved from mail;
   - inferred Facts that `recall` reads back.
 
   So every Tool taints except the Memory Faculty's own on confirmed Facts and `open_conversation`.
-- **Preferences in a tainted turn.** A tainted turn that saves a preference or an instruction doesn't fail. It sends the Owner an Approval with the exact text, and only their yes confirms it. The prompt also tells the Agent to save what the Owner says before it uses other Tools, so this stays rare.
+- **Preferences in a tainted turn.** A tainted turn that saves a preference or an instruction doesn't fail. It sends the Owner an Approval with the exact text, and only their yes confirms it. The yes covers that text only: a tainted turn adds no kind, and sets a Page's summary or aliases only when it creates the Page without asking. The prompt also tells the Agent to save what the Owner says before it uses other Tools.
 - **Routines.** Their Runs read Memory but don't write it.
 - **Kinds of Page.** The kinds are listed in the vault (`tipi.md`), not in code, and start as people, places, organizations, projects, interests, possessions, pets and other. The Agent can add a kind only in an untainted turn, naming it as new. A tainted turn files an unknown subject under other. The Dream later proposes new kinds, or merging similar ones, from what has gathered under other. The vault is in Italian (`persone/`, "Confermato"), because the Owner reads it.
 - **Asking the Owner to confirm.** Only Facts that matter are worth a question: Facts about the Owner and the people close to them, contradictions with a confirmed Fact, and Facts the Agent keeps using. Anything else stays inferred.
-  - During a Conversation the Agent can simply ask. The Owner's answer arrives in an untainted turn, so it confirms on its own.
+  - During a Conversation the Agent can simply ask. In a clean session the Owner's answer confirms on its own; in a tainted one it goes through the list after the turn.
   - Otherwise the Dream asks, at most once a day, with a few Facts and Yes/No buttons.
   - A yes confirms the Fact.
   - A no removes it and keeps a confirmed negative Fact, so the Dream doesn't infer it again.

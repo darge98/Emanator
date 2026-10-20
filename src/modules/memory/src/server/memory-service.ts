@@ -16,6 +16,7 @@ import {
   type FactTrust,
   OWNER_KIND,
   OWNER_PAGE,
+  oneLine,
   type Page,
   pagePath,
   parsePage,
@@ -98,8 +99,13 @@ export class MemoryService {
     return text === undefined ? [...DEFAULT_KINDS] : parseKinds(text);
   }
 
+  /** A title wins over an alias, so no alias can hide another Page. */
   async page(title: string): Promise<Page | undefined> {
-    return (await this.pages()).find((page) => matches(page, title));
+    const pages = await this.pages();
+    return (
+      pages.find((page) => sameTitle(page.title, title)) ??
+      pages.find((page) => page.aliases.some((alias) => sameTitle(alias, title)))
+    );
   }
 
   /** The Owner's Page first, then the rest by kind and title. */
@@ -126,11 +132,7 @@ export class MemoryService {
         ? { page: found, fellBackFrom: undefined }
         : await this.newPage(input);
       if (input.summary?.trim()) page.summary = input.summary.trim();
-      for (const alias of input.aliases ?? []) {
-        if (alias.trim() && !page.aliases.some((known) => sameTitle(known, alias))) {
-          page.aliases.push(alias.trim());
-        }
-      }
+      await this.addAliases(page, input.aliases ?? []);
       if (input.replaces !== undefined) {
         const index = page.facts.findIndex(({ id }) => id === input.replaces);
         if (index < 0) {
@@ -203,6 +205,23 @@ export class MemoryService {
     });
   }
 
+  /** Aliases name one Page only: one that names another Page is refused. */
+  private async addAliases(page: Page, aliases: readonly string[]): Promise<void> {
+    const others = (await this.pages()).filter((other) => !sameTitle(other.title, page.title));
+    for (const alias of aliases.map((name) => name.trim()).filter(Boolean)) {
+      if (sameTitle(alias, page.title) || page.aliases.some((known) => sameTitle(known, alias))) {
+        continue;
+      }
+      const owner = others.find((other) => matches(other, alias));
+      if (owner) {
+        throw new MemoryError(
+          `"${alias}" already names [[${owner.title}]], so it can't be an alias here.`,
+        );
+      }
+      page.aliases.push(alias);
+    }
+  }
+
   private async newPage(input: RememberInput): Promise<{ page: Page; fellBackFrom?: string }> {
     const title = input.page.trim();
     if (sameTitle(title, OWNER_PAGE)) {
@@ -251,7 +270,9 @@ export class MemoryService {
   }
 
   /** Logs the change, rebuilds the index and commits, all with the same line. */
-  private async record(change: string): Promise<void> {
+  private async record(text: string): Promise<void> {
+    // One line, or a Fact could forge entries of its own in the log.
+    const change = oneLine(text);
     const stamp = this.now().toLocaleString('sv-SE', { timeZone: this.deps.timeZone }).slice(0, 16);
     const log = (await this.readText(LOG_FILE)) ?? '# Registro\n\n';
     await writeFile(this.file(LOG_FILE), `${log}- ${stamp} · ${change}\n`);

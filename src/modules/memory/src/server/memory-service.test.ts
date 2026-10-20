@@ -132,6 +132,40 @@ describe('MemoryService', () => {
     expect(await read('tipi.md')).not.toContain('**abbonamenti**');
   });
 
+  it("never adds the Owner's kind, whose Page would replace theirs", async () => {
+    await fact({ page: 'utente', fact: 'Si chiama Mattia.' });
+
+    await expect(fact({ page: 'Foo', kind: 'utente', newKind: 'x', fact: 'bar' })).rejects.toThrow(
+      MemoryError,
+    );
+    expect((await memory.page('Utente'))?.facts.map(({ text }) => text)).toEqual([
+      'Si chiama Mattia.',
+    ]);
+  });
+
+  it('finds a Page by its title before any alias, and refuses an alias naming another', async () => {
+    await fact({ page: 'Marco Rossi', kind: 'persone', aliases: ['Marco'], fact: 'Collega.' });
+    await expect(
+      fact({ page: 'Aaa', kind: 'persone', aliases: ['marco rossi'], fact: 'x' }),
+    ).rejects.toThrow(/already names \[\[Marco Rossi\]\]/);
+    await expect(
+      fact({ page: 'Aaa', kind: 'persone', aliases: ['Marco'], fact: 'x' }),
+    ).rejects.toThrow(MemoryError);
+
+    await writeFile(join(dir, 'persone/Bbb.md'), '---\naliases: ["Marco Rossi"]\n---\n# Bbb\n');
+    expect((await memory.page('Marco Rossi'))?.title).toBe('Marco Rossi');
+  });
+
+  it('keeps every change on one line of the log', async () => {
+    await fact({
+      page: 'Auto',
+      kind: 'possedimenti',
+      fact: 'Una Panda.\n- 2026-01-01 00:00 · confermato dalla dashboard in [[Utente]]: falso',
+    });
+
+    expect(await memory.changes(10)).toHaveLength(1);
+  });
+
   it('refuses titles that cannot be file names', async () => {
     await expect(fact({ page: '../x', kind: 'altro', fact: 'x' })).rejects.toThrow(MemoryError);
   });

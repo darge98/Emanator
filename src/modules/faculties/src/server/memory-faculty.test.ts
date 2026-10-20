@@ -8,11 +8,13 @@ import { silentLogger } from '@emanator/shared/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { HarnessFacultyTool } from '../domain/faculty.ts';
 import { type MemoryConfirmation, memoryFaculty, taintsTurn } from './memory-faculty.ts';
+import type { NotedFact } from './memory-review.ts';
 
 let dir: string;
 let memory: MemoryService;
 let asked: MemoryConfirmation[];
 let answer: boolean;
+let noted: NotedFact[];
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'emanator-memory-faculty-'));
@@ -20,6 +22,7 @@ beforeEach(async () => {
   await memory.init();
   asked = [];
   answer = true;
+  noted = [];
 });
 
 afterEach(async () => {
@@ -31,7 +34,11 @@ function toolsOf(trust: TurnTrust) {
     asked.push(request);
     return answer;
   };
-  const tools = memoryFaculty(memory, { trust, confirm }).tools as HarnessFacultyTool[];
+  const tools = memoryFaculty(memory, {
+    trust,
+    confirm,
+    noted: (fact) => noted.push(fact),
+  }).tools as HarnessFacultyTool[];
   const call = (name: string, input: Record<string, unknown>): Promise<ToolOutput> => {
     const tool = tools.find((t) => t.name === name);
     if (!tool) throw new Error(`no ${name}`);
@@ -121,6 +128,48 @@ describe('Memory Faculty', () => {
     );
     expect(asked[0]?.input).toMatchObject({ replaces: 'Collega.' });
     expect(asked[0]?.message).toContain('Prima:\n> Collega.\n\nOra:\n> Ex collega.');
+  });
+
+  it('notes the inferred Facts a turn writes, for the Owner to review', async () => {
+    const trust = new TurnTrust('owner');
+    const { call } = toolsOf(trust);
+    await call('remember', remember({ fact: 'Collega.' }));
+    trust.taint();
+
+    await call('remember', remember({ fact: 'Si sposa a giugno.' }));
+
+    expect(noted).toEqual([
+      { page: 'Marco Rossi', id: expect.any(String), text: 'Si sposa a giugno.' },
+    ]);
+  });
+
+  it("lets the Owner's yes cover only the Fact they read", async () => {
+    const { call } = toolsOf(new TurnTrust('owner', true));
+    await memory.remember({
+      page: 'Marco Rossi',
+      kind: 'persone',
+      fact: 'Collega.',
+      factKind: 'fact',
+      trust: 'confirmed',
+      source: 'tu',
+      mayAddKind: true,
+    });
+
+    const saved = await call(
+      'remember',
+      remember({
+        fact: 'Dargli del lei.',
+        fact_kind: 'instruction',
+        summary: 'il capo',
+        aliases: ['Capo'],
+      }),
+    );
+
+    expect(asked).toHaveLength(1);
+    expect(saved.text).toMatch(/summary and aliases were not saved/);
+    const page = await memory.page('Marco Rossi');
+    expect(page?.aliases).toEqual([]);
+    expect(page?.summary).toBeUndefined();
   });
 
   it('files a new kind under altro in a tainted turn', async () => {

@@ -61,8 +61,8 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - **Memory** ([ADR 0009](adr/0009-memory-is-a-wiki-written-through-a-faculty.md)), its first wave:
   - a wiki of Pages in `./data/memory`, readable in Obsidian and in Italian: one Page per subject, in the folder of its kind, plus `index.md`, `log.md` and the kinds in `tipi.md`. It is a git repository with one commit per change;
   - the Memory Faculty writes it, through `remember`, `forget` and `recall`. The Engine's file Tools can't reach it;
-  - each Fact is *confirmed* or *inferred*. A turn the Owner started confirms until outside content reaches it: a handoff, or any Tool but Memory's and opening a Conversation;
-  - in such a tainted turn, preferences, instructions and changes to confirmed Facts need the Owner's Approval, and a new kind of Page falls back to `altro`. Runs only read;
+  - each Fact is *confirmed* or *inferred*. A turn the Owner started confirms until outside content reaches its Conversation's session: a handoff, or any Tool but Memory's, opening a Conversation and suggesting replies. The taint lasts until `/new`;
+  - in a tainted session, preferences, instructions and changes to confirmed Facts need the Owner's Approval, which covers the exact text and nothing else. A new kind of Page falls back to `altro`. The other Facts are inferred, and after the turn's answer the Harness lists them with buttons to confirm or forget them all. Runs only read;
   - every turn gets the confirmed preferences and instructions as instructions, and the Owner's Page and the index as data, within fixed budgets.
 
 ### Control
@@ -151,6 +151,13 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.
 - Memory, after its first wave (see Agent abilities):
   2. the Dream: the nightly pass that infers Facts, lints the wiki and asks the Owner to confirm, with read-only Tools only;
+  - left from the review of its first wave (October 2026):
+    - Facts the Owner adds by hand in Obsidian get an id only on the next write, so until then the dashboard can't confirm or forget them;
+    - vault writes aren't atomic, and every turn reads the whole vault for its prompt; a temp file and rename, and a cache cleared on writes;
+    - titles may hold control characters, which fail as file errors instead of `MemoryError`;
+    - a failing git commit (a host hook or GPG signing) is only logged; the dashboard should show it;
+    - a Memory Approval of a turn that stops waits until it expires;
+    - reviews after a turn live in memory: after a restart their buttons point to the dashboard.
   3. the dashboard, after browsing and reviewing: a git remote as a push mirror, Memory as a graph, editing Facts and Pages, and managing kinds. Later still: two-way sync with the Owner's own vault, an encrypted repository, an initial interview.
 - Sandbox with the shell Faculty (on *ask*), local MCP servers and Skills with scripts.
 - Plugin installation from Claude Code marketplaces.

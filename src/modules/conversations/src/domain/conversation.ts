@@ -11,6 +11,11 @@ export interface Conversation {
   threadId?: string;
   /** Engine session to resume; undefined until the first turn or after a reset. */
   session?: SessionRef;
+  /**
+   * True once outside content (mail, the web, a Routine's message) entered the session: from
+   * then on the model may repeat it, so Memory takes nothing as the Owner's until a reset.
+   */
+  tainted?: boolean;
   /** Overrides the default model for this Conversation. */
   model?: string;
   openedBy: OpenedBy;

@@ -12,6 +12,8 @@ export class TurnTrust {
     readonly origin: TurnOrigin,
     /** True when the turn starts with outside content, e.g. a Routine's handoff. */
     tainted = false,
+    /** Called once, when outside content first reaches a turn that started trusted. */
+    private readonly onTaint?: () => void,
   ) {
     this.outside = tainted || origin === 'routine';
   }
@@ -21,7 +23,9 @@ export class TurnTrust {
   }
 
   taint(): void {
+    if (this.outside) return;
     this.outside = true;
+    this.onTaint?.();
   }
 
   /** The trust of what this turn writes now. */

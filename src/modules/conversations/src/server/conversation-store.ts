@@ -102,12 +102,20 @@ export class ConversationStore {
     }
   }
 
-  /** Stores the Engine session to resume, or clears it to start fresh. */
+  /** Stores the Engine session to resume, or clears it to start fresh, and clean. */
   async setSession(id: string, session: SessionRef | undefined): Promise<void> {
     await this.db.query(
-      'UPDATE conversations SET session_engine = $1, session_id = $2 WHERE id = $3',
+      `UPDATE conversations
+         SET session_engine = $1, session_id = $2,
+             session_tainted = session_tainted AND $2::text IS NOT NULL
+         WHERE id = $3`,
       [session?.engine ?? null, session?.id ?? null, id],
     );
+  }
+
+  /** Marks the session as holding outside content, until it is cleared. */
+  async taint(id: string): Promise<void> {
+    await this.db.query('UPDATE conversations SET session_tainted = true WHERE id = $1', [id]);
   }
 
   /** Adds a handoff and keeps only the newest `keep` of the Conversation's. */
@@ -180,6 +188,7 @@ function toConversation(row: Record<string, unknown>): Conversation {
       session: { engine: String(row.session_engine), id: String(row.session_id) },
     }),
     ...(row.model !== null && { model: String(row.model) }),
+    ...(row.session_tainted === true && { tainted: true }),
     openedBy: String(row.opened_by) as OpenedBy,
     createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
     ...(row.archived_at !== null && {

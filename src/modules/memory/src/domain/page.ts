@@ -93,7 +93,8 @@ function renderFact(fact: Fact): string {
   return `- ${label}${oneLine(fact.text)} *(${oneLine(fact.source)}, ${fact.date})* ^${fact.id}`;
 }
 
-const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+/** Keeps text on one line, so it can't start a list item or a log entry of its own. */
+export const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 const FACT_LINE =
   /^- (?:\*\*(Preferenza|Istruzione)\*\* · )?(.*?)(?: \*\((.+), (\d{4}-\d{2}-\d{2})\)\*)?(?: \^([a-z0-9]+))?$/;

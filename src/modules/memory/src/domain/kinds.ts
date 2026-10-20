@@ -1,3 +1,5 @@
+import { OWNER_KIND } from './page.ts';
+
 /** A kind of Page, which is also its folder in the vault. */
 export interface PageKind {
   name: string;
@@ -19,9 +21,12 @@ export const DEFAULT_KINDS: readonly PageKind[] = [
   { name: OTHER_KIND, description: 'quello che non rientra negli altri tipi' },
 ];
 
-/** Folder names: lowercase letters, digits and dashes, so they work on every filesystem. */
+/**
+ * Folder names: lowercase letters, digits and dashes, so they work on every filesystem. The
+ * Owner's kind is not one: its Page sits at the root, and a Page filed under it would replace it.
+ */
 export function validKindName(name: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) && name.length <= 40;
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name) && name.length <= 40 && name !== OWNER_KIND;
 }
 
 export function renderKinds(kinds: readonly PageKind[]): string {
