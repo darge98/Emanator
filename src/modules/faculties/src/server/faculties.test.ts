@@ -16,7 +16,22 @@ const memory = {
   page: async () => undefined,
   pages: async () => [],
 };
-const tools = agentFaculties({ conversations: opener, memory }).flatMap((faculty) => faculty.tools);
+const unused = async () => {
+  throw new Error('unused');
+};
+const routines = {
+  list: unused,
+  remind: unused,
+  updateReminder: unused,
+  createByAgent: unused,
+  cancelByAgent: unused,
+};
+const tools = agentFaculties({
+  conversations: opener,
+  memory,
+  routines,
+  timeZone: 'Europe/Rome',
+}).flatMap((faculty) => faculty.tools);
 
 describe('Faculties', () => {
   it('expose every Engine Tool, each Tool once', () => {
@@ -26,11 +41,12 @@ describe('Faculties', () => {
     expect(names).toEqual(expect.arrayContaining([...ENGINE_TOOLS]));
   });
 
-  it('ask before fetching pages or changing files, and allow everything else', () => {
+  it('ask before fetching pages, changing files or creating Routines, and allow the rest', () => {
     expect(tools.filter((t) => t.defaultPolicy === 'ask').map((t) => t.name)).toEqual([
       'web_fetch',
       'write_file',
       'edit_file',
+      'create_routine',
     ]);
   });
 
@@ -44,6 +60,12 @@ describe('Faculties', () => {
       'recall',
       'open_conversation',
       'suggest_replies',
+      'remind',
+      'update_reminder',
+      'cancel_reminder',
+      'create_routine',
+      'list_routines',
+      'cancel_routine',
     ]);
     expect(harness[0]?.run).toBeTypeOf('function');
   });
@@ -52,7 +74,7 @@ describe('Faculties', () => {
     const turn = { trust: new TurnTrust('owner'), confirm: async () => false };
     const names = (suggestReplies?: (replies: readonly string[]) => void) =>
       agentFaculties(
-        { conversations: opener, memory },
+        { conversations: opener, memory, routines, timeZone: 'Europe/Rome' },
         { ...turn, ...(suggestReplies && { suggestReplies }) },
       )
         .flatMap((faculty) => faculty.tools)
@@ -61,7 +83,7 @@ describe('Faculties', () => {
 
     const suggested: (readonly string[])[] = [];
     const tool = agentFaculties(
-      { conversations: opener, memory },
+      { conversations: opener, memory, routines, timeZone: 'Europe/Rome' },
       { ...turn, suggestReplies: (replies) => suggested.push(replies) },
     )
       .flatMap((faculty) => faculty.tools)

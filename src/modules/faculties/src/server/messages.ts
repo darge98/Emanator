@@ -31,6 +31,35 @@ export function askToForgetPage(page: string, confirmed: number): string {
   );
 }
 
+/** The whole Routine the Agent wants to create, so the Owner's yes covers exactly it. */
+export function askToCreateRoutine(input: Record<string, unknown>): string {
+  const triggers = Array.isArray(input.triggers) ? input.triggers : [];
+  const when = triggers.map((trigger) => `- ${describeTrigger(trigger)}`).join('\n');
+  const model = typeof input.model === 'string' ? `\n🧠 Modello: ${oneLine(input.model)}` : '';
+  return [
+    '🗓 **Posso creare questa Routine?**',
+    `**${oneLine(String(input.name ?? ''))}**`,
+    quote(String(input.prompt ?? '')),
+    `⏰ Quando:\n${when}${model}`,
+    '_Scriverà in un suo topic. Puoi cambiarla o cancellarla dalla dashboard._',
+  ].join('\n\n');
+}
+
+export function askToCancelRoutine(name: string): string {
+  return [
+    '🗓 **Posso cancellare una Routine che avevo creato?**',
+    `**${oneLine(name)}**`,
+    '_In questa conversazione ho letto contenuti esterni (web, mail…), quindi prima lo chiedo a te._',
+  ].join('\n\n');
+}
+
+function describeTrigger(trigger: unknown): string {
+  const { type, expression, every_minutes } = (trigger ?? {}) as Record<string, unknown>;
+  if (type === 'cron') return `cron \`${oneLine(String(expression))}\``;
+  if (type === 'interval') return `ogni ${Number(every_minutes)} minuti`;
+  return oneLine(JSON.stringify(trigger));
+}
+
 function ask(question: string, page: string, body: string): string {
   return [`🔐 **${question}**`, `📄 ${oneLine(page)}`, body, TAINTED].join('\n\n');
 }

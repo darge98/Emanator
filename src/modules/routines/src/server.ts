@@ -1,6 +1,7 @@
 export { routineRoutes } from './server/routine-routes.ts';
 export { RoutineRunner, type RoutineRunnerDeps } from './server/routine-runner.ts';
 export {
+  type ReminderInput,
   RoutineService,
   type RoutineServiceDeps,
   type RoutineView,

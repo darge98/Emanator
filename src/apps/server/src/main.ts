@@ -166,9 +166,11 @@ async function start() {
         signal: new AbortController().signal,
       })) === 'approved';
     const turnFaculties = agentFaculties(
-      { conversations, memory },
+      { conversations, memory, routines, timeZone: config.timeZone },
       {
         trust,
+        ...(context.conversationId && { conversationId: context.conversationId }),
+        ...(context.reminderRun && { reminderRun: true }),
         confirm,
         noted: (fact) => noted.push(fact),
         ...(context.suggestReplies && { suggestReplies: context.suggestReplies }),
@@ -185,7 +187,11 @@ async function start() {
         ),
       ],
       engineTools,
-      decidePermission: policies.decider(context),
+      decidePermission: policies.decider({
+        thread: context.thread,
+        ...(context.onWaiting && { onWaiting: context.onWaiting }),
+        tainted: () => trust.tainted,
+      }),
       onToolUse: (tool) => {
         if (taintsTurn(tool)) trust.taint();
       },
@@ -210,8 +216,6 @@ async function start() {
     timeZone: config.timeZone,
     logger: consoleLogger('conversations'),
   });
-  // After the service, which the conversations Faculty needs; turns read it only later.
-  const faculties = agentFaculties({ conversations, memory });
 
   const routineStore = new RoutineStore(db);
   await routineStore.init();
@@ -232,6 +236,14 @@ async function start() {
     conversations,
     timeZone: config.timeZone,
     logger: routineLogger,
+  });
+
+  // After the services the Faculties need; Policies and turns read it only later.
+  const faculties = agentFaculties({
+    conversations,
+    memory,
+    routines,
+    timeZone: config.timeZone,
   });
 
   const dashboard = await createDashboardServer({

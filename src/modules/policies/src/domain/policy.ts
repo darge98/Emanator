@@ -12,6 +12,18 @@ export interface ToolInfo {
   defaultPolicy: Policy;
   /** The Policies that can be enforced for it; all of them when omitted. */
   choices?: readonly Policy[];
+  /** How the Tool's Approvals differ from the default ones. */
+  approval?: ToolApproval;
+}
+
+export interface ToolApproval {
+  /** Markdown to ask with, instead of the Tool's name and its input. */
+  message?: (input: Record<string, unknown>) => string | Promise<string>;
+  /**
+   * Asks even when the Tool is allowed, if the turn holds content the Owner didn't write:
+   * for what would keep acting long after the turn, like a recurring Routine.
+   */
+  whenTainted?: boolean;
 }
 
 /** The Tools of one Faculty or Capability, shown together in the dashboard. */

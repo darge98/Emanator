@@ -34,6 +34,12 @@ const KEEP_TRUST = new Set([
   'recall',
   'open_conversation',
   'suggest_replies',
+  // They answer only with what the Harness did.
+  'remind',
+  'update_reminder',
+  'create_routine',
+  'cancel_reminder',
+  'cancel_routine',
 ]);
 
 /** Whether a Tool brings in content the Owner didn't write; `recall` taints on its own. */

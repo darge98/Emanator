@@ -11,6 +11,8 @@ function routine(overrides: Partial<Routine> = {}): Routine {
     prompt: 'Controlla.',
     enabled: true,
     triggers: [{ type: 'interval', everyMinutes: 10 }],
+    kind: 'routine',
+    createdBy: 'owner',
     createdAt: start,
     updatedAt: start,
     ...overrides,

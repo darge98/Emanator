@@ -12,6 +12,7 @@
     "@emanator/engine": "workspace:*",
     "@emanator/memory": "workspace:*",
     "@emanator/policies": "workspace:*",
+    "@emanator/routines": "workspace:*",
     "@emanator/shared": "workspace:*",
     "zod": "^4.6.7"
   },

@@ -67,6 +67,13 @@ export interface TurnContext {
   origin: 'owner' | 'routine';
   /** Where the turn happens, for the Journal: a Conversation's title, or a Routine's name. */
   place: string;
+  /** The Conversation of a turn of the Owner's; a Run has none. */
+  conversationId?: string;
+  /**
+   * True in a Reminder's Run: it may set no Reminder nor Routine, or a Reminder could keep
+   * setting itself again, a recurring Routine nobody approved.
+   */
+  reminderRun?: boolean;
   /**
    * True when the turn starts with content the Owner didn't write: a Routine's handoff, or a
    * session that already took some in.
@@ -164,6 +171,11 @@ export class ConversationService {
       return;
     }
     await this.deps.store.rename(id, routineTopicName(routineName), title);
+  }
+
+  /** The General Conversation, created on first use. */
+  general(): Promise<Conversation> {
+    return this.resolve(undefined);
   }
 
   /**
@@ -351,6 +363,7 @@ export class ConversationService {
     const { epilogue, ...abilities } = await this.deps.prepareTurn({
       origin: 'owner',
       place: conversation.title,
+      conversationId: conversation.id,
       tainted,
       onTaint,
       thread: async () => conversation.threadId,

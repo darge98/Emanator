@@ -8,12 +8,28 @@ export { RoutineValidationError };
 /** A prompt run whenever one of its Triggers fires (see CONTEXT.md). */
 export interface Routine extends RoutineInput {
   id: string;
-  /** The Routine's own topic, where every Run delivers, once the first Run has opened it. */
+  /** A Reminder fires once, in the Conversation it was asked for, and goes once delivered. */
+  kind: RoutineKind;
+  /** The Agent may change or cancel only what it created; the Owner, anything. */
+  createdBy: RoutineAuthor;
+  /**
+   * Where Runs deliver. A Routine's own topic, once the first Run has opened it; a Reminder's
+   * Conversation, or none for General.
+   */
   conversationId?: string;
   createdAt: Date;
   /** Also the anchor of interval Triggers, so editing a Routine restarts its intervals. */
   updatedAt: Date;
 }
+
+export type RoutineKind = 'routine' | 'reminder';
+export type RoutineAuthor = 'owner' | 'agent';
+
+/** How far ahead the Agent may set a Reminder. */
+export const MAX_REMINDER_DAYS = 366;
+
+/** Reminders waiting to fire at once, so a turn gone wrong can't set them by the hundred. */
+export const MAX_PENDING_REMINDERS = 50;
 
 /** What the Owner edits. */
 export interface RoutineInput {

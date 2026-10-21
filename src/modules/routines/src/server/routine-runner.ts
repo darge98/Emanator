@@ -9,7 +9,10 @@ import type { RoutineStore, RunOutcome } from './routine-store.ts';
 
 export interface RoutineRunnerDeps {
   engine: Engine;
-  conversations: Pick<ConversationService, 'findLive' | 'openRoutineTopic' | 'deliver' | 'notify'>;
+  conversations: Pick<
+    ConversationService,
+    'findLive' | 'general' | 'openRoutineTopic' | 'deliver' | 'notify'
+  >;
   store: RoutineStore;
   usage: UsageTracker;
   /** The Tools of each Run, the Engine's included, and its PermissionDecider. */
@@ -127,6 +130,11 @@ export class RoutineRunner {
     }
     try {
       await this.deps.store.finishRun(run.id, outcome);
+      // A Reminder that has spoken is done; a failed one stays, for the Owner to see.
+      // Unless it was moved or rewritten meanwhile: then it has yet to speak.
+      if (routine.kind === 'reminder' && outcome.status !== 'failed') {
+        await this.deps.store.deleteSpokenReminder(routine.id, routine.updatedAt);
+      }
     } catch (error) {
       this.deps.logger.error('Could not record the end of a Run', {
         routine: routine.name,
@@ -238,11 +246,13 @@ export class RoutineRunner {
       await this.deps.systemPrompt(),
       say.runInstructions(routine, run.origin),
     ].join('\n');
-    // Approvals go to the Routine's own topic, opened now if the Run is the first to need it.
+    // Approvals go where the Run delivers: the Routine's own topic, opened now if the Run is the
+    // first to need it, or a Reminder's Conversation.
     // Parallel Tool calls may wait together: the Run waits until the last one is answered.
     let pendingApprovals = 0;
     const prepared = await this.deps.prepareTurn({
       origin: 'routine',
+      ...(routine.kind === 'reminder' && { reminderRun: true }),
       place: routine.name,
       tainted: true,
       thread: async () => (await this.topic(routine)).threadId,
@@ -298,8 +308,16 @@ export class RoutineRunner {
     return undefined;
   }
 
-  /** The Routine's live topic, opened on first use or after it was archived. */
+  /**
+   * Where the Routine's Runs speak: its live topic, opened on first use or after it was
+   * archived; for a Reminder, its Conversation while live, else General.
+   */
   private async topic(routine: Routine): Promise<Conversation> {
+    if (routine.kind === 'reminder') {
+      const { conversations } = this.deps;
+      const live = routine.conversationId && (await conversations.findLive(routine.conversationId));
+      return live || conversations.general();
+    }
     const pending = this.opening.get(routine.id);
     if (pending) return pending;
     const opening = this.findOrOpenTopic(routine).finally(() => this.opening.delete(routine.id));

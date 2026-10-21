@@ -38,4 +38,19 @@ export const routineMigrations: Migration[] = [
     id: '002-always-dedicated-topic',
     sql: 'ALTER TABLE routines DROP COLUMN dedicated_topic;',
   },
+  {
+    // Reminders and what the Agent creates. A Reminder has no topic, so its name is free.
+    id: '003-reminders',
+    sql: `
+      ALTER TABLE routines ADD COLUMN kind TEXT NOT NULL DEFAULT 'routine';
+      ALTER TABLE routines ADD COLUMN created_by TEXT NOT NULL DEFAULT 'owner';
+      ALTER TABLE routines DROP CONSTRAINT routines_slug_key;
+      CREATE UNIQUE INDEX routines_slug ON routines (slug) WHERE kind = 'routine';
+    `,
+  },
+  {
+    // Models are chosen from a list now; one typed before it falls back to the default.
+    id: '004-listed-models',
+    sql: "UPDATE routines SET model = NULL WHERE model NOT IN ('haiku', 'sonnet', 'opus');",
+  },
 ];

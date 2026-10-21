@@ -17,9 +17,9 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 ### Routines
 - A Routine is a prompt plus one or more scheduled Triggers: a specific date, an interval or a cron expression. The dashboard offers guided schedules (every day, days of the week, day of the month at a time) that are cron expressions underneath, with raw cron as the advanced option.
 - The Agent decides which Faculties and Capabilities to use.
-- Routine names are unique and otherwise free; `general` is allowed too.
+- Routine names are unique and otherwise free; `general` is allowed too. Reminders have no topic, so their names may repeat.
 - Each Routine picks its own model.
-- Every Routine delivers to its own topic, never to General (choosing General may come back later). The topic is the Routine's own Conversation:
+- Every Routine delivers to its own topic, never to General (choosing General may come back later); Reminders are the exception, see below. The topic is the Routine's own Conversation:
   - it is created on the first Run and the Routine keeps it by id;
   - its name is the Routine's name with the reserved `-routine` suffix (`briefing-routine`), and its Telegram title marks it as a Routine. It therefore never collides with General or with topics opened by the Owner or the Agent, and never needs a numeric suffix. A topic opened normally whose name would end in `-routine` gets the numeric suffix instead;
   - renaming the Routine renames the Conversation and the Telegram topic;
@@ -28,6 +28,12 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Each Routine message starts with a header naming the Routine. It then still makes sense if it lands in General because the Owner deleted the target topic (see Conversations).
 - Creating, editing or deleting a Routine applies immediately, without restarting the Harness: the scheduler updates its Triggers. A Run already in progress completes.
 - Conversation names follow one rule: a name identifies a *live* Conversation. Archiving a Conversation frees its name, so a reopened `briefing-routine` keeps it, and `general` is reserved for the General Conversation.
+- **Reminders and Routines the Agent creates** (the Routines Faculty):
+  - `remind` sets a Reminder freely, also in a tainted turn: a prompt it runs once, at most a year ahead, with at most 50 waiting. It speaks in the Conversation it was asked in (General when that is gone, or when a Run set it), as a handoff, and is deleted once delivered or silent, unless it was moved ahead meanwhile; a failed one stays in the dashboard, and no longer counts among the 50. A Run of a Routine can set Reminders too, so a "planner" Routine can read the calendar and set one before each appointment;
+  - a Reminder's own Run gets neither `remind`, `update_reminder` nor `create_routine`: otherwise a Reminder could keep setting or moving itself again, a recurring Routine nobody approved;
+  - `create_routine` creates a recurring Routine with its own topic. It is on *ask*, with the whole Routine shown; the Owner may set it to *allow*, and even then a tainted turn asks, because a recurring prompt would keep acting every day;
+  - `list_routines` sees everything, with times in the Owner's zone. `update_reminder`, `cancel_reminder` and `cancel_routine` touch only what the Agent created; `cancel_routine` asks in a tainted turn, since the Owner approved that Routine. A recurring Routine is changed by cancelling and creating it again, so the Approval applies;
+  - the dashboard marks Reminders and what the Agent created. The Owner can edit or delete them like any Routine, but a Reminder keeps a single date.
 - A Run may finish without messaging the Owner: its final reply is delivered unless it is exactly `[silent]`. A Heartbeat is just a Routine.
 - Each Run has its own Engine session (ADR 0006). What it delivers is handed to the target Conversation on the Owner's next turn there, so replies have that context without the Routine's prompt and Tools entering the Conversation.
 - Runs, including Runs of the same Routine, execute in parallel.
@@ -49,7 +55,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - **Suggested replies:** when a question of the Agent has a few likely answers (yes/no, or up to four choices), a Tool attaches them to its reply as buttons. A press enters the Conversation as the Owner's message with that text, and the buttons go. The turn does not wait, so there is no reminder or expiry, and the Owner can still write anything else. Open questions stay text.
 
 ### Agent abilities
-- **Faculties:** web search and fetch, files confined to the working folder, Memory, and opening Conversations. There is no shell in v1.
+- **Faculties:** web search and fetch, files confined to the working folder, Memory, opening Conversations, and Reminders and Routines (see Routines). There is no shell in v1.
 - **Capabilities:** remote MCP servers only ([ADR 0008](adr/0008-harness-is-the-mcp-client-of-capabilities.md)).
   - A catalog holds the Capabilities the Harness sets up itself: their server, scopes and OAuth client come from Compose and `.env`, so the Owner only connects them. Each entry is connected once; v1 has Gmail, Google Calendar, Google Drive (with Docs, Sheets, Slides and Forms) and Google Tasks, four entries the Owner turns on separately, on one workspace-mcp. Each asks only for its own scopes and gets only its own Tools, picked by name. Any other remote MCP server can still be added by hand.
   - There is one Capability per account. Its slug is fixed at creation and prefixes its Tool names (`gmail-work__search_gmail_messages`).
@@ -111,7 +117,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Currently covers:
   - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel; the default model, saved as it changes;
   - Memory: Pages by kind, with search and a "to review" filter for inferred Facts; each Page with its Facts, its `[[links]]` and the Pages linking to it; confirm an inferred Fact, delete a Fact or a Page, each a commit marked *dalla dashboard*; the latest changes from `log.md`;
-  - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error);
+  - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error); Reminders and what the Agent created are marked;
   - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it. A save changes only the Tools it names;
   - Capabilities: the catalog first, each entry with what `.env` still lacks; then custom servers. Connect (through the authorization page and back), on/off, refresh Tools, the Policies of each Capability's Tools, and create, edit or delete for custom servers.
 - The dashboard is in English; Telegram messages are in Italian.
@@ -153,7 +159,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - Skills: instruction-only SKILL.md packages, created, edited or uploaded from the dashboard.
 - A Telegram pairing page in the dashboard, showing the pending code or the paired Owner. In v1 the code is only in the Harness log.
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
-- Reminders and self-scheduling: the Agent creates one-off Reminders freely, and recurring Routines with the Owner's confirmation. This enables calendar-aware preparation reminders through a "planner" Routine.
+- Reminders, after their first wave: buttons under a delivered Reminder to put it off ("+10 min", "domani"), and a "cancel" button under the Agent's confirmation. A Reminder due while the Harness was down is skipped like any Event, and stays in the dashboard; failed ones stay too, until the Owner deletes them.
 - Memory, after its first wave (see Agent abilities):
   2. the Dream, after its first wave: linting the wiki (duplicate Pages, stale Facts, new kinds from what gathers under `altro`), reading the Capabilities on its own at night, web results in the Journal, and a confirmed negative Fact when the Owner says no;
   - left from the review of its first wave (October 2026):

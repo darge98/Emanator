@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { SessionRef } from '@emanator/engine';
 import { type Database, runMigrations } from '@emanator/shared/server';
-import { type Routine, type RoutineInput, routineSlug } from '../domain/routine.ts';
+import {
+  type Routine,
+  type RoutineAuthor,
+  type RoutineInput,
+  type RoutineKind,
+  routineSlug,
+} from '../domain/routine.ts';
 import type { RoutineRun, RunOrigin, RunStatus } from '../domain/run.ts';
 import type { Trigger } from '../domain/trigger.ts';
 import { routineMigrations } from './migrations.ts';
@@ -12,6 +18,14 @@ export class RoutineNameTakenError extends Error {
   constructor(readonly routineName: string) {
     super(`A Routine called "${routineName}" already exists.`);
   }
+}
+
+/** How a Routine came to be: by default, one of the Owner's, with its own topic. */
+export interface RoutineOrigin {
+  kind?: RoutineKind;
+  createdBy?: RoutineAuthor;
+  /** A Reminder's Conversation. */
+  conversationId?: string;
 }
 
 export interface RunOutcome {
@@ -42,17 +56,28 @@ export class RoutineStore {
     return row ? toRoutine(row) : undefined;
   }
 
-  async create(input: RoutineInput): Promise<Routine> {
+  async create(input: RoutineInput, origin: RoutineOrigin = {}): Promise<Routine> {
     const now = new Date();
     const id = randomUUID();
+    const kind = origin.kind ?? 'routine';
+    const createdBy = origin.createdBy ?? 'owner';
     await this.write(input, () =>
       this.db.query(
-        `INSERT INTO routines (id, name, slug, prompt, model, enabled, triggers, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
-        [id, ...columns(input), now],
+        `INSERT INTO routines (id, name, slug, prompt, model, enabled, triggers, created_at,
+           updated_at, kind, created_by, conversation_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11)`,
+        [id, ...columns(input), now, kind, createdBy, origin.conversationId ?? null],
       ),
     );
-    return { id, ...input, createdAt: now, updatedAt: now };
+    return {
+      id,
+      ...input,
+      kind,
+      createdBy,
+      ...(origin.conversationId && { conversationId: origin.conversationId }),
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
   /** Returns undefined when the Routine doesn't exist. */
@@ -74,6 +99,18 @@ export class RoutineStore {
       rows: [row],
     } = await this.db.query('DELETE FROM routines WHERE id = $1 RETURNING *', [id]);
     return row ? toRoutine(row) : undefined;
+  }
+
+  /**
+   * Deletes a Reminder that has spoken: unless it was moved ahead after `updatedAt`, when it
+   * has yet to fire. One edited otherwise would never fire again, so it goes too.
+   */
+  async deleteSpokenReminder(id: string, updatedAt: Date): Promise<void> {
+    await this.db.query(
+      `DELETE FROM routines WHERE id = $1 AND kind = 'reminder'
+         AND (updated_at = $2 OR (triggers->0->>'at')::timestamptz <= now())`,
+      [id, updatedAt],
+    );
   }
 
   /** Links the Routine's own topic; does not count as an edit. */
@@ -174,6 +211,8 @@ function toRoutine(row: Record<string, unknown>): Routine {
     ...(row.model !== null && { model: String(row.model) }),
     enabled: Boolean(row.enabled),
     triggers: row.triggers as Trigger[],
+    kind: String(row.kind) as RoutineKind,
+    createdBy: String(row.created_by) as RoutineAuthor,
     ...(row.conversation_id !== null && { conversationId: String(row.conversation_id) }),
     createdAt: date(row.created_at),
     updatedAt: date(row.updated_at),

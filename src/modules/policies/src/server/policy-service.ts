@@ -26,6 +26,8 @@ export interface DeciderContext {
   thread: () => Promise<string | undefined>;
   /** Called while an Approval is pending, e.g. to show a Run as waiting. */
   onWaiting?: (waiting: boolean) => void | Promise<void>;
+  /** Whether the turn holds content the Owner didn't write, at the moment of asking. */
+  tainted?: () => boolean;
 }
 
 /** Decides how the Agent may use each Tool: the Owner's choice, else the Tool's default. */
@@ -117,17 +119,25 @@ export class PolicyService {
 
   private async decide(
     { tool, input, signal }: PermissionRequest,
-    { thread, onWaiting }: DeciderContext,
+    { thread, onWaiting, tainted }: DeciderContext,
   ): Promise<PermissionDecision> {
     const policy = await this.policyOf(tool);
-    if (policy === 'allow') return { behavior: 'allow' };
+    const approval = this.tools().find(({ name }) => name === tool)?.approval;
+    if (policy === 'allow' && !(approval?.whenTainted && tainted?.())) return { behavior: 'allow' };
     if (policy === 'deny') {
       return { behavior: 'deny', reason: 'The Owner does not allow this Tool.' };
     }
     const threadId = await thread();
     await this.reportWaiting(onWaiting, true);
     try {
-      const status = await this.deps.approvals.request({ tool, input, threadId, signal });
+      const message = await approval?.message?.(input);
+      const status = await this.deps.approvals.request({
+        tool,
+        input,
+        threadId,
+        signal,
+        ...(message && { message }),
+      });
       if (status === 'approved') return { behavior: 'allow' };
       return {
         behavior: 'deny',

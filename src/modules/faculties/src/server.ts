@@ -13,3 +13,8 @@ export {
   taintsTurn,
 } from './server/memory-faculty.ts';
 export { MemoryReview, type NotedFact } from './server/memory-review.ts';
+export {
+  type RoutineKeeper,
+  type RoutinesTurn,
+  routinesFaculty,
+} from './server/routines-faculty.ts';

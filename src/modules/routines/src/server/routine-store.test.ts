@@ -1,6 +1,7 @@
-import { createTestDatabase } from '@emanator/shared/server';
+import { createTestDatabase, runMigrations } from '@emanator/shared/server';
 import { afterEach, describe, expect, it } from 'vitest';
-import { RoutineStore } from './routine-store.ts';
+import { routineMigrations } from './migrations.ts';
+import { RoutineNameTakenError, RoutineStore } from './routine-store.ts';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -35,5 +36,26 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineStore', () => {
         { id: approval.id, status: 'failed' },
       ]),
     );
+  });
+
+  it('brings Routines saved before Reminders along, and frees Reminder names', async () => {
+    const fixture = await createTestDatabase();
+    cleanups.push(fixture.close);
+    await runMigrations(fixture.db, 'routines', routineMigrations.slice(0, 2));
+    await fixture.db.query(
+      `INSERT INTO routines (id, name, slug, prompt, model, enabled, triggers, created_at, updated_at)
+       VALUES ('old', 'Briefing', 'briefing', 'Riassumi.', 'claude-sonnet-4-5', true, '[]', now(), now())`,
+    );
+    const store = new RoutineStore(fixture.db);
+    await store.init();
+
+    const old = await store.get('old');
+    expect(old).toMatchObject({ kind: 'routine', createdBy: 'owner' });
+    expect(old).not.toHaveProperty('model');
+    const input = { name: 'Briefing', prompt: 'Ricorda.', enabled: true, triggers: [] };
+    await expect(store.create(input)).rejects.toThrow(RoutineNameTakenError);
+    await store.create(input, { kind: 'reminder', createdBy: 'agent' });
+    await store.create(input, { kind: 'reminder', createdBy: 'agent' });
+    expect(await store.list()).toHaveLength(3);
   });
 });

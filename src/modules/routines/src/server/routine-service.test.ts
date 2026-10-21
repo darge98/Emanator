@@ -488,3 +488,147 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService', () => {
     });
   });
 });
+
+describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineService and the Agent', () => {
+  const inAnHour = () => new Date(Date.now() + 3_600_000).toISOString();
+  const reminder = (overrides = {}) => ({
+    title: 'Chiama Marco',
+    at: inAnHour(),
+    prompt: 'Ricorda di chiamare Marco per la cena.',
+    ...overrides,
+  });
+
+  it('speaks a Reminder in the Conversation it was set in, and drops it once delivered', async () => {
+    const engine = new FakeEngine().script(replyWith('Ciao'), replyWith('Chiama Marco!'));
+    const { channel, conversations, conversationStore, routines, runNow } = await setup(engine);
+    conversations.handle({ type: 'message', text: 'Ciao', threadId: '7', receivedAt: new Date() });
+    await conversations.idle();
+    const topic = await conversationStore.findByThread('fake', '7');
+
+    const set = await routines.remind(reminder(), topic?.id);
+    expect(set).toMatchObject({ kind: 'reminder', createdBy: 'agent', name: 'Chiama Marco' });
+    expect(set.nextRunAt).toBeInstanceOf(Date);
+    await runNow(set.id);
+
+    expect(engine.requests[1]?.systemPrompt).toContain('promemoria «Chiama Marco»');
+    expect(channel.opened).toEqual([]);
+    expect(channel.sent.at(-1)).toEqual({
+      threadId: '7',
+      markdown: '**⏰ Chiama Marco**\n\nChiama Marco!',
+    });
+    expect(await routines.get(set.id)).toBeUndefined();
+    expect((await conversationStore.pendingHandoffs(topic?.id ?? ''))[0]?.markdown).toContain(
+      'Chiama Marco!',
+    );
+  });
+
+  it('speaks in General without a Conversation, and keeps a Reminder that failed', async () => {
+    const engine = new FakeEngine().script(replyWith('Fatto.'), () => [
+      { type: 'turn.failed', reason: 'error', message: 'Boom' },
+    ]);
+    const { channel, routines, runNow } = await setup(engine);
+    const first = await routines.remind(reminder());
+    const second = await routines.remind(reminder());
+
+    await runNow(first.id);
+    await runNow(second.id);
+
+    expect(channel.sent[0]).toEqual({ markdown: '**⏰ Chiama Marco**\n\nFatto.' });
+    expect(await routines.get(first.id)).toBeUndefined();
+    expect((await routines.runs(second.id))?.[0]?.status).toBe('failed');
+  });
+
+  it('sets Reminders only ahead, within a year, and moves only its own', async () => {
+    const { routines } = await setup();
+    await expect(routines.remind(reminder({ at: '2020-01-01T08:00:00Z' }))).rejects.toThrow(
+      'must be ahead',
+    );
+    await expect(routines.remind(reminder({ at: '2099-01-01T08:00:00Z' }))).rejects.toThrow(
+      'a year ahead',
+    );
+    const set = await routines.remind(reminder());
+    const later = new Date(Date.now() + 7_200_000).toISOString();
+
+    const moved = await routines.updateReminder(set.id, { at: later });
+
+    expect(moved.triggers).toEqual([{ type: 'once', at: later }]);
+    expect(moved.prompt).toBe('Ricorda di chiamare Marco per la cena.');
+    const owners = await routines.create(input());
+    await expect(routines.updateReminder(owners.id, { title: 'Mio' })).rejects.toThrow(
+      'only the Owner',
+    );
+    await expect(routines.cancelByAgent(owners.id, 'routine')).rejects.toThrow('only the Owner');
+  });
+
+  it('creates only recurring Routines, which it may cancel', async () => {
+    const { routines } = await setup();
+    await expect(
+      routines.createByAgent(input({ triggers: [{ type: 'once', at: inAnHour() }] })),
+    ).rejects.toThrow('set a Reminder');
+
+    const routine = await routines.createByAgent(input({ name: 'Meteo' }));
+    expect(routine).toMatchObject({ kind: 'routine', createdBy: 'agent' });
+
+    await expect(routines.cancelByAgent(routine.id, 'reminder')).rejects.toThrow('cancel_routine');
+    expect((await routines.cancelByAgent(routine.id, 'routine')).name).toBe('Meteo');
+    expect(await routines.get(routine.id)).toBeUndefined();
+  });
+
+  it('keeps a Reminder moved while its Run was speaking, and one date per Reminder', async () => {
+    const gate = gatedTurn('Chiama Marco!');
+    const { routines, runner } = await setup(new FakeEngine().script(gate.turn));
+    const set = await routines.remind(reminder());
+    await routines.runNow(set.id);
+    await gate.started;
+
+    const later = new Date(Date.now() + 7_200_000).toISOString();
+    await routines.updateReminder(set.id, { at: later });
+    gate.release();
+    await runner.idle();
+
+    expect((await routines.get(set.id))?.triggers).toEqual([{ type: 'once', at: later }]);
+    await expect(
+      routines.update(set.id, {
+        ...input(),
+        triggers: [{ type: 'cron', expression: '0 8 * * *' }],
+      }),
+    ).rejects.toThrow('fires once');
+  });
+
+  it('drops a spoken Reminder rewritten during its Run, since its time has passed', async () => {
+    const gate = gatedTurn('Chiama Marco!');
+    const { routines, runner } = await setup(new FakeEngine().script(gate.turn));
+    const soon = new Date(Date.now() + 300).toISOString();
+    const set = await routines.remind(reminder({ at: soon }));
+    await routines.runNow(set.id);
+    await gate.started;
+    await routines.updateReminder(set.id, { prompt: 'Chiama Marco e Anna.' });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    gate.release();
+    await runner.idle();
+
+    expect(await routines.get(set.id)).toBeUndefined();
+  });
+
+  it('keeps at most 50 Reminders waiting', async () => {
+    const { routines } = await setup();
+    for (let i = 0; i < 50; i++) await routines.remind(reminder());
+
+    await expect(routines.remind(reminder())).rejects.toThrow('50 Reminders');
+  });
+
+  it("leaves the Owner's Conversation alone when a Reminder is deleted", async () => {
+    const { conversations, conversationStore, routines } = await setup(
+      new FakeEngine(replyWith('Ciao')),
+    );
+    conversations.handle({ type: 'message', text: 'Ciao', threadId: '7', receivedAt: new Date() });
+    await conversations.idle();
+    const topic = await conversationStore.findByThread('fake', '7');
+    const set = await routines.remind(reminder(), topic?.id);
+
+    await routines.delete(set.id);
+
+    expect(await conversations.findLive(topic?.id ?? '')).toBeDefined();
+  });
+});

@@ -5,6 +5,7 @@ export {
   type Policy,
   type PolicyGroup,
   PolicyValidationError,
+  type ToolApproval,
   type ToolGroup,
   type ToolInfo,
   type ToolPolicy,

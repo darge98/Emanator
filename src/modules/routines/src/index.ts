@@ -1,7 +1,11 @@
 export {
+  MAX_PENDING_REMINDERS,
+  MAX_REMINDER_DAYS,
   MAX_TRIGGERS,
   type Routine,
+  type RoutineAuthor,
   type RoutineInput,
+  type RoutineKind,
   RoutineValidationError,
   SILENT_REPLY,
 } from './domain/routine.ts';

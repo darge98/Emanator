@@ -98,7 +98,7 @@ A single run of a Routine, started by an Event. It can pause while it waits for 
 _Avoid_: job, instance, execution
 
 **Reminder** (it: *Promemoria*):
-A Routine created by the Agent itself, with a single Trigger that fires once. The Agent may create Reminders freely; a recurring Routine created by the Agent needs the Owner's confirmation.
+A Routine created by the Agent itself, with a single Trigger that fires once. It speaks in the Conversation where it was asked for, and is gone once delivered. The Owner may edit or delete it like any Routine. The Agent may create Reminders freely; a recurring Routine created by the Agent needs the Owner's confirmation, until the Owner chooses to allow it.
 _Avoid_: alert, alarm
 
 ### Control

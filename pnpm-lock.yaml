@@ -413,6 +413,9 @@ importers:
       '@emanator/policies':
         specifier: workspace:*
         version: link:../policies
+      '@emanator/routines':
+        specifier: workspace:*
+        version: link:../routines
       '@emanator/shared':
         specifier: workspace:*
         version: link:../shared

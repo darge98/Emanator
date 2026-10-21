@@ -13,15 +13,19 @@ import {
 } from './conversations-faculty.ts';
 import { filesFaculty } from './files-faculty.ts';
 import { type MemoryKeeper, type MemoryTurn, memoryFaculty } from './memory-faculty.ts';
+import { type RoutineKeeper, type RoutinesTurn, routinesFaculty } from './routines-faculty.ts';
 import { webFaculty } from './web-faculty.ts';
 
 export interface FacultyDeps {
   conversations: ConversationOpener;
   memory: MemoryKeeper;
+  routines: RoutineKeeper;
+  /** The Owner's time zone, in which the Agent reads the times it is given back. */
+  timeZone: string;
 }
 
 /** One turn as the Faculties see it. */
-export interface AgentTurn extends MemoryTurn {
+export interface AgentTurn extends MemoryTurn, RoutinesTurn {
   /** Absent where nobody can press a button, e.g. in a Run. */
   suggestReplies?: ReplySuggester;
 }
@@ -38,7 +42,7 @@ const LISTING_TURN: AgentTurn = {
  * depend on the turn they serve, so each turn builds its own.
  */
 export function agentFaculties(
-  { conversations, memory }: FacultyDeps,
+  { conversations, memory, routines, timeZone }: FacultyDeps,
   turn: AgentTurn = LISTING_TURN,
 ): Faculty[] {
   return [
@@ -46,6 +50,7 @@ export function agentFaculties(
     filesFaculty,
     memoryFaculty(memory, turn),
     conversationsFaculty(conversations, turn.suggestReplies),
+    routinesFaculty(routines, timeZone, turn),
   ];
 }
 

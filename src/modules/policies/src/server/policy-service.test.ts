@@ -155,6 +155,34 @@ describe('PolicyService', () => {
     expect(await decide(use('bash'))).toMatchObject({ behavior: 'deny' });
   });
 
+  it('asks for an allowed Tool in a tainted turn when the Tool says so, in its own words', async () => {
+    const lasting: ToolGroup = {
+      kind: 'faculty',
+      name: 'routines',
+      title: 'Routines',
+      tools: [
+        {
+          name: 'create_routine',
+          title: 'Create',
+          defaultPolicy: 'allow',
+          approval: { whenTainted: true, message: (input) => `Creo «${String(input.name)}»?` },
+        },
+      ],
+    };
+    const { service, request } = setup('denied', [lasting]);
+    let tainted = false;
+    const decide = service.decider({ thread: async () => '7', tainted: () => tainted });
+    const create = { ...use('create_routine'), input: { name: 'Briefing' } };
+
+    expect(await decide(create)).toEqual({ behavior: 'allow' });
+    tainted = true;
+    expect(await decide(create)).toMatchObject({ behavior: 'deny' });
+    expect(request).toHaveBeenCalledOnce();
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'create_routine', message: 'Creo «Briefing»?' }),
+    );
+  });
+
   it('denies, without failing the turn, when deciding goes wrong', async () => {
     const { service } = setup();
     const decide = service.decider({

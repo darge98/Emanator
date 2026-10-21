@@ -1,6 +1,7 @@
-import { isModel, MODELS, modelLabel } from '@emanator/engine';
+import { MODELS, modelLabel } from '@emanator/engine';
 import {
   ArrowClockwise,
+  Bell,
   CalendarBlank,
   ChatCircleDots,
   Check,
@@ -9,12 +10,13 @@ import {
   PencilSimple,
   Play,
   Plus,
+  Robot,
   Timer,
   Trash,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
-import type { RoutineInput } from '../domain/routine.ts';
+import type { RoutineAuthor, RoutineInput, RoutineKind } from '../domain/routine.ts';
 import type { RoutineRun, RunStatus } from '../domain/run.ts';
 import styles from './routines-page.module.css';
 import {
@@ -29,6 +31,8 @@ import { ScheduleEditor } from './schedule-editor.tsx';
 /** A Routine as the API sends it: dates are ISO strings. */
 interface RoutineDto extends RoutineInput {
   id: string;
+  kind: RoutineKind;
+  createdBy: RoutineAuthor;
   conversationId?: string;
   createdAt: string;
   updatedAt: string;
@@ -90,6 +94,10 @@ const t = {
   modelHelp: 'The default is set on the Persona page.',
   topicHint: (name: string) =>
     `Always writes in its own Telegram topic, “${name} · routine”, opened on the first Run.`,
+  reminderHint:
+    'Writes in the conversation where it was asked for, or in General, and goes once delivered.',
+  reminder: 'Reminder',
+  byAgent: 'by Agent',
   runningNow: 'Running…',
   enabledLabel: 'Active',
   enabledHelp: 'When paused it never starts by itself, but you can still run it by hand.',
@@ -396,6 +404,10 @@ export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPagePro
               error={message?.kind === 'error' ? message.text : undefined}
               onSave={() => void save()}
               onCancel={() => void close()}
+              reminder={
+                editing.mode === 'edit' &&
+                routines.find(({ id }) => id === editing.id)?.kind === 'reminder'
+              }
               {...(editing.mode === 'edit' && {
                 onDelete: () => void remove(editing.id),
               })}
@@ -480,6 +492,18 @@ function RoutineRow({
           <span className="badge" data-tone={routine.enabled ? 'success' : undefined}>
             {routine.enabled ? t.enabled : t.disabled}
           </span>
+          {routine.kind === 'reminder' && (
+            <span className="chip">
+              <Bell size={14} aria-hidden="true" />
+              {t.reminder}
+            </span>
+          )}
+          {routine.createdBy === 'agent' && (
+            <span className="chip">
+              <Robot size={14} aria-hidden="true" />
+              {t.byAgent}
+            </span>
+          )}
         </div>
         <p className={styles['row-prompt']}>{routine.prompt}</p>
         <div className={styles.meta}>
@@ -552,11 +576,14 @@ interface RoutineEditorProps {
   onSave: () => void;
   onCancel: () => void;
   onDelete?: () => void;
+  /** A Reminder writes where it was asked for, not in a topic of its own. */
+  reminder?: boolean;
 }
 
 function RoutineEditor({
   t,
   title,
+  reminder,
   draft,
   onChange,
   saving,
@@ -608,10 +635,6 @@ function RoutineEditor({
                 {label}
               </option>
             ))}
-            {/* A model saved before the list, kept until the Owner picks another. */}
-            {draft.model && !isModel(draft.model) && (
-              <option value={draft.model}>{draft.model}</option>
-            )}
           </select>
           <small id="routine-model-help" className="field-hint">
             {t.modelHelp}
@@ -659,7 +682,7 @@ function RoutineEditor({
 
       <p className="hint">
         <ChatCircleDots size={16} aria-hidden="true" />
-        {t.topicHint(draft.name.trim() || t.nameHint)}
+        {reminder ? t.reminderHint : t.topicHint(draft.name.trim() || t.nameHint)}
       </p>
 
       {error && (

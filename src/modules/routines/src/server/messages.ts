@@ -26,6 +26,13 @@ export const runFailed = (name: string, reason: TurnFailureReason) =>
 
 /** Appended to the Agent's system prompt for a Run. */
 export function runInstructions(routine: Routine, origin: RunOrigin): string {
+  if (routine.kind === 'reminder') {
+    return [
+      `Stai eseguendo il promemoria «${routine.name}», che hai fissato tu. Il messaggio che ricevi è cosa avevi deciso di fare o di dire a quest'ora.`,
+      "La tua risposta finale arriverà alla persona nella conversazione in cui l'aveva chiesto, preceduta dal nome del promemoria: scrivila come un promemoria, breve e diretto.",
+      `Se non c'è più nulla da dirle, rispondi esattamente ${SILENT_REPLY} e non le arriverà nulla.`,
+    ].join('\n');
+  }
   const trigger =
     origin === 'manual' ? 'avviata a mano dalla persona' : 'avviata dalla sua pianificazione';
   return [
