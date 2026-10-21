@@ -1,4 +1,5 @@
 import { slugify } from '@emanator/conversations';
+import { isModel, MODELS } from '@emanator/engine';
 import { RoutineValidationError } from './errors.ts';
 import { type Trigger, validateTrigger } from './trigger.ts';
 
@@ -44,8 +45,12 @@ export function validateRoutineInput(input: unknown): RoutineInput {
     throw new RoutineValidationError('The name must contain at least one letter or digit.');
   }
   const prompt = text(value.prompt, 'prompt', 20_000);
-  const model =
-    value.model === undefined || value.model === null ? '' : text(value.model, 'model', 100, true);
+  const model = typeof value.model === 'string' ? value.model.trim() : (value.model ?? '');
+  if (model !== '' && !isModel(model)) {
+    throw new RoutineValidationError(
+      `model must be one of: ${MODELS.map(({ id }) => id).join(', ')}.`,
+    );
+  }
   if (typeof value.enabled !== 'boolean') {
     throw new RoutineValidationError('enabled must be true or false.');
   }

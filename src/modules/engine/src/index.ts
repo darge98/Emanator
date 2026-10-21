@@ -15,6 +15,7 @@ export type {
   UsageStatus,
   UsageWindow,
 } from './domain/events.ts';
+export { DEFAULT_MODEL, isModel, MODELS, type ModelId, modelLabel } from './domain/models.ts';
 export type {
   PermissionDecider,
   PermissionDecision,

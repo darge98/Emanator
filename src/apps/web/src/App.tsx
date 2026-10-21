@@ -1,5 +1,6 @@
 import { CapabilitiesPage } from '@emanator/capabilities/web';
 import { DreamPanel } from '@emanator/dreams/web';
+import { ModelPanel } from '@emanator/engine/web';
 import { FacultiesPage } from '@emanator/faculties/web';
 import { MemoryPage } from '@emanator/memory/web';
 import { PersonaPage } from '@emanator/personas/web';
@@ -164,7 +165,12 @@ export default function App() {
         ) : page === 'routines' ? (
           <RoutinesPage footer={footer} onDirtyChange={onDirtyChange} confirm={confirm} />
         ) : (
-          <PersonaPage footer={footer} onDirtyChange={onDirtyChange} confirm={confirm} />
+          <PersonaPage
+            footer={footer}
+            model={<ModelPanel />}
+            onDirtyChange={onDirtyChange}
+            confirm={confirm}
+          />
         )}
       </main>
       {asking && <ConfirmDialog request={asking.request} onAnswer={answer} />}

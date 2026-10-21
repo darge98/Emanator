@@ -43,15 +43,20 @@ export class DreamStore {
   async settings(): Promise<DreamSettings> {
     const {
       rows: [row],
-    } = await this.db.query('SELECT enabled, time FROM dream_settings WHERE id = 1');
-    return row ? { enabled: Boolean(row.enabled), time: String(row.time) } : DEFAULT_DREAM_SETTINGS;
+    } = await this.db.query('SELECT enabled, time, model FROM dream_settings WHERE id = 1');
+    if (!row) return DEFAULT_DREAM_SETTINGS;
+    return {
+      enabled: Boolean(row.enabled),
+      time: String(row.time),
+      ...(row.model !== null && { model: String(row.model) }),
+    };
   }
 
-  async saveSettings({ enabled, time }: DreamSettings): Promise<void> {
-    await this.db.query('UPDATE dream_settings SET enabled = $1, time = $2 WHERE id = 1', [
-      enabled,
-      time,
-    ]);
+  async saveSettings({ enabled, time, model }: DreamSettings): Promise<void> {
+    await this.db.query(
+      'UPDATE dream_settings SET enabled = $1, time = $2, model = $3 WHERE id = 1',
+      [enabled, time, model ?? null],
+    );
   }
 
   async startRun(): Promise<DreamRun> {

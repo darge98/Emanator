@@ -16,7 +16,8 @@ export interface RoutineRunnerDeps {
   prepareTurn: PrepareTurn;
   /** The Agent's system prompt, built fresh for every Run. */
   systemPrompt: () => Promise<string> | string;
-  defaultModel: string;
+  /** Read at every Run, so a change in the dashboard applies from the next one. */
+  defaultModel: () => string;
   /** IANA zone used when telling the Owner when Runs resume. */
   timeZone: string;
   logger: Logger;
@@ -258,7 +259,7 @@ export class RoutineRunner {
     for await (const event of engine.runTurn({
       prompt: routine.prompt,
       systemPrompt,
-      model: routine.model ?? this.deps.defaultModel,
+      model: routine.model ?? this.deps.defaultModel(),
       ...prepared,
     })) {
       switch (event.type) {

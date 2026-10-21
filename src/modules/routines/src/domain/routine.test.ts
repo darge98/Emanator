@@ -29,6 +29,7 @@ describe('validateRoutineInput', () => {
     ['too many triggers', { ...valid, triggers: Array(11).fill(valid.triggers[0]) }],
     ['a bad trigger', { ...valid, triggers: [{ type: 'interval', everyMinutes: -1 }] }],
     ['a missing flag', { ...valid, enabled: undefined }],
+    ['a model outside the list', { ...valid, model: 'claude-sonnet-4' }],
   ])('rejects %s', (_label, input) =>
     expect(() => validateRoutineInput(input)).toThrow(RoutineValidationError),
   );

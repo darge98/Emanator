@@ -1,3 +1,4 @@
+import { isModel, MODELS, modelLabel } from '@emanator/engine';
 import {
   ArrowClockwise,
   CalendarBlank,
@@ -85,8 +86,8 @@ const t = {
   prompt: 'Goal',
   promptHint: 'What the Agent should do each time the Routine starts…',
   model: 'Model',
-  modelHint: 'Default',
-  modelHelp: 'Leave empty for the default model. Aliases: haiku, sonnet, opus.',
+  modelDefault: 'Default model',
+  modelHelp: 'The default is set on the Persona page.',
   topicHint: (name: string) =>
     `Always writes in its own Telegram topic, “${name} · routine”, opened on the first Run.`,
   runningNow: 'Running…',
@@ -492,7 +493,7 @@ function RoutineRow({
           {routine.model && (
             <span className="chip">
               <Cpu size={14} aria-hidden="true" />
-              {routine.model}
+              {modelLabel(routine.model)}
             </span>
           )}
         </div>
@@ -593,16 +594,25 @@ function RoutineEditor({
         </div>
         <div className="field">
           <label htmlFor="routine-model">{t.model}</label>
-          <input
+          <select
             id="routine-model"
-            className="input"
+            className="select"
             value={draft.model}
             onChange={(e) => onChange({ ...draft, model: e.target.value })}
-            placeholder={t.modelHint}
-            maxLength={100}
             disabled={saving}
             aria-describedby="routine-model-help"
-          />
+          >
+            <option value="">{t.modelDefault}</option>
+            {MODELS.map(({ id, label }) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
+            {/* A model saved before the list, kept until the Owner picks another. */}
+            {draft.model && !isModel(draft.model) && (
+              <option value={draft.model}>{draft.model}</option>
+            )}
+          </select>
           <small id="routine-model-help" className="field-hint">
             {t.modelHelp}
           </small>

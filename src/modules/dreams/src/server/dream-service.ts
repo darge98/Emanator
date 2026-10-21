@@ -1,5 +1,5 @@
 import type { Channel, InboundAction, MessageAction } from '@emanator/channels';
-import type { Engine } from '@emanator/engine';
+import { type Engine, isModel, MODELS } from '@emanator/engine';
 import { memoryFaculty, turnAbilities } from '@emanator/faculties/server';
 import { TurnTrust } from '@emanator/memory';
 import { MemoryError, type MemoryService } from '@emanator/memory/server';
@@ -23,7 +23,8 @@ export interface DreamServiceDeps {
   engine: Engine;
   memory: MemoryService;
   channel: Pick<Channel, 'send' | 'setActions'>;
-  model: string;
+  /** Used unless the Owner picked the Dream's own; read at every Dream. */
+  defaultModel: () => string;
   /** IANA zone the Dream's time is read in. */
   timeZone: string;
   logger: Logger;
@@ -221,7 +222,8 @@ export class DreamService {
 
   /** Reads the Journal into Memory and forgets it; returns why it failed, if it did. */
   private async read(notes: DreamNotes): Promise<string | undefined> {
-    const { store, engine, memory, model, timeZone } = this.deps;
+    const { store, engine, memory, timeZone } = this.deps;
+    const model = this.settings?.model ?? this.deps.defaultModel();
     const entries = await store.journal();
     const last = entries.at(-1);
     if (!last) return undefined;
@@ -281,10 +283,13 @@ function questionActions({ id, asked }: Pick<DreamRun, 'id' | 'asked'>): Message
 }
 
 function parseSettings(input: unknown): DreamSettings {
-  const { enabled, time } = (input ?? {}) as Partial<Record<keyof DreamSettings, unknown>>;
+  const { enabled, time, model } = (input ?? {}) as Partial<Record<keyof DreamSettings, unknown>>;
   if (typeof enabled !== 'boolean') throw new DreamSettingsError('enabled must be true or false.');
   if (typeof time !== 'string' || !validDreamTime(time)) {
     throw new DreamSettingsError('time must be HH:MM, e.g. 07:00.');
   }
-  return { enabled, time };
+  if (model !== undefined && model !== null && !isModel(model)) {
+    throw new DreamSettingsError(`model must be one of: ${MODELS.map(({ id }) => id).join(', ')}.`);
+  }
+  return { enabled, time, ...(isModel(model) && { model }) };
 }

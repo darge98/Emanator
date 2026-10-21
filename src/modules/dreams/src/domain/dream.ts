@@ -3,6 +3,8 @@ export interface DreamSettings {
   enabled: boolean;
   /** When it runs every night, `HH:MM` in the Harness's time zone. */
   time: string;
+  /** Overrides the default model for the Dream. */
+  model?: string;
 }
 
 export const DEFAULT_DREAM_SETTINGS: DreamSettings = { enabled: true, time: '07:00' };

@@ -1,12 +1,14 @@
 import { join } from 'node:path';
 import { SecretBox } from '@emanator/capabilities/server';
+import { DEFAULT_MODEL, isModel, MODELS, type ModelId } from '@emanator/engine';
 import { type EngineCredentials, engineCredentialsFromEnv } from '@emanator/engine/server';
 
 export interface HarnessConfig {
   dataDir: string;
   telegramToken: string;
   engineCredentials: EngineCredentials;
-  defaultModel: string;
+  /** The default model's first value; the Owner changes it in the dashboard. */
+  initialModel: ModelId;
   timeZone: string;
   databaseUrl: string;
   httpHost: string;
@@ -42,6 +44,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       'EMANATOR_DASHBOARD_URL must be a loopback address, e.g. http://127.0.0.1:3000.',
     );
   }
+  const initialModel = env.EMANATOR_MODEL?.trim() || DEFAULT_MODEL;
+  if (!isModel(initialModel)) {
+    throw new Error(`EMANATOR_MODEL must be one of: ${MODELS.map(({ id }) => id).join(', ')}.`);
+  }
   const timeZone = env.EMANATOR_TIMEZONE?.trim() || 'Europe/Rome';
   // Throws a RangeError on an unknown zone, before anything starts.
   new Intl.DateTimeFormat('it-IT', { timeZone });
@@ -55,7 +61,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     dataDir: env.EMANATOR_DATA_DIR?.trim() || join(process.cwd(), 'data'),
     telegramToken,
     engineCredentials: engineCredentialsFromEnv(env),
-    defaultModel: env.EMANATOR_MODEL?.trim() || 'sonnet',
+    initialModel,
     timeZone,
   };
 }

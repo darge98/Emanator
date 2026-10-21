@@ -113,6 +113,11 @@ export class ConversationStore {
     );
   }
 
+  /** The model this Conversation's turns use; undefined goes back to the default. */
+  async setModel(id: string, model: string | undefined): Promise<void> {
+    await this.db.query('UPDATE conversations SET model = $1 WHERE id = $2', [model ?? null, id]);
+  }
+
   /** Marks the session as holding outside content, until it is cleared. */
   async taint(id: string): Promise<void> {
     await this.db.query('UPDATE conversations SET session_tainted = true WHERE id = $1', [id]);

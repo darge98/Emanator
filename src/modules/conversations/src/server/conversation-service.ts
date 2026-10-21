@@ -19,6 +19,7 @@ import {
 import type { ConversationStore } from './conversation-store.ts';
 import { KeyedQueue } from './keyed-queue.ts';
 import * as say from './messages.ts';
+import { chosenModel, chosenModelAction, modelActions } from './model-choice.ts';
 import { chosenAction, chosenReply, replyActions } from './suggested-replies.ts';
 
 export interface ConversationServiceDeps {
@@ -28,7 +29,8 @@ export interface ConversationServiceDeps {
   usage: UsageTracker;
   /** Built fresh for every turn, so it can carry the current date and time. */
   systemPrompt: () => Promise<string> | string;
-  defaultModel: string;
+  /** Read at every turn, so a change in the dashboard applies from the next one. */
+  defaultModel: () => string;
   /** IANA time zone used when showing times to the Owner, e.g. `Europe/Rome`. */
   timeZone: string;
   /**
@@ -251,6 +253,24 @@ export class ConversationService {
     await this.converse(await this.resolve(press.threadId), reply);
   }
 
+  /**
+   * The Owner picks the Conversation's model from `/model`'s buttons. Outside the queue, like
+   * any press but a reply: it only changes what the next turn uses. Never rejects.
+   */
+  async chooseModel(press: InboundAction): Promise<void> {
+    const model = chosenModel(press);
+    if (model === undefined) return;
+    try {
+      const conversation = await this.resolve(press.threadId);
+      await this.deps.store.setModel(conversation.id, model ?? undefined);
+      await this.deps.channel.setActions(press.messageId, [
+        chosenModelAction(model, this.deps.defaultModel()),
+      ]);
+    } catch (error) {
+      this.deps.logger.error('Could not change the model', { error: errorMessage(error) });
+    }
+  }
+
   private async dropSuggestions(threadId: string | undefined): Promise<void> {
     const messageId = this.suggestions.get(threadId ?? '');
     if (messageId === undefined) return;
@@ -401,6 +421,13 @@ export class ConversationService {
         return this.reply(conversation, say.contextReset);
       case 'topic':
         return this.openTopic(conversation, command.args);
+      case 'model':
+        await this.trySend(
+          conversation,
+          say.modelChoice(conversation, this.modelOf(conversation)),
+          modelActions(conversation.model, this.deps.defaultModel()),
+        );
+        return;
       case 'status':
         return this.reply(
           conversation,
@@ -495,6 +522,6 @@ export class ConversationService {
   }
 
   private modelOf(conversation: Conversation): string {
-    return conversation.model ?? this.deps.defaultModel;
+    return conversation.model ?? this.deps.defaultModel();
   }
 }

@@ -30,4 +30,8 @@ export const dreamMigrations: Migration[] = [
       );
     `,
   },
+  {
+    id: '002-dream-model',
+    sql: 'ALTER TABLE dream_settings ADD COLUMN model TEXT;',
+  },
 ];

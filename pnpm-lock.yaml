@@ -232,6 +232,9 @@ importers:
       '@emanator/dreams':
         specifier: workspace:*
         version: link:../../modules/dreams
+      '@emanator/engine':
+        specifier: workspace:*
+        version: link:../../modules/engine
       '@emanator/faculties':
         specifier: workspace:*
         version: link:../../modules/faculties
@@ -379,9 +382,22 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.1
         version: 1.32.1(zod@4.6.7)
+      fastify:
+        specifier: ^5.0.0
+        version: 5.12.7
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
       zod:
         specifier: ^4.6.7
         version: 4.6.7
+    devDependencies:
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
 
   src/modules/faculties:
     dependencies:

@@ -26,13 +26,14 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
   const contexts: TurnContext[] = [];
   let epilogue: PreparedTurn['epilogue'];
   const journal: SpokenEntry[] = [];
+  let defaultModel = 'sonnet';
   const service = new ConversationService({
     channel,
     engine,
     store,
     usage: new UsageTracker(),
     systemPrompt: () => prompt,
-    defaultModel: 'sonnet',
+    defaultModel: () => defaultModel,
     timeZone: 'Europe/Rome',
     prepareTurn: async (context) => {
       contexts.push(context);
@@ -61,6 +62,9 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     },
     setEpilogue: (next: PreparedTurn['epilogue']) => {
       epilogue = next;
+    },
+    setDefaultModel: (next: string) => {
+      defaultModel = next;
     },
   };
 }
@@ -309,9 +313,37 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationService', () => {
 
     const status = channel.sent.at(-1)?.markdown ?? '';
     expect(status).toContain('**Generale** · contesto attivo');
-    expect(status).toContain('`sonnet`');
+    expect(status).toContain('Modello: Sonnet (predefinito)');
     expect(status).toContain('Quota 5 ore: 30%');
     expect(status).toContain('Quota 7 giorni: 51%');
+  });
+
+  it('/model lets the Owner pick the model of that Conversation, or go back to the default', async () => {
+    const { channel, engine, send, service, setDefaultModel } = await setup();
+    const choose = async (actionId: string) =>
+      service.chooseModel({ type: 'action', actionId, messageId: '1', receivedAt: at });
+
+    await send(command('model'));
+    expect(channel.sent[0]?.markdown).toContain('Sonnet (predefinito)');
+    expect(channel.sent[0]?.actions?.map(({ id, label }) => [id, label])).toEqual([
+      ['md:haiku', 'Haiku'],
+      ['md:sonnet', 'Sonnet'],
+      ['md:opus', 'Opus'],
+      ['md:default', '• Predefinito (Sonnet)'],
+    ]);
+
+    await choose('md:opus');
+    await choose('md:');
+    await send(message('ciao'), message('ciao', '7'));
+    expect(channel.actionsSet).toEqual([
+      { messageId: '1', actions: [{ id: 'md:', label: '✓ Opus' }] },
+    ]);
+    expect(engine.requests.map(({ model }) => model)).toEqual(['opus', 'sonnet']);
+
+    await choose('md:default');
+    setDefaultModel('haiku');
+    await send(message('ancora'));
+    expect(engine.requests.at(-1)?.model).toBe('haiku');
   });
 
   it('starts over, once, when the Engine has lost the session, and says so', async () => {

@@ -103,13 +103,13 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 
 ### Engine and quota
 - The Claude Agent SDK runs with the Owner's subscription token (`claude setup-token`) or an API key, supplied via `.env`.
-- There is a default model, and Routines and Conversations can override it.
+- Models are chosen from a list (Haiku, Sonnet, Opus, by the Engine's aliases), never typed. The default model is set on the dashboard's Persona page, and `EMANATOR_MODEL` gives only its first value. Routines, the Dream and each Conversation (`/model` on Telegram, with one button per model) can override it, from their next turn.
 - When the usage limit is hit, Runs wait for the reset and the Owner gets one notice, in the topic of the Routine that hit it, with the time Runs resume. Runs failing together share one wait and one notice, even when the Engine doesn't say when the quota resets. Runs started meanwhile wait without calling the Engine. A Run gives up after three resets, and stopping the Harness fails the Runs still waiting.
 
 ### UI
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
 - Currently covers:
-  - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel;
+  - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel; the default model, saved as it changes;
   - Memory: Pages by kind, with search and a "to review" filter for inferred Facts; each Page with its Facts, its `[[links]]` and the Pages linking to it; confirm an inferred Fact, delete a Fact or a Page, each a commit marked *dalla dashboard*; the latest changes from `log.md`;
   - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error);
   - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it. A save changes only the Tools it names;

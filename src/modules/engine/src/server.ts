@@ -5,3 +5,5 @@ export {
   type EngineCredentials,
   engineCredentialsFromEnv,
 } from './adapters/claude-agent-sdk/config.ts';
+export { modelRoutes } from './server/model-routes.ts';
+export { ModelSettings, ModelSettingsError } from './server/model-settings.ts';

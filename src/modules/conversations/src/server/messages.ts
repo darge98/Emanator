@@ -1,5 +1,5 @@
 import type { CommandInfo } from '@emanator/channels';
-import type { TurnFailed, UsageLimitChanged } from '@emanator/engine';
+import { modelLabel, type TurnFailed, type UsageLimitChanged } from '@emanator/engine';
 import type { Conversation } from '../domain/conversation.ts';
 import type { Handoff } from './conversation-store.ts';
 
@@ -9,6 +9,7 @@ export const COMMANDS: readonly CommandInfo[] = [
   { name: 'new', description: 'Azzera il contesto di questa conversazione' },
   { name: 'topic', description: 'Apre un nuovo topic dedicato: /topic <nome>' },
   { name: 'status', description: 'Quota, modello e conversazione corrente' },
+  { name: 'model', description: 'Sceglie il modello di questa conversazione' },
   { name: 'help', description: 'Cosa posso fare' },
 ];
 
@@ -62,6 +63,20 @@ export const sessionLost = '⚠️ Avevo perso il contesto di questa conversazio
 
 export const usingTool = (tool: string) => `🔧 ${tool}…`;
 
+/** How the Owner reads a Conversation's model: its name, and whether it is the default. */
+const modelLine = (conversation: Conversation, model: string) =>
+  `${modelLabel(model)}${conversation.model ? '' : ' (predefinito)'}`;
+
+export const defaultModel = (label: string, current: boolean) =>
+  `${current ? '• ' : ''}Predefinito (${label})`;
+
+export const modelChoice = (conversation: Conversation, model: string) =>
+  [
+    `**Modello di questa conversazione**: ${modelLine(conversation, model)}`,
+    '',
+    'Scegline un altro: vale dal prossimo messaggio.',
+  ].join('\n');
+
 export function status(
   conversation: Conversation,
   model: string,
@@ -72,7 +87,7 @@ export function status(
     '**Stato**',
     '',
     `- Conversazione: **${conversation.title}** · ${conversation.session ? 'contesto attivo' : 'contesto nuovo'}`,
-    `- Modello: \`${model}\``,
+    `- Modello: ${modelLine(conversation, model)}`,
   ];
   if (!usage) {
     lines.push('- Quota: nessun dato finora, arriva con il primo messaggio.');

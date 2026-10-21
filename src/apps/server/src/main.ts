@@ -17,12 +17,13 @@ import {
   CONVERSATION_COMMANDS,
   ConversationService,
   ConversationStore,
+  isModelChoice,
   isSuggestedReply,
   type PrepareTurn,
 } from '@emanator/conversations/server';
 import { DreamService, DreamStore } from '@emanator/dreams/server';
 import { type JsonSchemaToolDefinition, UsageTracker } from '@emanator/engine';
-import { ClaudeAgentSdkEngine } from '@emanator/engine/server';
+import { ClaudeAgentSdkEngine, ModelSettings } from '@emanator/engine/server';
 import {
   agentFaculties,
   type MemoryConfirmation,
@@ -62,10 +63,14 @@ async function start() {
   const workingDirectory = join(config.dataDir, 'workspace');
   mkdirSync(workingDirectory, { recursive: true });
 
+  const models = new ModelSettings(db, config.initialModel);
+  await models.init();
+  const defaultModel = () => models.defaultModel();
   const engine = new ClaudeAgentSdkEngine({
     credentials: config.engineCredentials,
     configDir: join(config.dataDir, 'claude'),
-    defaultModel: config.defaultModel,
+    // Every turn names its model; this only covers a caller that doesn't.
+    defaultModel: config.initialModel,
     defaultWorkingDirectory: workingDirectory,
   });
 
@@ -130,7 +135,7 @@ async function start() {
     engine,
     memory,
     channel,
-    model: config.defaultModel,
+    defaultModel,
     timeZone: config.timeZone,
     logger: consoleLogger('dream'),
   });
@@ -201,7 +206,7 @@ async function start() {
     prepareTurn,
     journal: (entry) => dreams.record(entry),
     systemPrompt: agentPrompt,
-    defaultModel: config.defaultModel,
+    defaultModel,
     timeZone: config.timeZone,
     logger: consoleLogger('conversations'),
   });
@@ -220,7 +225,7 @@ async function start() {
       usage,
       prepareTurn,
       systemPrompt: agentPrompt,
-      defaultModel: config.defaultModel,
+      defaultModel,
       timeZone: config.timeZone,
       logger: routineLogger,
     }),
@@ -231,6 +236,7 @@ async function start() {
 
   const dashboard = await createDashboardServer({
     personas,
+    models,
     routines,
     policies,
     capabilities,
@@ -245,13 +251,14 @@ async function start() {
       // Presses answer turns that may hold their Conversation's queue: they skip it. Only a
       // suggested reply is a message of the Owner's, so only it goes through the queue.
       if (event.type !== 'action' || isSuggestedReply(event)) conversations.handle(event);
+      else if (isModelChoice(event)) void conversations.chooseModel(event);
       else if (memoryReview.handles(event)) void memoryReview.answer(event);
       else if (dreams.handles(event)) void dreams.answer(event);
       else void approvals.answer(event);
     });
     await routines.start();
     logger.info('Emanator is running', {
-      model: config.defaultModel,
+      model: models.defaultModel(),
       timeZone: config.timeZone,
       dashboard: `http://localhost:${config.httpPort}`,
     });

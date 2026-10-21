@@ -51,7 +51,8 @@
   color: var(--ink-3);
 }
 
-.time input {
+.time input,
+.time select {
   width: auto;
   height: 32px;
 }

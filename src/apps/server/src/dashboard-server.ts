@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type CapabilityService, capabilityRoutes } from '@emanator/capabilities/server';
 import { type DreamService, dreamRoutes } from '@emanator/dreams/server';
+import { type ModelSettings, modelRoutes } from '@emanator/engine/server';
 import { type MemoryService, memoryRoutes } from '@emanator/memory/server';
 import { type PersonaStore, personaRoutes } from '@emanator/personas/server';
 import { type PolicyService, policyRoutes } from '@emanator/policies/server';
@@ -18,6 +19,7 @@ export const CAPABILITIES_PAGE = '/#capabilities';
 
 interface DashboardDeps {
   personas: Pick<PersonaStore, 'get' | 'save'>;
+  models?: ModelSettings;
   routines?: RoutineService;
   policies?: PolicyService;
   capabilities?: CapabilityService;
@@ -30,6 +32,7 @@ interface DashboardDeps {
 /** Local configuration UI and its persistence interface share the Harness process. */
 export async function createDashboardServer({
   personas,
+  models,
   routines,
   policies,
   capabilities,
@@ -66,6 +69,7 @@ export async function createDashboardServer({
   });
 
   app.register(personaRoutes, { prefix: '/api/persona', personas });
+  if (models) app.register(modelRoutes, { prefix: '/api/model', models });
   if (routines) app.register(routineRoutes, { prefix: '/api/routines', routines });
   if (policies) app.register(policyRoutes, { prefix: '/api/policies', policies });
   if (memory) app.register(memoryRoutes, { prefix: '/api/memory', memory });

@@ -65,6 +65,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 interface PersonaPageProps {
   footer: ReactNode;
+  /** The default model's section, which another module provides; it saves on its own. */
+  model?: ReactNode;
   /** Told whenever unsaved edits appear or go away, so the app can guard navigation. */
   onDirtyChange?: (dirty: boolean) => void;
   /** Asks the Owner a yes/no question in the dashboard's dialog. */
@@ -78,7 +80,7 @@ interface PersonaPageProps {
 }
 
 /** Persona configuration owns its loading, editing and persistence behaviour. */
-export function PersonaPage({ footer, onDirtyChange, confirm }: PersonaPageProps) {
+export function PersonaPage({ footer, model, onDirtyChange, confirm }: PersonaPageProps) {
   const [saved, setSaved] = useState<Persona>({ name: '', personality: '' });
   const [draft, setDraft] = useState<Persona>({ name: '', personality: '' });
   const [presets, setPresets] = useState<PersonaPreset[]>([]);
@@ -308,6 +310,7 @@ export function PersonaPage({ footer, onDirtyChange, confirm }: PersonaPageProps
               )}
             </div>
           </section>
+          {model}
           {error && (
             <div className="notice" data-tone="error" role="alert">
               <WarningCircle size={16} aria-hidden="true" />

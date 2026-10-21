@@ -31,7 +31,7 @@ async function setup() {
     engine,
     memory,
     channel,
-    model: 'sonnet',
+    defaultModel: () => 'sonnet',
     timeZone: 'Europe/Rome',
     logger: silentLogger,
   });
@@ -84,6 +84,26 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
     await expect(dreams.saveSettings({ enabled: true, time: '7' })).rejects.toThrow(
       DreamSettingsError,
     );
+    await expect(
+      dreams.saveSettings({ enabled: true, time: '07:00', model: 'gpt-5' }),
+    ).rejects.toThrow(DreamSettingsError);
+  });
+
+  it('dreams with its own model when the Owner picked one, else with the default', async () => {
+    const { dreams, engine, record, dream } = await setup();
+    engine.script(replyWith('Niente.'), replyWith('Niente.'));
+    await record('Ciao');
+    await dream();
+    await dreams.saveSettings({ enabled: true, time: '07:00', model: 'haiku' });
+    await record('Ancora');
+    await dream();
+
+    expect(engine.requests.map(({ model }) => model)).toEqual(['sonnet', 'haiku']);
+    expect((await dreams.view()).settings).toEqual({
+      enabled: true,
+      time: '07:00',
+      model: 'haiku',
+    });
   });
 
   it('reads the Journal into inferred Facts, forgets it and asks about what matters', async () => {

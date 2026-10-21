@@ -1,3 +1,4 @@
+import { MODELS } from '@emanator/engine';
 import { ArrowClockwise, MoonStars, WarningCircle } from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import type { DreamRun, DreamSettings, DreamView } from '../domain/dream.ts';
@@ -9,6 +10,8 @@ const t = {
     'Every night it reads what you and your Agent said, and what your accounts returned, and notes what it learns as inferred facts. In the morning it asks you on Telegram about what matters.',
   enabled: 'Dream every night',
   at: 'at',
+  model: 'with',
+  defaultModel: 'Default model',
   offHint: 'While it is off, nothing of your days is kept.',
   dreamNow: 'Dream now',
   nothingToRead: 'The Journal is empty: talk with your Agent first.',
@@ -147,6 +150,25 @@ export function DreamPanel() {
                 event.target.value && void save({ ...settings, time: event.target.value })
               }
             />
+          </label>
+          <label className={styles.time}>
+            <span>{t.model}</span>
+            <select
+              className="select"
+              value={settings.model ?? ''}
+              disabled={busy || !settings.enabled}
+              onChange={(event) => {
+                const { model: _previous, ...rest } = settings;
+                void save(event.target.value ? { ...rest, model: event.target.value } : rest);
+              }}
+            >
+              <option value="">{t.defaultModel}</option>
+              {MODELS.map(({ id, label }) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </label>
           <button
             type="button"
