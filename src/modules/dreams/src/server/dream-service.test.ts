@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { InboundAction } from '@emanator/channels';
 import { FakeChannel } from '@emanator/channels/testing';
-import type { ToolOutput, TurnRequest } from '@emanator/engine';
+import { ConversationService, ConversationStore } from '@emanator/conversations/server';
+import { type ToolOutput, type TurnRequest, UsageTracker } from '@emanator/engine';
 import { FakeEngine, replyWith, type ScriptedTurn } from '@emanator/engine/testing';
 import { MemoryService } from '@emanator/memory/server';
 import { createTestDatabase, silentLogger } from '@emanator/shared/server';
@@ -30,10 +31,26 @@ async function setup() {
   await memory.init();
   const engine = new FakeEngine();
   const channel = new FakeChannel();
+  const conversationStore = new ConversationStore(fixture.db);
+  await conversationStore.init();
+  const conversations = new ConversationService({
+    channel,
+    engine,
+    store: conversationStore,
+    usage: new UsageTracker(),
+    systemPrompt: () => '',
+    defaultModel: () => 'sonnet',
+    timeZone: () => 'Europe/Rome',
+    prepareTurn: async () => ({
+      decidePermission: async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
+    }),
+    logger: silentLogger,
+  });
   const dreams = new DreamService({
     store,
     engine,
     memory,
+    conversations,
     channel,
     defaultModel: () => 'sonnet',
     timeZone: () => zone.current,
@@ -50,7 +67,7 @@ async function setup() {
     await dreams.dreamNow();
     await dreams.idle();
   };
-  return { store, memory, engine, channel, dreams, record, dream };
+  return { store, memory, engine, channel, conversationStore, dreams, record, dream };
 }
 
 /** A Dream turn that notes these Facts with its `note` Tool, then answers. */
@@ -139,7 +156,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
     expect((await memory.changes(1))[0]?.change).toMatch(/^ricordato dal Sogno in \[\[Mamma\]\]/);
     expect(await store.waiting()).toBe(0);
     expect(await store.lastRun()).toMatchObject({ status: 'done', noted: 2 });
-    expect(channel.sent[0]?.threadId).toBeUndefined();
+    expect(channel.opened).toEqual(['🌙 Sogno · dream']);
+    expect(channel.sent[0]?.threadId).toBe('100');
     expect(channel.sent[0]?.markdown).toContain(
       '1. **Mamma**: Ha la visita dal cardiologo il 3 novembre. (chat con Mamma)',
     );
@@ -148,6 +166,35 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
       ['✕ 1', 0],
       ['✓ Tutti', 1],
     ]);
+  });
+
+  it('asks in its own topic every morning, reopened if deleted, and hands the question on', async () => {
+    const { engine, channel, conversationStore, record, dream } = await setup();
+    const asking = () =>
+      noting({
+        page: 'Mamma',
+        kind: 'persone',
+        fact: `Fatto ${Math.random()}.`,
+        source: 'chat',
+        ask: true,
+      });
+    engine.script(asking(), asking(), asking());
+
+    await record('Uno');
+    await dream();
+    await record('Due');
+    await dream();
+    channel.deletedThreads.add('100');
+    await record('Tre');
+    await dream();
+
+    expect(channel.opened).toEqual(['🌙 Sogno · dream', '🌙 Sogno · dream']);
+    expect(channel.sent.map(({ threadId }) => threadId)).toEqual(['100', '100', '101']);
+    const topic = await conversationStore.findByName('dream');
+    expect(topic).toMatchObject({ threadId: '101', openedBy: 'harness' });
+    expect((await conversationStore.pendingHandoffs(topic?.id ?? ''))[0]?.markdown).toContain(
+      'Sono giuste?',
+    );
   });
 
   it('keeps the Journal when the Dream fails, and asks nothing', async () => {

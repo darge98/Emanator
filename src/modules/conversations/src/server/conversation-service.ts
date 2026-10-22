@@ -11,6 +11,7 @@ import type { Engine, TurnRequest, UsageTracker } from '@emanator/engine';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 import {
   type Conversation,
+  DREAM_CONVERSATION_NAME,
   GENERAL_CONVERSATION_NAME,
   type OpenedBy,
   ROUTINE_TOPIC_SUFFIX,
@@ -157,6 +158,25 @@ export class ConversationService {
   }
 
   /**
+   * The Dream's own topic while live, else a new one called `title`. Its name is reserved, so
+   * no other Conversation can take it.
+   */
+  async dreamTopic(title: string): Promise<Conversation> {
+    const live = await this.deps.store.findByName(DREAM_CONVERSATION_NAME);
+    if (live) return live;
+    const { channel, store } = this.deps;
+    const threadId = await channel.openThread(title);
+    return store.create({
+      name: DREAM_CONVERSATION_NAME,
+      title,
+      channel: channel.id,
+      threadId,
+      openedBy: 'harness',
+      dreamTopic: true,
+    });
+  }
+
+  /**
    * Follows a Routine rename: the topic and its Conversation take the new name.
    * A topic found deleted is archived instead, so the next Run opens a new one.
    */
@@ -182,8 +202,12 @@ export class ConversationService {
    * Sends a message the Owner didn't ask for, such as a Routine's, and hands it to the
    * Conversation's next turn. Returns false, after archiving it, if the thread is gone.
    */
-  async deliver(conversation: Conversation, markdown: string): Promise<boolean> {
-    if ((await this.trySend(conversation, markdown)) === undefined) return false;
+  async deliver(
+    conversation: Conversation,
+    markdown: string,
+    actions: readonly MessageAction[] = [],
+  ): Promise<boolean> {
+    if ((await this.trySend(conversation, markdown, actions)) === undefined) return false;
     this.deps.journal?.({ place: conversation.title, author: 'agent', text: markdown });
     try {
       await this.deps.store.addHandoff(conversation.id, markdown, MAX_HANDOFFS);

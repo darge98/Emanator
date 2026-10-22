@@ -342,6 +342,9 @@ importers:
       '@emanator/channels':
         specifier: workspace:*
         version: link:../channels
+      '@emanator/conversations':
+        specifier: workspace:*
+        version: link:../conversations
       '@emanator/engine':
         specifier: workspace:*
         version: link:../engine

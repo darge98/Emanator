@@ -3,6 +3,7 @@ import type { SessionRef } from '@emanator/engine';
 import { type Database, runMigrations } from '@emanator/shared/server';
 import {
   type Conversation,
+  DREAM_CONVERSATION_NAME,
   GENERAL_CONVERSATION_NAME,
   type OpenedBy,
   ROUTINE_TOPIC_SUFFIX,
@@ -18,6 +19,8 @@ export interface NewConversation {
   openedBy: OpenedBy;
   /** Only a Routine's own topic may take a name ending in `-routine`. */
   routineTopic?: boolean;
+  /** Only the Dream's own topic may be called `dream`. */
+  dreamTopic?: boolean;
 }
 
 /** A message a Routine delivered, to be handed to the Conversation on its next turn. */
@@ -69,10 +72,11 @@ export class ConversationStore {
 
   /**
    * Atomically claims `name`, or `name-2`, `name-3`, … if a live Conversation holds it.
-   * Only the General thread may be called `general`, and only Routine topics end in `-routine`.
+   * Only the General thread may be called `general`, only Routine topics end in `-routine`,
+   * and only the Dream's topic is called `dream`.
    */
   async create(input: NewConversation): Promise<Conversation> {
-    const { routineTopic, ...fields } = input;
+    const { routineTopic, dreamTopic, ...fields } = input;
     const conversation: Conversation = {
       id: randomUUID(),
       ...fields,
@@ -82,6 +86,7 @@ export class ConversationStore {
       const name = n === 1 ? input.name : `${input.name}-${n}`;
       if (name === GENERAL_CONVERSATION_NAME && input.threadId !== undefined) continue;
       if (name.endsWith(ROUTINE_TOPIC_SUFFIX) && !routineTopic) continue;
+      if (name === DREAM_CONVERSATION_NAME && !dreamTopic) continue;
       const { rows } = await this.db.query(
         `INSERT INTO conversations (id, name, title, channel, thread_id, opened_by, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)

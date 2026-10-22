@@ -27,7 +27,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - deleting the Routine archives its Conversation. The Telegram topic stays, and removing it is up to the Owner. A Run still in progress then delivers nothing, and a Run of a renamed Routine uses the new name.
 - Each Routine message starts with a header naming the Routine. It then still makes sense if it lands in General because the Owner deleted the target topic (see Conversations).
 - Creating, editing or deleting a Routine applies immediately, without restarting the Harness: the scheduler updates its Triggers. A Run already in progress completes.
-- Conversation names follow one rule: a name identifies a *live* Conversation. Archiving a Conversation frees its name, so a reopened `briefing-routine` keeps it, and `general` is reserved for the General Conversation.
+- Conversation names follow one rule: a name identifies a *live* Conversation. Archiving a Conversation frees its name, so a reopened `briefing-routine` keeps it, `general` is reserved for the General Conversation, and `dream` for the Dream's topic.
 - **Reminders and Routines the Agent creates** (the Routines Faculty):
   - `remind` sets a Reminder freely, also in a tainted turn: a prompt it runs once, at most a year ahead, with at most 50 waiting. It speaks in the Conversation it was asked in (General when that is gone, or when a Run set it), as a handoff, and is deleted once delivered or silent, unless it was moved ahead meanwhile; a failed one stays in the dashboard, and no longer counts among the 50. A Run of a Routine can set Reminders too, so a "planner" Routine can read the calendar and set one before each appointment;
   - a Reminder's own Run gets neither `remind`, `update_reminder` nor `create_routine`: otherwise a Reminder could keep setting or moving itself again, a recurring Routine nobody approved;
@@ -73,7 +73,7 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - **The Dream**, Memory's second wave:
   - while it is on, the Harness keeps a Journal: what the Owner writes, what the Agent answers and what Capability Tools return, in Conversations and Runs, each entry cut to 4,000 characters. Web pages and files stay out;
   - every night at the Owner's time (07:00 by default) it reads the Journal in a fresh session, with only `recall` and `note`, which writes inferred Facts with their source. A failed Dream keeps the Journal for the next one; a read one is deleted, and anything older than a week goes anyway;
-  - it then asks the Owner in General about at most five Facts that matter, with ✓/✕ for each and ✓ Tutti;
+  - it then asks the Owner about at most five Facts that matter, with ✓/✕ for each and ✓ Tutti, in its own topic "🌙 Sogno · dream", opened on the first question and again if deleted. The question is handed to that topic's next turn, so the Owner can also correct it in words. The buttons never expire;
   - the Memory page switches it on or off, sets its time, starts it now and shows the last outcome.
 
 - **What the Agent knows of itself:** every turn's prompt says what its Tools don't. Which Tools ask first and which the Owner denied (the model doesn't see those), each Capability's state and the catalog entries not connected, its model, time zone and Dream, and how many Routines and Reminders it has. It is built from the same registries Policies and the dashboard use, so new Faculties and Capabilities appear without changes, within a fixed budget.

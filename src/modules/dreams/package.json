@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@emanator/channels": "workspace:*",
+    "@emanator/conversations": "workspace:*",
     "@emanator/engine": "workspace:*",
     "@emanator/faculties": "workspace:*",
     "@emanator/memory": "workspace:*",

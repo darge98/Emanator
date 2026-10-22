@@ -145,6 +145,11 @@ async function start() {
     store: dreamStore,
     engine,
     memory,
+    // Conversations keep the Dream's Journal, so they come after it; the Dream asks only later.
+    conversations: {
+      dreamTopic: (title) => conversations.dreamTopic(title),
+      deliver: (topic, markdown, actions) => conversations.deliver(topic, markdown, actions),
+    },
     channel,
     defaultModel,
     timeZone,

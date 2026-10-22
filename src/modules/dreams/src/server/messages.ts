@@ -2,6 +2,9 @@ import type { AskedFact } from '../domain/dream.ts';
 
 // What the Dream says to the Owner. Italian, like the other Telegram messages.
 
+/** The Dream's own topic, named like a Routine's: the Harness opened it, not the Owner. */
+export const TOPIC_TITLE = '🌙 Sogno · dream';
+
 const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 /** The morning question: the Facts worth asking about, numbered for their buttons. */

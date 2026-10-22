@@ -141,6 +141,27 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ConversationStore', () => {
     }
   });
 
+  it("keeps the name dream for the Dream's own topic", async () => {
+    const conversations = await store();
+    const owners = await conversations.create({
+      name: 'dream',
+      title: 'Dream',
+      channel: 'telegram',
+      threadId: '1',
+      openedBy: 'owner',
+    });
+    const dreams = await conversations.create({
+      name: 'dream',
+      title: '🌙 Sogno · dream',
+      channel: 'telegram',
+      threadId: '2',
+      openedBy: 'harness',
+      dreamTopic: true,
+    });
+
+    expect([owners.name, dreams.name]).toEqual(['dream-2', 'dream']);
+  });
+
   it('enforces one live Conversation per thread', async () => {
     const conversations = await store();
     await conversations.create({

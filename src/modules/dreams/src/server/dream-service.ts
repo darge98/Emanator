@@ -1,4 +1,5 @@
 import type { Channel, InboundAction, MessageAction } from '@emanator/channels';
+import type { ConversationService } from '@emanator/conversations/server';
 import { type Engine, isModel, MODELS } from '@emanator/engine';
 import { memoryFaculty, turnAbilities } from '@emanator/faculties/server';
 import { TurnTrust } from '@emanator/memory';
@@ -23,7 +24,10 @@ export interface DreamServiceDeps {
   store: DreamStore;
   engine: Engine;
   memory: MemoryService;
-  channel: Pick<Channel, 'send' | 'setActions'>;
+  /** Where the Dream asks: its own topic. */
+  conversations: Pick<ConversationService, 'dreamTopic' | 'deliver'>;
+  /** Updates the buttons under a question once answered. */
+  channel: Pick<Channel, 'setActions'>;
   /** Used unless the Owner picked the Dream's own; read at every Dream. */
   defaultModel: () => string;
   /** IANA zone the Dream's time is read in. */
@@ -259,12 +263,22 @@ export class DreamService {
     return failure;
   }
 
-  /** In General, the Owner's own thread. */
+  /**
+   * In the Dream's own topic, handed to its next turn, so the Owner can answer in words too.
+   * A topic found deleted is replaced once.
+   */
   private async ask(id: string, { noted, asked }: DreamNotes): Promise<void> {
-    await this.deps.channel.send(undefined, {
-      markdown: say.question(asked, noted),
-      actions: questionActions({ id, asked }),
-    });
+    const { conversations } = this.deps;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const topic = await conversations.dreamTopic(say.TOPIC_TITLE);
+      const delivered = await conversations.deliver(
+        topic,
+        say.question(asked, noted),
+        questionActions({ id, asked }),
+      );
+      if (delivered) return;
+    }
+    throw new Error('The Dream topic was gone twice in a row.');
   }
 
   private async setActions(press: InboundAction, actions: MessageAction[]): Promise<void> {

@@ -27,6 +27,9 @@ export type OpenedBy = 'owner' | 'agent' | 'harness';
 
 export const GENERAL_CONVERSATION_NAME = 'general';
 
+/** Reserved for the Dream's own topic, where it asks the Owner each morning. */
+export const DREAM_CONVERSATION_NAME = 'dream';
+
 /** Reserved for Routine topics: `briefing-routine`. Other Conversations never end with it. */
 export const ROUTINE_TOPIC_SUFFIX = '-routine';
 
