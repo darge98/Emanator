@@ -163,7 +163,9 @@ export class ConversationService {
    */
   async dreamTopic(title: string): Promise<Conversation> {
     const live = await this.deps.store.findByName(DREAM_CONVERSATION_NAME);
-    if (live) return live;
+    // A topic of the Owner's that took the name before it was reserved stays theirs.
+    if (live?.openedBy === 'harness') return live;
+    if (live) await this.deps.store.rename(live.id, `${DREAM_CONVERSATION_NAME}-owner`, live.title);
     const { channel, store } = this.deps;
     const threadId = await channel.openThread(title);
     return store.create({

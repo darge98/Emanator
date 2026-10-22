@@ -284,8 +284,10 @@ export class DreamService {
     const { store, logger } = this.deps;
     let run: DreamRun;
     try {
-      // Nothing to read: no Run, so the last one shown stays the last that read something.
-      if ((await store.waiting()) === 0) return;
+      // Nothing new from the Owner or their accounts: no Run, so the last one shown stays the
+      // last that read something. What the Agent alone said, such as the Dream's own question,
+      // waits for the next night, where it gives the Owner's answer its context.
+      if (!(await store.hasNews())) return;
       run = await store.startRun();
     } catch (error) {
       logger.error('Could not start the Dream', { error: errorMessage(error) });

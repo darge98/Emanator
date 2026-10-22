@@ -228,6 +228,14 @@ export class DreamStore {
     }));
   }
 
+  /** Whether the Journal holds anything from the Owner or a Tool, not only the Agent's words. */
+  async hasNews(): Promise<boolean> {
+    const { rows } = await this.db.query(
+      "SELECT 1 FROM dream_journal WHERE author <> 'agent' LIMIT 1",
+    );
+    return rows.length > 0;
+  }
+
   async waiting(): Promise<number> {
     const {
       rows: [row],

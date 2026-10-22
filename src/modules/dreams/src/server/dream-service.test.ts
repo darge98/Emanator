@@ -44,6 +44,8 @@ async function setup() {
     prepareTurn: async () => ({
       decidePermission: async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
     }),
+    // As in main.ts: what is said in Conversations goes to the Journal.
+    journal: (entry) => dreams.record(entry),
     logger: silentLogger,
   });
   const dreams = new DreamService({
@@ -159,7 +161,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
       'inferred',
     ]);
     expect((await memory.changes(1))[0]?.change).toMatch(/^ricordato dal Sogno in \[\[Mamma\]\]/);
-    expect(await store.waiting()).toBe(0);
+    // What was read is gone; only the question waits, for the answer's context.
+    expect((await store.journal()).map(({ author }) => author)).toEqual(['agent']);
     expect(await store.lastRun()).toMatchObject({ status: 'done', noted: 2 });
     expect(channel.opened).toEqual(['🌙 Sogno · dream']);
     expect(channel.sent[0]?.threadId).toBe('100');
@@ -202,6 +205,35 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
     expect((await conversationStore.pendingHandoffs(topic?.id ?? ''))[0]?.markdown).toContain(
       'Sono giuste?',
     );
+  });
+
+  it("keeps its question for the next night without dreaming on it, and leaves an Owner's dream topic alone", async () => {
+    const { engine, channel, conversationStore, store, record, dream } = await setup();
+    const owners = await conversationStore.create({
+      name: 'dream',
+      title: 'Dream',
+      channel: 'fake',
+      threadId: '42',
+      openedBy: 'owner',
+    });
+    // Named before the name was reserved.
+    await conversationStore.rename(owners.id, 'dream', 'Dream');
+    await record('Ciao');
+    engine.script(
+      noting({ page: 'Mamma', kind: 'persone', fact: 'Uno.', source: 'chat', ask: true }),
+      replyWith('Niente.'),
+    );
+
+    await dream();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The question waits in the Journal, for the answer's sake, but dreams nothing on its own.
+    expect(await store.waiting()).toBe(1);
+    await dream();
+    expect(engine.requests).toHaveLength(2);
+
+    expect(channel.sent[0]?.threadId).toBe('100');
+    expect((await conversationStore.get(owners.id))?.name).toBe('dream-owner');
+    expect((await conversationStore.findByName('dream'))?.openedBy).toBe('harness');
   });
 
   it('keeps the Journal when the Dream fails, and asks nothing', async () => {
@@ -332,7 +364,8 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
       const [, retro] = engine.requests;
       expect(retro?.prompt).toContain('No, intendevo il calendario di lavoro.');
       expect(retro?.tools?.map(({ name }) => name)).toEqual(['propose']);
-      expect(await store.waiting()).toBe(0);
+      // What was read is gone; only the question waits, for the answer's context.
+      expect((await store.journal()).map(({ author }) => author)).toEqual(['agent']);
       expect(channel.sent[0]?.threadId).toBe('100');
       expect(channel.sent[0]?.markdown).toContain(
         '1. 🧭 **Istruzione**: Usa il calendario di lavoro.',

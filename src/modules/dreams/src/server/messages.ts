@@ -24,6 +24,7 @@ export function question(asked: readonly AskedFact[], noted: number): string {
           `_Altre ${others === 1 ? 'una cosa la trovi' : `${others} cose le trovi`} nella dashboard._`,
         ]
       : []),
+    '_Confermi o dimentichi?_',
   ].join('\n\n');
 }
 

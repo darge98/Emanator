@@ -150,11 +150,11 @@ function when(date: Date, timeZone: string, now = new Date()): string {
   return `${dayLabel} alle ${time}`;
 }
 
-/** The Owner's message, preceded by what Routines sent here since the last turn. */
+/** The Owner's message, preceded by what Routines, Reminders or the Dream sent here since. */
 export function withHandoffs(handoffs: readonly Handoff[], text: string, timeZone: string): string {
   if (!handoffs.length) return text;
   return [
-    "[Dall'ultimo turno hai inviato in questa conversazione questi messaggi delle Routine:]",
+    "[Dall'ultimo turno hai inviato in questa conversazione questi messaggi, da Routine, promemoria o dal Sogno:]",
     ...handoffs.map(
       ({ markdown, createdAt }) => `--- ${when(createdAt, timeZone)} ---\n${markdown}`,
     ),
