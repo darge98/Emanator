@@ -38,10 +38,12 @@ interface ScheduleEditorProps {
   schedules: ScheduleDraft[];
   onChange: (schedules: ScheduleDraft[]) => void;
   disabled: boolean;
+  /** The Owner's time zone, in which a date is read and written. */
+  timeZone?: string;
 }
 
 /** Guided schedule forms; each row ends with a sentence saying when the Routine runs. */
-export function ScheduleEditor({ schedules, onChange, disabled }: ScheduleEditorProps) {
+export function ScheduleEditor({ schedules, onChange, disabled, timeZone }: ScheduleEditorProps) {
   const set = (index: number, schedule: ScheduleDraft) =>
     onChange(schedules.map((current, i) => (i === index ? schedule : current)));
 
@@ -60,7 +62,9 @@ export function ScheduleEditor({ schedules, onChange, disabled }: ScheduleEditor
                 className="select"
                 aria-label={label}
                 value={schedule.kind}
-                onChange={(e) => set(index, blankSchedule(e.target.value as ScheduleKind))}
+                onChange={(e) =>
+                  set(index, blankSchedule(e.target.value as ScheduleKind, timeZone))
+                }
                 disabled={disabled}
               >
                 {KINDS.map((kind) => (

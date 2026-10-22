@@ -18,7 +18,7 @@ let noted: NotedFact[];
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'emanator-memory-faculty-'));
-  memory = new MemoryService({ dir, timeZone: 'Europe/Rome', logger: silentLogger });
+  memory = new MemoryService({ dir, timeZone: () => 'Europe/Rome', logger: silentLogger });
   await memory.init();
   asked = [];
   answer = true;

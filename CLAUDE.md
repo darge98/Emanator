@@ -39,7 +39,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 **A modular monolith with vertical feature slices (ADR 0005).**
 - `src/apps/server/src/main.ts` is the composition root: one Fastify process runs the dashboard API, the Routine scheduler and the Telegram long-polling bot, and serves the built SPA.
 - `src/apps/web` is the React/Vite shell. It only composes the pages that the modules export.
-- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `policies`, `faculties`, `capabilities`, `memory`, `dreams`, `shared`), with up to three entry points:
+- Each `src/modules/<feature>` is a workspace package named after a glossary term (`engine`, `channels`, `conversations`, `personas`, `routines`, `policies`, `faculties`, `capabilities`, `memory`, `dreams`, `timezone`, `shared`), with up to three entry points:
   - `@emanator/<feature>`: domain types, pure;
   - `@emanator/<feature>/server`: stores, services, Fastify routes;
   - `@emanator/<feature>/web`: React pages.
@@ -60,7 +60,7 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - *Suggested replies*: the `suggest_replies` Tool puts up to four short replies as buttons under the turn's answer. The reply travels in the button id (`rp:<text>`), so a press needs no stored state. Presses go through the Conversation's queue and count as the Owner's message; the buttons go when the Owner writes anything else.
 - Messages a Routine delivers are stored as *handoffs*. They are prepended to the Owner's next turn in that Conversation and cleared once the Engine starts that turn.
 
-**Routines** (`modules/routines`). A Routine is a prompt plus Triggers: `once` with an ISO offset, `interval` anchored to `updatedAt`, or 5-field `cron` read in `EMANATOR_TIMEZONE` via `croner`.
+**Routines** (`modules/routines`). A Routine is a prompt plus Triggers: `once` with an ISO offset, `interval` anchored to `updatedAt`, or 5-field `cron` read in the Owner's time zone via `croner`.
 - `RoutineService` is what the API calls. Every create, update or delete reschedules `RoutineScheduler` at once, so there is no restart (hot reload). Events missed while the Harness was down are skipped.
 - `RoutineRunner` runs each Run in a fresh Engine session. It delivers the reply under a `**⏰ name**` header to the Routine's own `<slug>-routine` topic, which is opened lazily, shared by parallel Runs, renamed with the Routine and archived on delete.
 - A reply of exactly `[silent]` sends nothing.
@@ -85,6 +85,8 @@ TEST_DATABASE_URL=… pnpm vitest run src/modules/routines/src/server/routine-se
 - The dashboard reads it through `/api/memory` (one snapshot: Pages, kinds, latest changes) and confirms or forgets through `MemoryService` too, so the Owner's changes are commits marked *dalla dashboard*.
 - **The Dream** (`modules/dreams`): `DreamService` keeps the Journal while it is on (`ConversationServiceDeps.journal` for what is said, and in `main.ts` a wrapper on Capability Tools for what they return, under `TurnContext.place`). Every night (croner, at `dream_settings.time`) it runs one Engine turn in a fresh session with only `recall` and `note` (inferred Facts, written *dal Sogno*), deletes the Journal it read, and asks in General about up to five Facts with per-row buttons (`dq:<run>:<i>:y|n`, `dq:<run>:all`; `MessageAction.row`). Answers are stored on the Run, so they survive restarts. The Memory page shows its panel, which `App.tsx` passes in.
 - `prepareTurn(context)` builds each turn's Tools and decider, Memory's included. `memoryPrompt` puts confirmed preferences and instructions in the system prompt as instructions, and the Owner's Page and the index as data, within fixed budgets.
+
+**Time zone** (`modules/timezone`). `TimeZoneSettings` (table `time_zone_settings`) keeps the Owner's zone, set on the Persona page; `EMANATOR_TIMEZONE` seeds it once. Every reader takes `timeZone: () => string`, so a change applies at once. Instants are stored in UTC and never move; recurring times are wall-clock times, so on a change `main.ts` reschedules the Routines and the Dream (`onTimeZoneChange`). The dashboard shows and writes dates in that zone, not the browser's: `App.tsx` fetches it and passes it to the pages.
 
 **Capabilities** (`modules/capabilities`, ADR 0008). Each is a remote MCP server for one account. The Harness is its only MCP and OAuth client; the Engine never sees a token.
 - `CapabilityConnections` connects, authorizes through the Owner's browser (`/api/capabilities/oauth/callback`), refreshes tokens and calls Tools. Secrets are sealed by `SecretBox` (`EMANATOR_SECRET_KEY`) before they reach PostgreSQL.

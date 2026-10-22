@@ -15,7 +15,7 @@ let review: MemoryReview;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'emanator-memory-review-'));
-  memory = new MemoryService({ dir, timeZone: 'Europe/Rome', logger: silentLogger });
+  memory = new MemoryService({ dir, timeZone: () => 'Europe/Rome', logger: silentLogger });
   await memory.init();
   channel = new FakeChannel();
   review = new MemoryReview({ channel, memory, logger: silentLogger });

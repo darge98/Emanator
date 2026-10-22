@@ -22,7 +22,7 @@ export interface RoutineRunnerDeps {
   /** Read at every Run, so a change in the dashboard applies from the next one. */
   defaultModel: () => string;
   /** IANA zone used when telling the Owner when Runs resume. */
-  timeZone: string;
+  timeZone: () => string;
   logger: Logger;
   now?: () => Date;
   /** Waits `ms`, rejecting early when `signal` aborts. Replaceable in tests. */
@@ -215,7 +215,7 @@ export class RoutineRunner {
   private async noticeQuota(routine: Routine, until: Date): Promise<void> {
     try {
       const topic = await this.topic(routine);
-      await this.deps.conversations.notify(topic, say.quotaExhausted(until, this.deps.timeZone));
+      await this.deps.conversations.notify(topic, say.quotaExhausted(until, this.deps.timeZone()));
     } catch (error) {
       this.deps.logger.error('Could not send the quota notice', {
         routine: routine.name,

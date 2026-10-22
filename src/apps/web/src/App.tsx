@@ -5,6 +5,7 @@ import { FacultiesPage } from '@emanator/faculties/web';
 import { MemoryPage } from '@emanator/memory/web';
 import { PersonaPage } from '@emanator/personas/web';
 import { RoutinesPage } from '@emanator/routines/web';
+import { TimeZonePanel } from '@emanator/timezone/web';
 import {
   Brain,
   Fingerprint,
@@ -46,11 +47,23 @@ export default function App() {
     request: ConfirmRequest;
     resolve: (confirmed: boolean) => void;
   }>();
+  /** The Owner's time zone, which pages show times in; the Persona page changes it. */
+  const [timeZone, setTimeZone] = useState<string>();
   const dirty = useRef(false);
   const current = useRef(page);
   current.current = page;
   const onDirtyChange = useCallback((value: boolean) => {
     dirty.current = value;
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/time-zone')
+      .then((response) => (response.ok ? response.json() : undefined))
+      .then(
+        (body: { timeZone?: string } | undefined) => body?.timeZone && setTimeZone(body.timeZone),
+      )
+      // Pages fall back to the browser's zone.
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -161,13 +174,23 @@ export default function App() {
         ) : page === 'faculties' ? (
           <FacultiesPage footer={footer} onDirtyChange={onDirtyChange} />
         ) : page === 'memory' ? (
-          <MemoryPage footer={footer} dream={<DreamPanel />} confirm={confirm} />
+          <MemoryPage
+            footer={footer}
+            dream={<DreamPanel {...(timeZone && { timeZone })} />}
+            confirm={confirm}
+          />
         ) : page === 'routines' ? (
-          <RoutinesPage footer={footer} onDirtyChange={onDirtyChange} confirm={confirm} />
+          <RoutinesPage
+            footer={footer}
+            {...(timeZone && { timeZone })}
+            onDirtyChange={onDirtyChange}
+            confirm={confirm}
+          />
         ) : (
           <PersonaPage
             footer={footer}
             model={<ModelPanel />}
+            timeZone={<TimeZonePanel onChange={setTimeZone} />}
             onDirtyChange={onDirtyChange}
             confirm={confirm}
           />

@@ -13,7 +13,7 @@ let memory: MemoryService;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'emanator-memory-routes-'));
-  memory = new MemoryService({ dir, timeZone: 'Europe/Rome', logger: silentLogger });
+  memory = new MemoryService({ dir, timeZone: () => 'Europe/Rome', logger: silentLogger });
   await memory.init();
   await memory.remember({
     page: 'Città di Fido',

@@ -21,7 +21,7 @@ export interface FacultyDeps {
   memory: MemoryKeeper;
   routines: RoutineKeeper;
   /** The Owner's time zone, in which the Agent reads the times it is given back. */
-  timeZone: string;
+  timeZone: () => string;
 }
 
 /** One turn as the Faculties see it. */

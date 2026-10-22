@@ -31,8 +31,8 @@ export interface ConversationServiceDeps {
   systemPrompt: () => Promise<string> | string;
   /** Read at every turn, so a change in the dashboard applies from the next one. */
   defaultModel: () => string;
-  /** IANA time zone used when showing times to the Owner, e.g. `Europe/Rome`. */
-  timeZone: string;
+  /** The Owner's time zone, read whenever a time is shown, so a change applies at once. */
+  timeZone: () => string;
   /**
    * Each turn's Tools, the Engine's included, and its PermissionDecider. Built anew for every
    * turn, since Policies may change and Memory's Tools depend on the turn.
@@ -303,7 +303,7 @@ export class ConversationService {
       // takes effect on the next queued turn, including after a lost-session retry.
       const prompt = await this.deps.systemPrompt();
       const handoffs = await store.pendingHandoffs(conversation.id);
-      const input = say.withHandoffs(handoffs, text, this.deps.timeZone);
+      const input = say.withHandoffs(handoffs, text, this.deps.timeZone());
       const handedOff = async () => {
         if (handoffs.length) {
           await store.clearHandoffs(
@@ -398,7 +398,7 @@ export class ConversationService {
           if (event.reason === 'session-not-found' && conversation.session) return true;
           await this.reply(
             conversation,
-            withPreface(say.failure(event, model, usage.latest(), this.deps.timeZone)),
+            withPreface(say.failure(event, model, usage.latest(), this.deps.timeZone())),
           );
           break;
       }
@@ -448,7 +448,7 @@ export class ConversationService {
             conversation,
             this.modelOf(conversation),
             this.deps.usage.latest(),
-            this.deps.timeZone,
+            this.deps.timeZone(),
           ),
         );
       case 'start':

@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { SecretBox } from '@emanator/capabilities/server';
 import { DEFAULT_MODEL, isModel, MODELS, type ModelId } from '@emanator/engine';
 import { type EngineCredentials, engineCredentialsFromEnv } from '@emanator/engine/server';
+import { canonicalTimeZone, DEFAULT_TIME_ZONE } from '@emanator/timezone';
 
 export interface HarnessConfig {
   dataDir: string;
@@ -9,7 +10,8 @@ export interface HarnessConfig {
   engineCredentials: EngineCredentials;
   /** The default model's first value; the Owner changes it in the dashboard. */
   initialModel: ModelId;
-  timeZone: string;
+  /** The time zone's first value; the Owner changes it in the dashboard. */
+  initialTimeZone: string;
   databaseUrl: string;
   httpHost: string;
   httpPort: number;
@@ -48,9 +50,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (!isModel(initialModel)) {
     throw new Error(`EMANATOR_MODEL must be one of: ${MODELS.map(({ id }) => id).join(', ')}.`);
   }
-  const timeZone = env.EMANATOR_TIMEZONE?.trim() || 'Europe/Rome';
-  // Throws a RangeError on an unknown zone, before anything starts.
-  new Intl.DateTimeFormat('it-IT', { timeZone });
+  const initialTimeZone = canonicalTimeZone(env.EMANATOR_TIMEZONE?.trim() || DEFAULT_TIME_ZONE);
+  if (!initialTimeZone) {
+    throw new Error('EMANATOR_TIMEZONE must be an IANA time zone, e.g. Europe/Rome.');
+  }
 
   return {
     databaseUrl,
@@ -62,6 +65,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     telegramToken,
     engineCredentials: engineCredentialsFromEnv(env),
     initialModel,
-    timeZone,
+    initialTimeZone,
   };
 }

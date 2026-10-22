@@ -43,8 +43,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-const when = (iso: string) =>
+const when = (iso: string, timeZone?: string) =>
   new Date(iso).toLocaleString('en-GB', {
+    timeZone,
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -52,8 +53,13 @@ const when = (iso: string) =>
     minute: '2-digit',
   });
 
+interface DreamPanelProps {
+  /** The Owner's time zone, in which times are shown; the browser's until known. */
+  timeZone?: string;
+}
+
 /** The Dream's settings and its last outcome, for the Memory page. Saves as it changes. */
-export function DreamPanel() {
+export function DreamPanel({ timeZone }: DreamPanelProps = {}) {
   const [view, setView] = useState<DreamView>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -194,14 +200,14 @@ export function DreamPanel() {
               {!lastRun
                 ? t.never
                 : lastRun.status === 'failed'
-                  ? `${when(lastRun.startedAt)} · ${t.failed}: ${lastRun.error ?? ''}`
-                  : `${when(lastRun.startedAt)} · ${running ? t.dreaming : t.outcome(lastRun)}`}
+                  ? `${when(lastRun.startedAt, timeZone)} · ${t.failed}: ${lastRun.error ?? ''}`
+                  : `${when(lastRun.startedAt, timeZone)} · ${running ? t.dreaming : t.outcome(lastRun)}`}
             </dd>
           </div>
           {nextAt && (
             <div>
               <dt>{t.next}</dt>
-              <dd>{when(nextAt)}</dd>
+              <dd>{when(nextAt, timeZone)}</dd>
             </div>
           )}
         </dl>

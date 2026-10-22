@@ -34,7 +34,7 @@ async function setup(engine = new FakeEngine(), channel = new FakeChannel()) {
     usage: new UsageTracker(),
     systemPrompt: () => prompt,
     defaultModel: () => defaultModel,
-    timeZone: 'Europe/Rome',
+    timeZone: () => 'Europe/Rome',
     prepareTurn: async (context) => {
       contexts.push(context);
       return {

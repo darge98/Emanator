@@ -19,7 +19,11 @@ export const WEEK = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const WORKDAYS = [1, 2, 3, 4, 5];
 
-export function blankSchedule(kind: ScheduleKind, now = new Date()): ScheduleDraft {
+export function blankSchedule(
+  kind: ScheduleKind,
+  timeZone?: string,
+  now = new Date(),
+): ScheduleDraft {
   switch (kind) {
     case 'daily':
       return { kind, time: '08:00' };
@@ -28,7 +32,7 @@ export function blankSchedule(kind: ScheduleKind, now = new Date()): ScheduleDra
     case 'monthly':
       return { kind, day: '1', time: '08:00' };
     case 'once':
-      return { kind, local: toLocalInput(new Date(now.getTime() + 3_600_000)) };
+      return { kind, local: toLocalInput(new Date(now.getTime() + 3_600_000), timeZone) };
     case 'every':
       return { kind, amount: '1', unit: 'hours' };
     case 'cron':
@@ -36,10 +40,11 @@ export function blankSchedule(kind: ScheduleKind, now = new Date()): ScheduleDra
   }
 }
 
-export function toSchedule(trigger: Trigger): ScheduleDraft {
+/** A date reads in the Owner's time zone; the browser's when none is given. */
+export function toSchedule(trigger: Trigger, timeZone?: string): ScheduleDraft {
   switch (trigger.type) {
     case 'once':
-      return { kind: 'once', local: toLocalInput(new Date(trigger.at)) };
+      return { kind: 'once', local: toLocalInput(new Date(trigger.at), timeZone) };
     case 'interval':
       return trigger.everyMinutes % 60 === 0
         ? { kind: 'every', amount: String(trigger.everyMinutes / 60), unit: 'hours' }
@@ -50,11 +55,11 @@ export function toSchedule(trigger: Trigger): ScheduleDraft {
 }
 
 /** What the API receives; the server does the real validation. */
-export function toTrigger(schedule: ScheduleDraft): unknown {
+export function toTrigger(schedule: ScheduleDraft, timeZone?: string): unknown {
   switch (schedule.kind) {
     case 'once': {
-      const at = new Date(schedule.local);
-      return { type: 'once', at: Number.isNaN(at.getTime()) ? '' : at.toISOString() };
+      const at = fromLocalInput(schedule.local, timeZone);
+      return { type: 'once', at: at ? at.toISOString() : '' };
     }
     case 'every':
       return {
@@ -149,10 +154,39 @@ function parseTime(value: string): [number, number] | undefined {
   return hour <= 23 && minute <= 59 ? [hour, minute] : undefined;
 }
 
-/** `YYYY-MM-DDTHH:mm` in the browser's zone, as `<input type="datetime-local">` wants. */
-export function toLocalInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+/** `YYYY-MM-DDTHH:mm` in `timeZone` (the browser's if none), as `datetime-local` wants. */
+export function toLocalInput(date: Date, timeZone?: string): string {
+  return wallClock(date, timeZone).slice(0, 16);
+}
+
+/**
+ * The moment a `datetime-local` value means in `timeZone`; undefined when incomplete. Around a
+ * DST change a time may happen twice, and then it is the first; or never, and then it is the
+ * same time on the clock as it was before the change, which lands just after it.
+ */
+export function fromLocalInput(local: string, timeZone?: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local);
+  if (!match) return undefined;
+  const [year, month, day, hour, minute] = match.slice(1).map(Number) as number[];
+  const asUtc = Date.UTC(year as number, (month as number) - 1, day, hour, minute);
+  // A day before and a day after, the zone's offsets are the two it switches between.
+  const before = asUtc - offset(new Date(asUtc - 86_400_000), timeZone);
+  const after = asUtc - offset(new Date(asUtc + 86_400_000), timeZone);
+  const real = [before, after]
+    .filter((at) => toLocalInput(new Date(at), timeZone) === local)
+    .sort((a, b) => a - b);
+  return new Date(real[0] ?? before);
+}
+
+/** `YYYY-MM-DDTHH:mm:ss` as a clock in `timeZone` shows `date`. */
+function wallClock(date: Date, timeZone?: string): string {
+  return date.toLocaleString('sv-SE', { timeZone }).replace(' ', 'T');
+}
+
+/** How far `timeZone`'s clock is ahead of UTC at `date`, in milliseconds. */
+function offset(date: Date, timeZone?: string): number {
+  const wall = new Date(`${wallClock(date, timeZone)}Z`).getTime();
+  return wall - Math.floor(date.getTime() / 1000) * 1000;
 }
 
 export function dayName(day: number, width: 'short' | 'long'): string {
@@ -180,9 +214,14 @@ export function describeSchedule(schedule: ScheduleDraft): string {
     case 'monthly':
       return `On day ${schedule.day} of every month ${at(schedule.time)}`;
     case 'once': {
-      const date = new Date(schedule.local);
+      // The wall-clock time as written, whatever the browser's zone.
+      const date = new Date(`${schedule.local}Z`);
       if (Number.isNaN(date.getTime())) return 'Once';
-      const when = date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      const when = date.toLocaleString('en-GB', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'UTC',
+      });
       return `Once, ${when}`;
     }
     case 'every': {

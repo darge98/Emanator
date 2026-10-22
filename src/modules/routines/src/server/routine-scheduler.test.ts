@@ -27,7 +27,7 @@ describe('RoutineScheduler', () => {
     vi.useFakeTimers({ now: start });
     fired = [];
     scheduler = new RoutineScheduler({
-      timeZone: 'Europe/Rome',
+      timeZone: () => 'Europe/Rome',
       onFire: (id) => fired.push(id),
     });
   });
@@ -83,5 +83,30 @@ describe('RoutineScheduler', () => {
     expect(fired).toEqual([]);
     await vi.advanceTimersByTimeAsync(15 * 24 * 60 * 60_000);
     expect(fired).toEqual(['r1']);
+  });
+
+  it('reads cron in the zone in force, so rescheduling follows a new zone', () => {
+    let zone = 'Europe/Rome';
+    const zoned = new RoutineScheduler({ timeZone: () => zone, onFire: () => {} });
+    const daily = routine({ triggers: [{ type: 'cron', expression: '0 8 * * *' }] });
+
+    expect(zoned.nextRun(daily)?.toISOString()).toBe('2026-10-19T06:00:00.000Z');
+    zone = 'America/New_York';
+    expect(zoned.nextRun(daily)?.toISOString()).toBe('2026-10-18T12:00:00.000Z');
+    zoned.stop();
+  });
+
+  it('arms again only what is armed now', async () => {
+    const daily = (id: string) =>
+      routine({ id, triggers: [{ type: 'cron', expression: '30 12 * * *' }] });
+    scheduler.schedule(daily('kept'));
+    scheduler.schedule(daily('gone'));
+    scheduler.schedule({ ...daily('paused'), enabled: false });
+    scheduler.unschedule('gone');
+
+    scheduler.rescheduleAll();
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+
+    expect(fired).toEqual(['kept']);
   });
 });

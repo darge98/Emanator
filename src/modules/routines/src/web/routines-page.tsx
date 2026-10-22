@@ -161,36 +161,39 @@ const emptyDraft = (): Draft => ({
   schedules: [{ kind: 'weekly', days: [1, 2, 3, 4, 5], time: '08:00' }],
 });
 
-function toDraft(routine: RoutineDto): Draft {
+function toDraft(routine: RoutineDto, timeZone?: string): Draft {
   return {
     name: routine.name,
     prompt: routine.prompt,
     model: routine.model ?? '',
     enabled: routine.enabled,
-    schedules: routine.triggers.map(toSchedule),
+    schedules: routine.triggers.map((trigger) => toSchedule(trigger, timeZone)),
   };
 }
 
 /** What the API receives; the server does the real validation. */
-function toInput(draft: Draft): unknown {
+function toInput(draft: Draft, timeZone?: string): unknown {
   return {
     name: draft.name,
     prompt: draft.prompt,
     ...(draft.model.trim() && { model: draft.model.trim() }),
     enabled: draft.enabled,
-    triggers: draft.schedules.map(toTrigger),
+    triggers: draft.schedules.map((schedule) => toTrigger(schedule, timeZone)),
   };
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, timeZone?: string): string {
   return new Date(iso).toLocaleString('en-GB', {
     dateStyle: 'medium',
     timeStyle: 'short',
+    timeZone,
   });
 }
 
 interface RoutinesPageProps {
   footer: ReactNode;
+  /** The Owner's time zone, in which dates are shown and written; the browser's until known. */
+  timeZone?: string;
   /** Told whenever unsaved edits appear or go away, so the app can guard navigation. */
   onDirtyChange?: (dirty: boolean) => void;
   /** Asks the Owner a yes/no question in the dashboard's dialog. */
@@ -206,7 +209,7 @@ interface RoutinesPageProps {
 type Editing = { mode: 'new' } | { mode: 'edit'; id: string } | undefined;
 
 /** Routine management: list, edit, run now and Run history. */
-export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPageProps) {
+export function RoutinesPage({ footer, timeZone, onDirtyChange, confirm }: RoutinesPageProps) {
   const [routines, setRoutines] = useState<RoutineDto[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [editing, setEditing] = useState<Editing>();
@@ -279,7 +282,7 @@ export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPagePro
   async function open(next: Editing) {
     if (dirty && !(await confirm(t.confirmDiscard))) return;
     const routine = next?.mode === 'edit' ? routines.find(({ id }) => id === next.id) : undefined;
-    const value = routine ? toDraft(routine) : emptyDraft();
+    const value = routine ? toDraft(routine, timeZone) : emptyDraft();
     setEditing(next);
     setDraft(value);
     setPristine(value);
@@ -297,7 +300,7 @@ export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPagePro
     setSaving(true);
     setMessage(undefined);
     try {
-      const body = JSON.stringify(toInput(draft));
+      const body = JSON.stringify(toInput(draft, timeZone));
       if (editing.mode === 'new') {
         await request('/api/routines', { method: 'POST', body });
       } else {
@@ -396,6 +399,7 @@ export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPagePro
           {editing && (
             <RoutineEditor
               t={t}
+              timeZone={timeZone}
               title={editing.mode === 'new' ? t.newTitle : t.editTitle}
               draft={draft}
               onChange={setDraft}
@@ -440,6 +444,7 @@ export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPagePro
                   <RoutineRow
                     routine={routine}
                     t={t}
+                    timeZone={timeZone}
                     editing={editing?.mode === 'edit' && editing.id === routine.id}
                     running={activeRuns.has(routine.id)}
                     historyOpen={historyOf === routine.id}
@@ -450,7 +455,12 @@ export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPagePro
                     }
                   />
                   {historyOf === routine.id && (
-                    <RunHistory key={runsVersion} routineId={routine.id} t={t} />
+                    <RunHistory
+                      key={runsVersion}
+                      routineId={routine.id}
+                      t={t}
+                      timeZone={timeZone}
+                    />
                   )}
                 </li>
               ))}
@@ -466,6 +476,7 @@ export function RoutinesPage({ footer, onDirtyChange, confirm }: RoutinesPagePro
 interface RoutineRowProps {
   routine: RoutineDto;
   t: Copy;
+  timeZone: string | undefined;
   editing: boolean;
   running: boolean;
   historyOpen: boolean;
@@ -477,6 +488,7 @@ interface RoutineRowProps {
 function RoutineRow({
   routine,
   t,
+  timeZone,
   editing,
   running,
   historyOpen,
@@ -511,7 +523,7 @@ function RoutineRow({
             // biome-ignore lint/suspicious/noArrayIndexKey: triggers have no identity
             <span key={index} className="chip">
               <CalendarBlank size={14} aria-hidden="true" />
-              {describeSchedule(toSchedule(trigger))}
+              {describeSchedule(toSchedule(trigger, timeZone))}
             </span>
           ))}
           {routine.model && (
@@ -525,7 +537,7 @@ function RoutineRow({
       <div className={styles['row-side']}>
         <div className={styles.next}>
           <span>{t.next}</span>
-          <strong>{routine.nextRunAt ? formatDate(routine.nextRunAt) : t.never}</strong>
+          <strong>{routine.nextRunAt ? formatDate(routine.nextRunAt, timeZone) : t.never}</strong>
         </div>
         <div className={styles['row-actions']}>
           <button
@@ -578,12 +590,14 @@ interface RoutineEditorProps {
   onDelete?: () => void;
   /** A Reminder writes where it was asked for, not in a topic of its own. */
   reminder?: boolean;
+  timeZone: string | undefined;
 }
 
 function RoutineEditor({
   t,
   title,
   reminder,
+  timeZone,
   draft,
   onChange,
   saving,
@@ -664,6 +678,7 @@ function RoutineEditor({
         schedules={draft.schedules}
         onChange={(schedules) => onChange({ ...draft, schedules })}
         disabled={saving}
+        {...(timeZone && { timeZone })}
       />
 
       <label className={styles.toggle}>
@@ -729,7 +744,15 @@ function RoutineEditor({
   );
 }
 
-function RunHistory({ routineId, t }: { routineId: string; t: Copy }) {
+function RunHistory({
+  routineId,
+  t,
+  timeZone,
+}: {
+  routineId: string;
+  t: Copy;
+  timeZone: string | undefined;
+}) {
   const [runs, setRuns] = useState<RunDto[]>();
   const [failed, setFailed] = useState(false);
   const running = runs?.some(({ status }) => UNFINISHED.includes(status)) ?? false;
@@ -786,7 +809,8 @@ function RunHistory({ routineId, t }: { routineId: string; t: Copy }) {
             {t.status[run.status]}
           </span>
           <span className={styles['run-when']}>
-            {formatDate(run.startedAt)} · {run.origin === 'manual' ? t.manual : t.schedule}
+            {formatDate(run.startedAt, timeZone)} ·{' '}
+            {run.origin === 'manual' ? t.manual : t.schedule}
             {run.finishedAt &&
               ` · ${Math.max(1, Math.round((Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 1000))} s`}
           </span>

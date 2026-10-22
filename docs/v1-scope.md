@@ -112,10 +112,15 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
 - Models are chosen from a list (Haiku, Sonnet, Opus, by the Engine's aliases), never typed. The default model is set on the dashboard's Persona page, and `EMANATOR_MODEL` gives only its first value. Routines, the Dream and each Conversation (`/model` on Telegram, with one button per model) can override it, from their next turn.
 - When the usage limit is hit, Runs wait for the reset and the Owner gets one notice, in the topic of the Routine that hit it, with the time Runs resume. Runs failing together share one wait and one notice, even when the Engine doesn't say when the quota resets. Runs started meanwhile wait without calling the Engine. A Run gives up after three resets, and stopping the Harness fails the Runs still waiting.
 
+### Time zone
+- The Owner picks their time zone on the Persona page; `EMANATOR_TIMEZONE` gives only its first value. It applies at once, without a restart.
+- Moments are stored in UTC and stay the same moment: a Reminder set for 9:00 in Rome still fires then. Recurring times are wall-clock times in the Owner's zone, so after a change "every day at 8" and the Dream's time follow the Owner, and are rescheduled at once.
+- The Agent reads and tells times in it, and so do Telegram messages, Memory's log and the dashboard, whatever the browser's own zone.
+
 ### UI
 - A React and Vite single-page dashboard is served by the Harness on `127.0.0.1:3000`, with no authentication in v1.
 - Currently covers:
-  - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel; the default model, saved as it changes;
+  - Persona configuration: choose a preset, edit the name and personality, then explicitly save or cancel; the default model and the time zone, each saved as it changes;
   - Memory: Pages by kind, with search and a "to review" filter for inferred Facts; each Page with its Facts, its `[[links]]` and the Pages linking to it; confirm an inferred Fact, delete a Fact or a Page, each a commit marked *dalla dashboard*; the latest changes from `log.md`;
   - Routines: list with next Run, create, edit, delete, "run now" and Run history (status, origin, duration, Tools, error); Reminders and what the Agent created are marked;
   - Faculties and Policies: every Faculty Tool with its Policy, offering only the Policies it can enforce. The choices are saved together with one Save button, and a Tool set to its default goes back to it. A save changes only the Tools it names;

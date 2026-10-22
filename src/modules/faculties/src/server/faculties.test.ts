@@ -30,7 +30,7 @@ const tools = agentFaculties({
   conversations: opener,
   memory,
   routines,
-  timeZone: 'Europe/Rome',
+  timeZone: () => 'Europe/Rome',
 }).flatMap((faculty) => faculty.tools);
 
 describe('Faculties', () => {
@@ -74,7 +74,7 @@ describe('Faculties', () => {
     const turn = { trust: new TurnTrust('owner'), confirm: async () => false };
     const names = (suggestReplies?: (replies: readonly string[]) => void) =>
       agentFaculties(
-        { conversations: opener, memory, routines, timeZone: 'Europe/Rome' },
+        { conversations: opener, memory, routines, timeZone: () => 'Europe/Rome' },
         { ...turn, ...(suggestReplies && { suggestReplies }) },
       )
         .flatMap((faculty) => faculty.tools)
@@ -83,7 +83,7 @@ describe('Faculties', () => {
 
     const suggested: (readonly string[])[] = [];
     const tool = agentFaculties(
-      { conversations: opener, memory, routines, timeZone: 'Europe/Rome' },
+      { conversations: opener, memory, routines, timeZone: () => 'Europe/Rome' },
       { ...turn, suggestReplies: (replies) => suggested.push(replies) },
     )
       .flatMap((faculty) => faculty.tools)

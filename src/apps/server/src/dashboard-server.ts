@@ -9,6 +9,7 @@ import { type PersonaStore, personaRoutes } from '@emanator/personas/server';
 import { type PolicyService, policyRoutes } from '@emanator/policies/server';
 import { type RoutineService, routineRoutes } from '@emanator/routines/server';
 import { errorMessage, type Logger } from '@emanator/shared/server';
+import { type TimeZoneSettings, timeZoneRoutes } from '@emanator/timezone/server';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyError } from 'fastify';
 
@@ -20,6 +21,7 @@ export const CAPABILITIES_PAGE = '/#capabilities';
 interface DashboardDeps {
   personas: Pick<PersonaStore, 'get' | 'save'>;
   models?: ModelSettings;
+  timeZones?: TimeZoneSettings;
   routines?: RoutineService;
   policies?: PolicyService;
   capabilities?: CapabilityService;
@@ -33,6 +35,7 @@ interface DashboardDeps {
 export async function createDashboardServer({
   personas,
   models,
+  timeZones,
   routines,
   policies,
   capabilities,
@@ -70,6 +73,9 @@ export async function createDashboardServer({
 
   app.register(personaRoutes, { prefix: '/api/persona', personas });
   if (models) app.register(modelRoutes, { prefix: '/api/model', models });
+  if (timeZones) {
+    app.register(timeZoneRoutes, { prefix: '/api/time-zone', settings: timeZones });
+  }
   if (routines) app.register(routineRoutes, { prefix: '/api/routines', routines });
   if (policies) app.register(policyRoutes, { prefix: '/api/policies', policies });
   if (memory) app.register(memoryRoutes, { prefix: '/api/memory', memory });

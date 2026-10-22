@@ -37,7 +37,7 @@ function setup(turn: RoutinesTurn = {}) {
     }),
     cancelByAgent: vi.fn(async () => view()),
   };
-  const faculty = routinesFaculty(routines, 'Europe/Rome', turn);
+  const faculty = routinesFaculty(routines, () => 'Europe/Rome', turn);
   const run = (name: string, input: Record<string, unknown>) => {
     const tool = faculty.tools.find((t) => t.name === name) as HarnessFacultyTool;
     return (tool.run as (input: Record<string, unknown>) => Promise<ToolOutput>)(input);

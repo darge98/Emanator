@@ -26,7 +26,7 @@ export interface DreamServiceDeps {
   /** Used unless the Owner picked the Dream's own; read at every Dream. */
   defaultModel: () => string;
   /** IANA zone the Dream's time is read in. */
-  timeZone: string;
+  timeZone: () => string;
   logger: Logger;
 }
 
@@ -63,6 +63,11 @@ export class DreamService {
 
   async init(): Promise<void> {
     this.settings = await this.deps.store.settings();
+    this.schedule();
+  }
+
+  /** Sets the next Dream again, e.g. once the time zone changed: its time moves with it. */
+  reschedule(): void {
     this.schedule();
   }
 
@@ -172,7 +177,7 @@ export class DreamService {
     this.stop();
     if (!this.settings?.enabled) return;
     const [hour, minute] = this.settings.time.split(':').map(Number);
-    this.job = new Cron(`${minute} ${hour} * * *`, { timezone: this.deps.timeZone }, () => {
+    this.job = new Cron(`${minute} ${hour} * * *`, { timezone: this.deps.timeZone() }, () => {
       void this.nightly();
     });
   }
@@ -233,7 +238,7 @@ export class DreamService {
     );
     let failure: string | undefined;
     for await (const event of engine.runTurn({
-      prompt: journalText(entries, timeZone),
+      prompt: journalText(entries, timeZone()),
       systemPrompt: dreamPrompt(await memory.pages(), await memory.kinds()),
       model,
       tools: [...recall, noteTool(memory, notes)],

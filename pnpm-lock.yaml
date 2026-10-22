@@ -217,6 +217,9 @@ importers:
       '@emanator/shared':
         specifier: workspace:*
         version: link:../../modules/shared
+      '@emanator/timezone':
+        specifier: workspace:*
+        version: link:../../modules/timezone
       '@fastify/static':
         specifier: ^8.0.0
         version: 8.3.0
@@ -250,6 +253,9 @@ importers:
       '@emanator/routines':
         specifier: workspace:*
         version: link:../../modules/routines
+      '@emanator/timezone':
+        specifier: workspace:*
+        version: link:../../modules/timezone
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
@@ -533,6 +539,25 @@ importers:
       '@types/pg':
         specifier: ^8.15.5
         version: 8.23.1
+
+  src/modules/timezone:
+    dependencies:
+      '@emanator/shared':
+        specifier: workspace:*
+        version: link:../shared
+      fastify:
+        specifier: ^5.0.0
+        version: 5.12.7
+      react:
+        specifier: ^19.1.0
+        version: 19.3.1
+    devDependencies:
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/react':
+        specifier: ^19.1.0
+        version: 19.3.0
 
 packages:
 

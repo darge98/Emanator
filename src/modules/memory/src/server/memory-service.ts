@@ -34,7 +34,8 @@ const LOG_FILE = 'log.md';
 export interface MemoryServiceDeps {
   /** The vault: outside the Engine's working folder, so only this service writes it. */
   dir: string;
-  timeZone: string;
+  /** The Owner's time zone, for the log's times; read at every write. */
+  timeZone: () => string;
   logger: Logger;
   now?: () => Date;
 }
@@ -276,7 +277,9 @@ export class MemoryService {
   private async record(text: string): Promise<void> {
     // One line, or a Fact could forge entries of its own in the log.
     const change = oneLine(text);
-    const stamp = this.now().toLocaleString('sv-SE', { timeZone: this.deps.timeZone }).slice(0, 16);
+    const stamp = this.now()
+      .toLocaleString('sv-SE', { timeZone: this.deps.timeZone() })
+      .slice(0, 16);
     const log = (await this.readText(LOG_FILE)) ?? '# Registro\n\n';
     await writeFile(this.file(LOG_FILE), `${log}- ${stamp} · ${change}\n`);
     await this.writeIndex();
@@ -316,7 +319,7 @@ export class MemoryService {
   }
 
   private today(): string {
-    return this.now().toLocaleDateString('sv-SE', { timeZone: this.deps.timeZone });
+    return this.now().toLocaleDateString('sv-SE', { timeZone: this.deps.timeZone() });
   }
 
   private exclusive<T>(work: () => Promise<T>): Promise<T> {

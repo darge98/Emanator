@@ -53,7 +53,7 @@ async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
     usage,
     systemPrompt: () => 'You are a test agent.',
     defaultModel: () => 'sonnet',
-    timeZone: 'Europe/Rome',
+    timeZone: () => 'Europe/Rome',
     prepareTurn: async () => ({
       decidePermission: async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
     }),
@@ -68,7 +68,7 @@ async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
     usage,
     systemPrompt: () => 'You are a test agent.',
     defaultModel: () => 'sonnet',
-    timeZone: 'Europe/Rome',
+    timeZone: () => 'Europe/Rome',
     prepareTurn: async () => ({
       decidePermission: async () => ({ behavior: 'deny', reason: 'No Tools in tests.' }),
     }),
@@ -83,7 +83,7 @@ async function setup(engine = new FakeEngine(), options: SetupOptions = {}) {
     store,
     runner,
     conversations,
-    timeZone: 'Europe/Rome',
+    timeZone: () => 'Europe/Rome',
     logger: silentLogger,
   });
   await routines.start();

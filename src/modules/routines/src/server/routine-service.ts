@@ -19,7 +19,7 @@ export interface RoutineServiceDeps {
   runner: Pick<RoutineRunner, 'start' | 'stop'>;
   conversations: Pick<ConversationService, 'archive' | 'renameRoutineTopic'>;
   /** IANA zone cron expressions are read in. */
-  timeZone: string;
+  timeZone: () => string;
   logger: Logger;
   now?: () => Date;
 }
@@ -57,6 +57,11 @@ export class RoutineService {
   async start(): Promise<void> {
     await this.deps.store.failInterruptedRuns();
     for (const routine of await this.deps.store.list()) this.scheduler.schedule(routine);
+  }
+
+  /** Arms every Routine again, e.g. once the time zone changed: cron times move with it. */
+  reschedule(): void {
+    this.scheduler.rescheduleAll();
   }
 
   /** Stops firing new Runs, ends quota waits and waits for the Runs in progress. */

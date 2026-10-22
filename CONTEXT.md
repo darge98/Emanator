@@ -12,6 +12,10 @@ Code and docs use the English terms below. The UI is translated, so each term al
 The self-hosted platform that hosts the Agent and connects it to Events, Capabilities and Channels. Each installation serves exactly one Owner.
 _Avoid_: framework, server, bot
 
+**Time zone** (it: *Fuso orario*):
+The zone in which the Agent reads and tells the Owner's wall-clock times, such as "at 6 pm" or "every day at 8". The Owner chooses it; changing it moves recurring times with the Owner, while moments already set stay the same moment.
+_Avoid_: locale, region
+
 **Owner** (it: *Utente*):
 The single person an Harness installation serves. They configure the Agent and receive its messages.
 Owner is a role, not a personal name or a form of address.

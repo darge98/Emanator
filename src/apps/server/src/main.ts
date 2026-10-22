@@ -38,6 +38,7 @@ import { PersonaStore } from '@emanator/personas/server';
 import { ApprovalService, PolicyService, PolicyStore } from '@emanator/policies/server';
 import { RoutineRunner, RoutineService, RoutineStore } from '@emanator/routines/server';
 import { consoleLogger, openDatabase } from '@emanator/shared/server';
+import { TimeZoneSettings } from '@emanator/timezone/server';
 import { loadConfig } from './config.ts';
 import {
   CAPABILITIES_PAGE,
@@ -63,6 +64,9 @@ async function start() {
   const workingDirectory = join(config.dataDir, 'workspace');
   mkdirSync(workingDirectory, { recursive: true });
 
+  const timeZones = new TimeZoneSettings(db, config.initialTimeZone, consoleLogger('timezone'));
+  await timeZones.init();
+  const timeZone = () => timeZones.timeZone();
   const models = new ModelSettings(db, config.initialModel);
   await models.init();
   const defaultModel = () => models.defaultModel();
@@ -123,7 +127,7 @@ async function start() {
   // Outside the working folder, so the Engine's file Tools can't write it (ADR 0009).
   const memory = new MemoryService({
     dir: join(config.dataDir, 'memory'),
-    timeZone: config.timeZone,
+    timeZone,
     logger: consoleLogger('memory'),
   });
   await memory.init();
@@ -136,7 +140,7 @@ async function start() {
     memory,
     channel,
     defaultModel,
-    timeZone: config.timeZone,
+    timeZone,
     logger: consoleLogger('dream'),
   });
   await dreams.init();
@@ -166,7 +170,7 @@ async function start() {
         signal: new AbortController().signal,
       })) === 'approved';
     const turnFaculties = agentFaculties(
-      { conversations, memory, routines, timeZone: config.timeZone },
+      { conversations, memory, routines, timeZone },
       {
         trust,
         ...(context.conversationId && { conversationId: context.conversationId }),
@@ -202,7 +206,7 @@ async function start() {
   const usage = new UsageTracker();
   const agentPrompt = async () => {
     const persona = await personas.get();
-    return systemPrompt(new Date(), config.timeZone, persona, memoryPrompt(await memory.pages()));
+    return systemPrompt(new Date(), timeZone(), persona, memoryPrompt(await memory.pages()));
   };
   const conversations = new ConversationService({
     channel,
@@ -213,7 +217,7 @@ async function start() {
     journal: (entry) => dreams.record(entry),
     systemPrompt: agentPrompt,
     defaultModel,
-    timeZone: config.timeZone,
+    timeZone,
     logger: consoleLogger('conversations'),
   });
 
@@ -230,11 +234,11 @@ async function start() {
       prepareTurn,
       systemPrompt: agentPrompt,
       defaultModel,
-      timeZone: config.timeZone,
+      timeZone,
       logger: routineLogger,
     }),
     conversations,
-    timeZone: config.timeZone,
+    timeZone,
     logger: routineLogger,
   });
 
@@ -243,11 +247,18 @@ async function start() {
     conversations,
     memory,
     routines,
-    timeZone: config.timeZone,
+    timeZone,
+  });
+
+  // Recurring times are wall-clock times: they move with the Owner's zone.
+  timeZones.onTimeZoneChange(() => {
+    routines.reschedule();
+    dreams.reschedule();
   });
 
   const dashboard = await createDashboardServer({
     personas,
+    timeZones,
     models,
     routines,
     policies,
@@ -271,7 +282,7 @@ async function start() {
     await routines.start();
     logger.info('Emanator is running', {
       model: models.defaultModel(),
-      timeZone: config.timeZone,
+      timeZone: timeZone(),
       dashboard: `http://localhost:${config.httpPort}`,
     });
   } catch (error) {

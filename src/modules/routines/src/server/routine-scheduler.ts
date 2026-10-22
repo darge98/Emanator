@@ -6,7 +6,7 @@ const MAX_DELAY_MS = 2 ** 31 - 1;
 
 export interface RoutineSchedulerDeps {
   /** IANA zone cron expressions are read in. */
-  timeZone: string;
+  timeZone: () => string;
   /** Called when a Trigger fires; must not throw. */
   onFire: (routineId: string) => void;
   now?: () => Date;
@@ -19,6 +19,8 @@ export interface RoutineSchedulerDeps {
  */
 export class RoutineScheduler {
   private readonly timers = new Map<string, Set<NodeJS.Timeout>>();
+  /** The Routines armed now, as they were armed, so they can be armed again. */
+  private readonly armed = new Map<string, Routine>();
   private readonly now: () => Date;
 
   constructor(private readonly deps: RoutineSchedulerDeps) {
@@ -29,6 +31,7 @@ export class RoutineScheduler {
   schedule(routine: Routine): void {
     this.unschedule(routine.id);
     if (!routine.enabled) return;
+    this.armed.set(routine.id, routine);
     const timers = new Set<NodeJS.Timeout>();
     this.timers.set(routine.id, timers);
     for (const trigger of routine.triggers) this.arm(routine, trigger, this.now(), timers);
@@ -37,6 +40,15 @@ export class RoutineScheduler {
   unschedule(routineId: string): void {
     for (const timer of this.timers.get(routineId) ?? []) clearTimeout(timer);
     this.timers.delete(routineId);
+    this.armed.delete(routineId);
+  }
+
+  /**
+   * Arms every Routine armed now again, e.g. once the time zone changed: cron times move with
+   * it. Synchronous, so a Routine deleted or disabled meanwhile can't come back.
+   */
+  rescheduleAll(): void {
+    for (const routine of [...this.armed.values()]) this.schedule(routine);
   }
 
   stop(): void {
@@ -76,6 +88,6 @@ export class RoutineScheduler {
   }
 
   private next(routine: Routine, trigger: Trigger, after: Date): Date | undefined {
-    return nextFire(trigger, after, { anchor: routine.updatedAt, timeZone: this.deps.timeZone });
+    return nextFire(trigger, after, { anchor: routine.updatedAt, timeZone: this.deps.timeZone() });
   }
 }

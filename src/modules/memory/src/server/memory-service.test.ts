@@ -13,7 +13,7 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'emanator-memory-'));
   memory = new MemoryService({
     dir,
-    timeZone: 'Europe/Rome',
+    timeZone: () => 'Europe/Rome',
     logger: silentLogger,
     now: () => new Date('2026-10-19T12:30:00Z'),
   });

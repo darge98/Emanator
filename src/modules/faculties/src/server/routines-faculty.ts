@@ -29,7 +29,7 @@ const AT = z
  */
 export function routinesFaculty(
   routines: RoutineKeeper,
-  timeZone: string,
+  timeZone: () => string,
   turn: RoutinesTurn = {},
 ): Faculty {
   const local = localTime(timeZone);
@@ -54,9 +54,11 @@ type Local = (date: Date) => string;
 
 /** Times as the Owner reads them, so the Agent repeats them right. */
 const localTime =
-  (timeZone: string): Local =>
-  (date) =>
-    `${date.toLocaleString('sv-SE', { timeZone }).slice(0, 16)} (${timeZone})`;
+  (zone: () => string): Local =>
+  (date) => {
+    const timeZone = zone();
+    return `${date.toLocaleString('sv-SE', { timeZone }).slice(0, 16)} (${timeZone})`;
+  };
 
 function remindTool(
   routines: RoutineKeeper,

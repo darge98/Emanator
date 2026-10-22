@@ -16,13 +16,17 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((close) => close()));
 });
 
+/** The Owner's zone, which a test may change. */
+const zone = { current: 'Europe/Rome' };
+
 async function setup() {
+  zone.current = 'Europe/Rome';
   const fixture = await createTestDatabase();
   const dir = await mkdtemp(join(tmpdir(), 'emanator-dream-'));
   cleanups.push(fixture.close, () => rm(dir, { recursive: true, force: true }));
   const store = new DreamStore(fixture.db);
   await store.init();
-  const memory = new MemoryService({ dir, timeZone: 'Europe/Rome', logger: silentLogger });
+  const memory = new MemoryService({ dir, timeZone: () => 'Europe/Rome', logger: silentLogger });
   await memory.init();
   const engine = new FakeEngine();
   const channel = new FakeChannel();
@@ -32,7 +36,7 @@ async function setup() {
     memory,
     channel,
     defaultModel: () => 'sonnet',
-    timeZone: 'Europe/Rome',
+    timeZone: () => zone.current,
     logger: silentLogger,
   });
   await dreams.init();
@@ -205,6 +209,20 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
     finish();
     await dreams.idle();
     expect((await dreams.view()).lastRun?.status).toBe('done');
+  });
+
+  it('moves its time with a new zone once rescheduled', async () => {
+    const { dreams } = await setup();
+    const before = (await dreams.view()).nextAt;
+
+    zone.current = 'America/New_York';
+    dreams.reschedule();
+
+    const after = (await dreams.view()).nextAt;
+    const hour = (iso?: string) =>
+      new Date(iso ?? '').toLocaleTimeString('en-GB', { timeZone: zone.current, hour: '2-digit' });
+    expect(after).not.toBe(before);
+    expect(hour(after)).toBe('07');
   });
 
   it('does not dream on an empty Journal', async () => {
