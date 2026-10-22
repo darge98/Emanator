@@ -47,6 +47,7 @@ import {
 } from './dashboard-server.ts';
 import {
   abilityLines,
+  retrospectiveContext,
   routineLines,
   type SelfSource,
   selfReport,
@@ -153,6 +154,14 @@ async function start() {
     channel,
     defaultModel,
     timeZone,
+    retrospectiveContext: async (since) => {
+      const [self, refused, failed] = await Promise.all([
+        selfReport(selfSources, config.dashboardUrl, logger),
+        policyStore.refusedApprovals(since),
+        routineStore.failedRuns(since),
+      ]);
+      return retrospectiveContext(self, refused, failed, timeZone());
+    },
     logger: consoleLogger('dream'),
   });
   await dreams.init();
@@ -161,8 +170,9 @@ async function start() {
     ...tool,
     run: async (input) => {
       const output = await tool.run(input);
-      if (!output.isError)
-        dreams.record({ place, author: 'tool', tool: tool.name, text: output.text });
+      // Errors too: the Retrospective looks for what went wrong.
+      const text = output.isError ? `[errore] ${output.text}` : output.text;
+      dreams.record({ place, author: 'tool', tool: tool.name, text });
       return output;
     },
   });

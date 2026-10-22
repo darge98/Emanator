@@ -34,4 +34,23 @@ export const dreamMigrations: Migration[] = [
     id: '002-dream-model',
     sql: 'ALTER TABLE dream_settings ADD COLUMN model TEXT;',
   },
+  {
+    // What the Retrospective proposes, and what the Owner answered.
+    id: '003-proposals',
+    sql: `
+      CREATE TABLE proposals (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        text TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        -- Its row in the question, so the buttons keep their order.
+        position INTEGER NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        decided_at TIMESTAMPTZ
+      );
+      CREATE INDEX proposals_created ON proposals (created_at DESC);
+    `,
+  },
 ];

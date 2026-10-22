@@ -1,7 +1,7 @@
 import { type Capability, type CatalogItem, capabilityToolName } from '@emanator/capabilities';
 import { modelLabel } from '@emanator/engine';
-import type { PolicyGroup } from '@emanator/policies';
-import type { Routine } from '@emanator/routines';
+import type { Approval, PolicyGroup } from '@emanator/policies';
+import type { Routine, RoutineRun } from '@emanator/routines';
 import { errorMessage, type Logger } from '@emanator/shared/server';
 
 /**
@@ -156,4 +156,32 @@ export function routineLines(routines: readonly ListedRoutine[]): string[] {
   const yours = count((r) => r.kind === 'routine' && r.createdBy === 'agent');
   const reminders = count((r) => r.kind === 'reminder' && r.nextRunAt !== undefined);
   return [`- Routine: ${owners} dell'Utente, ${yours} tue · promemoria in attesa: ${reminders}`];
+}
+
+/**
+ * What the Retrospective reads besides the Journal: what the Agent is, and what went wrong
+ * since the Journal began. Data, like the Journal.
+ */
+export function retrospectiveContext(
+  self: string,
+  refused: readonly Approval[],
+  failed: readonly (RoutineRun & { routineName: string })[],
+  timeZone: string,
+): string {
+  const at = (date: Date) => date.toLocaleString('sv-SE', { timeZone }).slice(0, 16);
+  const one = (text: string) => text.replace(/\s+/g, ' ').trim().slice(0, 300);
+  return [
+    self,
+    '',
+    '## Cosa è andato storto (dati)',
+    ...refused.map(
+      ({ tool, status, requestedAt }) =>
+        `- ${at(requestedAt)} · Approval ${status === 'denied' ? "rifiutata dall'Utente" : 'scaduta senza risposta'}: ${tool}`,
+    ),
+    ...failed.map(
+      ({ routineName, startedAt, error }) =>
+        `- ${at(startedAt)} · Run di «${one(routineName)}» fallita${error ? `: ${one(error)}` : ''}`,
+    ),
+    ...(refused.length || failed.length ? [] : ['(niente)']),
+  ].join('\n');
 }

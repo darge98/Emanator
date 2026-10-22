@@ -1,3 +1,5 @@
+import type { Proposal } from './proposal.ts';
+
 /** What the Owner sets for the Dream in the dashboard. */
 export interface DreamSettings {
   enabled: boolean;
@@ -44,4 +46,6 @@ export interface DreamView {
   nextAt?: string;
   /** Journal entries waiting for the next Dream. */
   waiting: number;
+  /** The newest Proposals, answered or not. */
+  proposals: Proposal[];
 }

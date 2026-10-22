@@ -1,7 +1,17 @@
 import { MODELS } from '@emanator/engine';
-import { ArrowClockwise, MoonStars, WarningCircle } from '@phosphor-icons/react';
+import {
+  ArrowClockwise,
+  Check,
+  Compass,
+  Lightbulb,
+  MoonStars,
+  WarningCircle,
+  Wrench,
+  X,
+} from '@phosphor-icons/react';
 import { useCallback, useEffect, useState } from 'react';
 import type { DreamRun, DreamSettings, DreamView } from '../domain/dream.ts';
+import type { Proposal } from '../domain/proposal.ts';
 import styles from './dream-panel.module.css';
 
 const t = {
@@ -26,6 +36,15 @@ const t = {
   loadError: 'Could not load the Dream.',
   retry: 'Try again',
   saveError: 'The change failed.',
+  proposals: 'Proposals',
+  proposalsHint:
+    'After each Dream, the Retrospective proposes how your Agent could serve you better. An instruction you accept becomes one of its rules; ideas are yours to act on.',
+  instruction: 'Instruction',
+  idea: 'Idea',
+  accept: 'Accept',
+  reject: 'Reject',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -212,7 +231,85 @@ export function DreamPanel({ timeZone }: DreamPanelProps = {}) {
           )}
         </dl>
         <p className={styles.hint}>{settings.enabled ? t.waiting(waiting) : t.offHint}</p>
+        {view.proposals.length > 0 && (
+          <Proposals
+            proposals={view.proposals}
+            busy={busy}
+            onDecide={(id, status) =>
+              void change(`/api/dream/proposals/${id}`, {
+                method: 'PUT',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ status }),
+              })
+            }
+          />
+        )}
       </div>
     </section>
+  );
+}
+
+interface ProposalsProps {
+  proposals: readonly Proposal[];
+  busy: boolean;
+  onDecide: (id: string, status: 'accepted' | 'rejected') => void;
+}
+
+/** What the Retrospective proposed, open ones first to answer here as on Telegram. */
+function Proposals({ proposals, busy, onDecide }: ProposalsProps) {
+  return (
+    <div className={styles.proposals}>
+      <h3>
+        <Wrench size={16} aria-hidden="true" />
+        {t.proposals}
+      </h3>
+      <p className={styles.hint}>{t.proposalsHint}</p>
+      <ol>
+        {proposals.map((proposal) => {
+          const Icon = proposal.kind === 'instruction' ? Compass : Lightbulb;
+          return (
+            <li key={proposal.id} className={styles.proposal} data-status={proposal.status}>
+              <Icon
+                size={16}
+                aria-label={proposal.kind === 'instruction' ? t.instruction : t.idea}
+              />
+              <span className={styles['proposal-copy']}>
+                <span>{proposal.text}</span>
+                <small>{proposal.reason}</small>
+              </span>
+              {proposal.status === 'open' ? (
+                <span className={styles['proposal-actions']}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={busy}
+                    onClick={() => onDecide(proposal.id, 'accepted')}
+                  >
+                    <Check size={14} aria-hidden="true" />
+                    {t.accept}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={busy}
+                    onClick={() => onDecide(proposal.id, 'rejected')}
+                  >
+                    <X size={14} aria-hidden="true" />
+                    {t.reject}
+                  </button>
+                </span>
+              ) : (
+                <span
+                  className="badge"
+                  data-tone={proposal.status === 'accepted' ? 'success' : undefined}
+                >
+                  {proposal.status === 'accepted' ? t.accepted : t.rejected}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

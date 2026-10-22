@@ -58,4 +58,25 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('RoutineStore', () => {
     await store.create(input, { kind: 'reminder', createdBy: 'agent' });
     expect(await store.list()).toHaveLength(3);
   });
+
+  it('lists for the Retrospective the Runs that failed, with their Routine', async () => {
+    const fixture = await createTestDatabase();
+    cleanups.push(fixture.close);
+    const store = new RoutineStore(fixture.db);
+    await store.init();
+    const routine = await store.create({
+      name: 'Briefing',
+      prompt: 'P.',
+      enabled: true,
+      triggers: [],
+    });
+    const failed = await store.startRun(routine.id, 'schedule');
+    await store.finishRun(failed.id, { status: 'failed', tools: [], error: 'Quota' });
+    const ok = await store.startRun(routine.id, 'schedule');
+    await store.finishRun(ok.id, { status: 'delivered', tools: [] });
+
+    expect(await store.failedRuns(new Date(Date.now() - 60_000))).toMatchObject([
+      { routineName: 'Briefing', error: 'Quota' },
+    ]);
+  });
 });

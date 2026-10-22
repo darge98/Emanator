@@ -8,6 +8,7 @@ import {
   type DreamStatus,
 } from '../domain/dream.ts';
 import type { JournalAuthor, JournalEntry } from '../domain/journal.ts';
+import type { Proposal, ProposalKind, ProposalStatus } from '../domain/proposal.ts';
 import { dreamMigrations } from './migrations.ts';
 
 /** A Journal entry as stored, with the id that marks how far a Dream has read. */
@@ -123,6 +124,90 @@ export class DreamStore {
     });
   }
 
+  /** All or none: a night's Proposals are asked about together. */
+  async addProposals(
+    runId: string,
+    proposals: readonly { kind: ProposalKind; text: string; reason: string }[],
+  ): Promise<Proposal[]> {
+    return transaction(this.db, async (client) => {
+      const added: Proposal[] = [];
+      for (const [position, { kind, text, reason }] of proposals.entries()) {
+        const proposal: Proposal = {
+          id: randomUUID(),
+          runId,
+          kind,
+          text,
+          reason,
+          status: 'open',
+          createdAt: new Date().toISOString(),
+        };
+        await client.query(
+          `INSERT INTO proposals (id, run_id, kind, text, reason, status, position, created_at)
+           VALUES ($1, $2, $3, $4, $5, 'open', $6, $7)`,
+          [proposal.id, runId, kind, text, reason, position, proposal.createdAt],
+        );
+        added.push(proposal);
+      }
+      return added;
+    });
+  }
+
+  /** The newest Proposals first. */
+  async proposals(limit = 50): Promise<Proposal[]> {
+    const { rows } = await this.db.query(
+      'SELECT * FROM proposals ORDER BY created_at DESC, position LIMIT $1',
+      [limit],
+    );
+    return rows.map(toProposal);
+  }
+
+  /** Those the Retrospective must not make again: all but the rejected ones gone stale. */
+  async standingProposals(rejectedSince: Date): Promise<Proposal[]> {
+    const { rows } = await this.db.query(
+      `SELECT * FROM proposals WHERE status <> 'rejected' OR decided_at >= $1
+       ORDER BY created_at DESC LIMIT 100`,
+      [rejectedSince],
+    );
+    return rows.map(toProposal);
+  }
+
+  async proposalsOfRun(runId: string): Promise<Proposal[]> {
+    const { rows } = await this.db.query(
+      'SELECT * FROM proposals WHERE run_id = $1 ORDER BY position',
+      [runId],
+    );
+    return rows.map(toProposal);
+  }
+
+  /** Records the Owner's answer once; undefined when it is unknown or answered already. */
+  async decideProposal(
+    id: string,
+    status: Exclude<ProposalStatus, 'open'>,
+  ): Promise<Proposal | undefined> {
+    const {
+      rows: [row],
+    } = await this.db.query(
+      `UPDATE proposals SET status = $2, decided_at = now()
+       WHERE id = $1 AND status = 'open' RETURNING *`,
+      [id, status],
+    );
+    return row ? toProposal(row) : undefined;
+  }
+
+  /** Undoes an acceptance that could not be carried out. */
+  async reopenProposal(id: string): Promise<void> {
+    await this.db.query("UPDATE proposals SET status = 'open', decided_at = NULL WHERE id = $1", [
+      id,
+    ]);
+  }
+
+  async proposal(id: string): Promise<Proposal | undefined> {
+    const {
+      rows: [row],
+    } = await this.db.query('SELECT * FROM proposals WHERE id = $1', [id]);
+    return row ? toProposal(row) : undefined;
+  }
+
   async record(entry: JournalEntry): Promise<void> {
     await this.db.query(
       'INSERT INTO dream_journal (at, place, author, tool, text) VALUES ($1, $2, $3, $4, $5)',
@@ -173,5 +258,20 @@ function toRun(row: Record<string, unknown>): DreamRun {
     noted: Number(row.noted),
     asked: Array.isArray(row.asked) ? (row.asked as AskedFact[]) : [],
     ...(row.error !== null && { error: String(row.error) }),
+  };
+}
+
+function toProposal(row: Record<string, unknown>): Proposal {
+  const iso = (value: unknown) =>
+    value instanceof Date ? value.toISOString() : new Date(String(value)).toISOString();
+  return {
+    id: String(row.id),
+    runId: String(row.run_id),
+    kind: String(row.kind) as ProposalKind,
+    text: String(row.text),
+    reason: String(row.reason),
+    status: String(row.status) as ProposalStatus,
+    createdAt: iso(row.created_at),
+    ...(row.decided_at !== null && { decidedAt: iso(row.decided_at) }),
   };
 }

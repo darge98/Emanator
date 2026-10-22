@@ -9,7 +9,7 @@ import { FakeEngine, replyWith, type ScriptedTurn } from '@emanator/engine/testi
 import { MemoryService } from '@emanator/memory/server';
 import { createTestDatabase, silentLogger } from '@emanator/shared/server';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DreamService, DreamSettingsError } from './dream-service.ts';
+import { DreamService, DreamSettingsError, ProposalNotFoundError } from './dream-service.ts';
 import { DreamStore } from './dream-store.ts';
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -119,7 +119,12 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
     await record('Ancora');
     await dream();
 
-    expect(engine.requests.map(({ model }) => model)).toEqual(['sonnet', 'haiku']);
+    expect(engine.requests.map(({ model }) => model)).toEqual([
+      'sonnet',
+      'sonnet',
+      'haiku',
+      'haiku',
+    ]);
     expect((await dreams.view()).settings).toEqual({
       enabled: true,
       time: '07:00',
@@ -178,7 +183,9 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
         source: 'chat',
         ask: true,
       });
-    engine.script(asking(), asking(), asking());
+    // Each night is two turns: the Dream, then the Retrospective.
+    const quiet = replyWith('Niente da proporre.');
+    engine.script(asking(), quiet, asking(), quiet, asking(), quiet);
 
     await record('Uno');
     await dream();
@@ -294,5 +301,133 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('DreamService', () => {
     await dream();
 
     expect((await memory.page('Mamma'))?.facts).toHaveLength(1);
+  });
+
+  describe('the Retrospective', () => {
+    /** A Retrospective turn that proposes these, then answers. */
+    const proposing =
+      (...proposals: Record<string, unknown>[]): ScriptedTurn =>
+      async (request: TurnRequest) => {
+        const propose = request.tools?.find(({ name }) => name === 'propose');
+        if (!propose) throw new Error('The Retrospective has no propose Tool.');
+        for (const proposal of proposals) {
+          await (propose.run as (input: Record<string, unknown>) => Promise<ToolOutput>)(proposal);
+        }
+        return replyWith('Proposto.')(request);
+      };
+
+    it('reads the same Journal after the Dream and asks about its Proposals in the topic', async () => {
+      const { engine, channel, store, record, dream } = await setup();
+      await record('No, intendevo il calendario di lavoro.');
+      engine.script(
+        replyWith('Niente.'),
+        proposing(
+          { kind: 'instruction', text: 'Usa il calendario di lavoro.', reason: 'Mi ha corretto.' },
+          { kind: 'idea', text: 'Collegare Drive.', reason: 'Cercava un documento.' },
+        ),
+      );
+
+      await dream();
+
+      const [, retro] = engine.requests;
+      expect(retro?.prompt).toContain('No, intendevo il calendario di lavoro.');
+      expect(retro?.tools?.map(({ name }) => name)).toEqual(['propose']);
+      expect(await store.waiting()).toBe(0);
+      expect(channel.sent[0]?.threadId).toBe('100');
+      expect(channel.sent[0]?.markdown).toContain(
+        '1. 🧭 **Istruzione**: Usa il calendario di lavoro.',
+      );
+      expect(channel.sent[0]?.markdown).toContain('_Perché: Cercava un documento._');
+      expect(channel.sent[0]?.actions?.map(({ label, row }) => [label, row])).toEqual([
+        ['✓ 1', 0],
+        ['✕ 1', 0],
+        ['✓ 2', 1],
+        ['✕ 2', 1],
+      ]);
+    });
+
+    it('turns an accepted instruction into a confirmed one, once, and only that', async () => {
+      const { engine, channel, memory, record, dream, dreams } = await setup();
+      await record('Ciao');
+      engine.script(
+        replyWith('Niente.'),
+        proposing(
+          { kind: 'instruction', text: 'Rispondi in breve.', reason: 'Lo chiede spesso.' },
+          {
+            kind: 'idea',
+            text: 'Monitorare il prezzo della bici.',
+            reason: 'Lo chiede ogni giorno.',
+          },
+        ),
+      );
+      await dream();
+      const ids = channel.sent[0]?.actions?.map(({ id }) => id) ?? [];
+
+      await dreams.answer(press(ids[0] ?? ''));
+      await dreams.answer(press(ids[0] ?? ''));
+      await dreams.answer(press(ids[3] ?? ''));
+
+      const facts = (await memory.page('Utente'))?.facts ?? [];
+      expect(facts.map(({ text, kind, trust }) => [text, kind, trust])).toEqual([
+        ['Rispondi in breve.', 'instruction', 'confirmed'],
+      ]);
+      expect(channel.actionsSet.at(-1)?.actions.map(({ label }) => label)).toEqual([
+        '✓ 1 accettata',
+        '✕ 2 rifiutata',
+      ]);
+      expect((await dreams.view()).proposals.map(({ status }) => status).sort()).toEqual([
+        'accepted',
+        'rejected',
+      ]);
+    });
+
+    it('saves an accepted instruction once, and knows no proposal it never made', async () => {
+      const { engine, channel, memory, record, dream, dreams } = await setup();
+      for (const text of ['Uno', 'Due']) {
+        await record(text);
+        engine.script(
+          replyWith('Niente.'),
+          proposing({ kind: 'instruction', text: 'Rispondi in breve.', reason: 'Lo chiede.' }),
+        );
+        await dream();
+      }
+      for (const message of channel.sent)
+        await dreams.answer(press(message.actions?.[0]?.id ?? ''));
+
+      expect((await memory.page('Utente'))?.facts).toHaveLength(1);
+      await expect(dreams.decideProposal('nope', 'accepted')).rejects.toThrow(
+        ProposalNotFoundError,
+      );
+    });
+
+    it('tells the next Retrospective what it proposed, and never fails the Dream', async () => {
+      const { engine, store, record, dream } = await setup();
+      await record('Uno');
+      engine.script(
+        replyWith('Niente.'),
+        proposing({ kind: 'idea', text: 'Collegare Drive.', reason: 'Serviva.' }),
+      );
+      await dream();
+      await record('Due');
+      engine.script(replyWith('Niente.'), () => {
+        throw new Error('Engine down');
+      });
+
+      await dream();
+
+      expect(engine.requests[3]?.systemPrompt).toContain('[in attesa] idea: Collegare Drive.');
+      expect(await store.lastRun()).toMatchObject({ status: 'done' });
+      expect(await store.waiting()).toBe(0);
+    });
+
+    it('stays quiet when the Dream failed', async () => {
+      const { engine, record, dream } = await setup();
+      await record('Ciao');
+      engine.script(() => [{ type: 'turn.failed', reason: 'error', message: 'Boom' }]);
+
+      await dream();
+
+      expect(engine.requests).toHaveLength(1);
+    });
   });
 });

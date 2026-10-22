@@ -1,4 +1,5 @@
 import type { AskedFact } from '../domain/dream.ts';
+import type { Proposal } from '../domain/proposal.ts';
 
 // What the Dream says to the Owner. Italian, like the other Telegram messages.
 
@@ -32,3 +33,23 @@ export const confirmed = (n: number) => `✓ ${n} confermato`;
 export const forgotten = (n: number) => `✕ ${n} dimenticato`;
 export const ALL = '✓ Tutti';
 export const EXPIRED = 'Non trovo più questa domanda';
+
+/** The Retrospective's question, one numbered row per Proposal, each with its reason. */
+export function proposals(list: readonly Proposal[]): string {
+  return [
+    '🔧 **Come posso migliorare?**',
+    list
+      .map(
+        ({ kind, text, reason }, index) =>
+          `${index + 1}. ${kind === 'instruction' ? '🧭 **Istruzione**' : '💡 **Idea**'}: ${oneLine(text)}\n   _Perché: ${oneLine(reason)}_`,
+      )
+      .join('\n'),
+    "_Un'istruzione che accetti diventa una mia regola, con le parole esatte che leggi qui. Il perché l'ho scritto io: valutalo tu. Le idee restano nella pagina Memory della dashboard._",
+  ].join('\n\n');
+}
+
+export const accepted = (n: number) => `✓ ${n} accettata`;
+export const rejected = (n: number) => `✕ ${n} rifiutata`;
+
+/** Where an accepted instruction says it came from, in Memory. */
+export const PROPOSAL_SOURCE = 'proposta della Retrospettiva';

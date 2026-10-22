@@ -54,8 +54,16 @@ The Harness's nightly pass over Memory. It infers new Facts from the day, links 
 _Avoid_: consolidation, sync, digest
 
 **Journal** (it: *Diario*):
-What the Harness keeps of the days for the Dream: the Owner's messages, the Agent's answers and what Capabilities returned. It is deleted once the Dream has read it.
+What the Harness keeps of the days for the Dream: the Owner's messages, the Agent's answers and what Capabilities returned, errors included. It is deleted once the Dream and the Retrospective have read it.
 _Avoid_: transcript, history, log
+
+**Retrospective** (it: *Retrospettiva*):
+The nightly pass, after the Dream, over how the Agent worked: the Owner's corrections, refused Approvals, failures, requests it couldn't serve. It only makes Proposals; it never changes anything itself.
+_Avoid_: self-improvement, feedback loop
+
+**Proposal** (it: *Proposta*):
+Something the Retrospective suggests to make the Agent more useful: an instruction for its own behaviour, which becomes confirmed only with the Owner's yes, or an idea, such as an interest to follow or a source to connect, which is the Owner's to act on.
+_Avoid_: suggestion, recommendation
 
 ### Agent abilities
 

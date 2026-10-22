@@ -8,3 +8,10 @@ export {
   validDreamTime,
 } from './domain/dream.ts';
 export type { JournalAuthor, JournalEntry } from './domain/journal.ts';
+export {
+  MAX_PROPOSALS,
+  type Proposal,
+  type ProposalKind,
+  type ProposalStatus,
+  REJECTED_DAYS,
+} from './domain/proposal.ts';

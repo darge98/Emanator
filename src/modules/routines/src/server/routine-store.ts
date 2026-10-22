@@ -169,6 +169,17 @@ export class RoutineStore {
     );
   }
 
+  /** Runs that failed since `since`, with their Routine's name, oldest first. */
+  async failedRuns(since: Date): Promise<(RoutineRun & { routineName: string })[]> {
+    const { rows } = await this.db.query(
+      `SELECT r.*, routines.name AS routine_name FROM routine_runs r
+         JOIN routines ON routines.id = r.routine_id
+       WHERE r.status = 'failed' AND r.started_at >= $1 ORDER BY r.started_at LIMIT 50`,
+      [since],
+    );
+    return rows.map((row) => ({ ...toRun(row), routineName: String(row.routine_name) }));
+  }
+
   /** The Routine's most recent Runs, newest first. */
   async runs(routineId: string, limit = 50): Promise<RoutineRun[]> {
     const { rows } = await this.db.query(

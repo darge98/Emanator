@@ -75,6 +75,12 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - every night at the Owner's time (07:00 by default) it reads the Journal in a fresh session, with only `recall` and `note`, which writes inferred Facts with their source. A failed Dream keeps the Journal for the next one; a read one is deleted, and anything older than a week goes anyway;
   - it then asks the Owner about at most five Facts that matter, with ✓/✕ for each and ✓ Tutti, in its own topic "🌙 Sogno · dream", opened on the first question and again if deleted. The question is handed to that topic's next turn, so the Owner can also correct it in words. The buttons never expire;
   - the Memory page switches it on or off, sets its time, starts it now and shows the last outcome.
+- **The Retrospective**, after the Dream: the Agent looks at how it worked, not at the Owner.
+  - It reads the same Journal, Capability errors included, with what the Agent is now, the Approvals the Owner refused and the Runs that failed. The Journal is deleted after both passes, even when the Retrospective failed: that costs only the night's Proposals.
+  - It makes at most three Proposals, each with its reason: an instruction for itself, which becomes a confirmed instruction only on the Owner's ✓, or an idea (a missing ability, an interest to follow, a source or Capability to connect, a useful Routine). Ideas that existing Tools can serve the Owner can ask for in the Dream's topic; the rest wait for the Proposals for the Harness.
+  - It never changes anything itself, and never proposes Policies: a run of approvals says nothing about the next request, which is what an Approval is for.
+  - An instruction is plain words, checked by the Harness: no Markdown, links or hidden characters, so the text the Owner reads is the text saved; and nothing about confirmations, permissions, secrets, forwarding or other instructions, whatever the Journal said. It is told the Owner's existing rules, so it neither repeats nor contradicts them.
+  - It asks in the Dream's topic, ✓/✕ per row, with no expiry; the Memory page lists every Proposal and answers them too. A rejected one isn't made again for 30 days.
 
 - **What the Agent knows of itself:** every turn's prompt says what its Tools don't. Which Tools ask first and which the Owner denied (the model doesn't see those), each Capability's state and the catalog entries not connected, its model, time zone and Dream, and how many Routines and Reminders it has. It is built from the same registries Policies and the dashboard use, so new Faculties and Capabilities appear without changes, within a fixed budget.
 
@@ -167,7 +173,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - A Telegram pairing page in the dashboard, showing the pending code or the paired Owner. In v1 the code is only in the Harness log.
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
 - Reminders, after their first wave: buttons under a delivered Reminder to put it off ("+10 min", "domani"), and a "cancel" button under the Agent's confirmation. A Reminder due while the Harness was down is skipped like any Event, and stays in the dashboard; failed ones stay too, until the Owner deletes them.
-- The Agent improving itself, after it knows itself: a nightly retrospective (denied Approvals, failed Tools, the Owner's corrections, requests it can't serve) that proposes, never applies, instructions for itself and Policy changes, with the Owner's buttons; and a list of Proposals for the Harness (missing abilities, with real examples), later handed to GitHub or Claude Code. The Agent never changes code, Policies or its own guardrails.
+- Proposals for the Harness, after the Retrospective: the accepted ideas that need code or a new integration, handed to GitHub or Claude Code with their reasons and examples. The Agent never changes code, Policies or its own guardrails.
 - Memory, after its first wave (see Agent abilities):
   2. the Dream, after its first wave: linting the wiki (duplicate Pages, stale Facts, new kinds from what gathers under `altro`), reading the Capabilities on its own at night, web results in the Journal, and a confirmed negative Fact when the Owner says no;
   - left from the review of its first wave (October 2026):

@@ -3,7 +3,13 @@ import type { PolicyGroup } from '@emanator/policies';
 import type { Routine } from '@emanator/routines';
 import { silentLogger } from '@emanator/shared/server';
 import { describe, expect, it } from 'vitest';
-import { abilityLines, routineLines, selfReport, setupLines } from './self-report.ts';
+import {
+  abilityLines,
+  retrospectiveContext,
+  routineLines,
+  selfReport,
+  setupLines,
+} from './self-report.ts';
 
 const tool = (name: string, policy: 'allow' | 'ask' | 'deny') => ({
   name,
@@ -152,5 +158,45 @@ describe('the self report', () => {
     expect(report).toContain('- Dopo la riga lunga');
     expect(report).toMatch(/- …e altre \d+ righe: la dashboard le mostra tutte\.$/);
     expect(report.length).toBeLessThan(2_800);
+  });
+
+  it("tells the Retrospective what went wrong, in the Owner's zone", () => {
+    const context = retrospectiveContext(
+      '## Chi sei',
+      [
+        {
+          id: 'a',
+          tool: 'gmail__send',
+          input: {},
+          status: 'denied',
+          messageIds: [],
+          requestedAt: new Date('2026-10-22T08:00:00Z'),
+        },
+      ],
+      [
+        {
+          id: 'r',
+          routineId: 'x',
+          routineName: 'Briefing',
+          origin: 'schedule',
+          status: 'failed',
+          startedAt: new Date('2026-10-22T05:00:00Z'),
+          tools: [],
+          error: 'Quota\nesaurita',
+        },
+      ],
+      'Europe/Rome',
+    );
+
+    expect(context).toBe(
+      [
+        '## Chi sei',
+        '',
+        '## Cosa è andato storto (dati)',
+        "- 2026-10-22 10:00 · Approval rifiutata dall'Utente: gmail__send",
+        '- 2026-10-22 07:00 · Run di «Briefing» fallita: Quota esaurita',
+      ].join('\n'),
+    );
+    expect(retrospectiveContext('', [], [], 'UTC')).toContain('(niente)');
   });
 });

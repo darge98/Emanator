@@ -72,6 +72,16 @@ export class PolicyStore {
     return row ? toApproval(row) : undefined;
   }
 
+  /** Approvals the Owner denied or let expire since `since`, oldest first. */
+  async refusedApprovals(since: Date): Promise<Approval[]> {
+    const { rows } = await this.db.query(
+      `SELECT * FROM approvals WHERE status IN ('denied', 'expired') AND requested_at >= $1
+       ORDER BY requested_at LIMIT 50`,
+      [since],
+    );
+    return rows.map(toApproval);
+  }
+
   async addApprovalMessage(id: string, messageId: string): Promise<void> {
     await this.db.query(
       'UPDATE approvals SET message_ids = message_ids || $2::jsonb WHERE id = $1',

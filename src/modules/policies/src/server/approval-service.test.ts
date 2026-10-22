@@ -202,4 +202,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)('ApprovalService', () => {
 
     expect(await ask()).toBe('expired');
   });
+
+  it('lists for the Retrospective what the Owner denied or let expire', async () => {
+    const { store } = await setup();
+    const since = new Date(Date.now() - 60_000);
+    const denied = await store.createApproval('gmail__send', {}, '7');
+    await store.decideApproval(denied.id, 'denied');
+    const approved = await store.createApproval('write_file', {}, '7');
+    await store.decideApproval(approved.id, 'approved');
+    await store.createApproval('edit_file', {}, '7');
+
+    expect((await store.refusedApprovals(since)).map(({ tool }) => tool)).toEqual(['gmail__send']);
+  });
 });
