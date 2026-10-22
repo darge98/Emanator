@@ -76,6 +76,8 @@ Vocabulary is defined in [CONTEXT.md](../CONTEXT.md). Architectural decisions ar
   - it then asks the Owner in General about at most five Facts that matter, with ✓/✕ for each and ✓ Tutti;
   - the Memory page switches it on or off, sets its time, starts it now and shows the last outcome.
 
+- **What the Agent knows of itself:** every turn's prompt says what its Tools don't. Which Tools ask first and which the Owner denied (the model doesn't see those), each Capability's state and the catalog entries not connected, its model, time zone and Dream, and how many Routines and Reminders it has. It is built from the same registries Policies and the dashboard use, so new Faculties and Capabilities appear without changes, within a fixed budget.
+
 ### Control
 - Each Tool has a Policy: *allow*, *ask* or *deny*.
   - One Policy per Tool, shared by Conversations and Routines.
@@ -165,6 +167,7 @@ A failed Run is always logged and detailed in the Run history. When the Engine r
 - A Telegram pairing page in the dashboard, showing the pending code or the paired Owner. In v1 the code is only in the Harness log.
 - Webhook Triggers, through a tunnel that exposes only `/webhook`, and filtering of external events.
 - Reminders, after their first wave: buttons under a delivered Reminder to put it off ("+10 min", "domani"), and a "cancel" button under the Agent's confirmation. A Reminder due while the Harness was down is skipped like any Event, and stays in the dashboard; failed ones stay too, until the Owner deletes them.
+- The Agent improving itself, after it knows itself: a nightly retrospective (denied Approvals, failed Tools, the Owner's corrections, requests it can't serve) that proposes, never applies, instructions for itself and Policy changes, with the Owner's buttons; and a list of Proposals for the Harness (missing abilities, with real examples), later handed to GitHub or Claude Code. The Agent never changes code, Policies or its own guardrails.
 - Memory, after its first wave (see Agent abilities):
   2. the Dream, after its first wave: linting the wiki (duplicate Pages, stale Facts, new kinds from what gathers under `altro`), reading the Capabilities on its own at night, web results in the Journal, and a confirmed negative Fact when the Owner says no;
   - left from the review of its first wave (October 2026):

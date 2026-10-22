@@ -7,6 +7,7 @@ import { errorMessage, type Logger } from '@emanator/shared/server';
 import { Cron } from 'croner';
 import {
   type AskedFact,
+  DEFAULT_DREAM_SETTINGS,
   type DreamRun,
   type DreamSettings,
   type DreamView,
@@ -74,6 +75,11 @@ export class DreamService {
   stop(): void {
     this.job?.stop();
     this.job = undefined;
+  }
+
+  /** The settings in force, without a query; the defaults before `init`. */
+  currentSettings(): DreamSettings {
+    return this.settings ?? DEFAULT_DREAM_SETTINGS;
   }
 
   /** Resolves when the Dream running now, if any, has finished. */

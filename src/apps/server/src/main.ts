@@ -45,6 +45,13 @@ import {
   CAPABILITIES_PREFIX,
   createDashboardServer,
 } from './dashboard-server.ts';
+import {
+  abilityLines,
+  routineLines,
+  type SelfSource,
+  selfReport,
+  setupLines,
+} from './self-report.ts';
 import { systemPrompt } from './system-prompt.ts';
 
 const logger = consoleLogger('harness');
@@ -204,9 +211,26 @@ async function start() {
   };
 
   const usage = new UsageTracker();
+  // "Chi sei": each source reads a registry or a setting, so new Faculties, Capabilities and
+  // catalog entries show up on their own. Only a new kind of state adds a source here.
+  const selfSources: SelfSource[] = [
+    () =>
+      setupLines({
+        model: models.defaultModel(),
+        timeZone: timeZone(),
+        dream: dreams.currentSettings(),
+      }),
+    async () =>
+      abilityLines(await policies.list(), await capabilities.list(), await capabilities.catalog()),
+    async () => routineLines(await routines.list()),
+  ];
   const agentPrompt = async () => {
-    const persona = await personas.get();
-    return systemPrompt(new Date(), timeZone(), persona, memoryPrompt(await memory.pages()));
+    const [persona, self, pages] = await Promise.all([
+      personas.get(),
+      selfReport(selfSources, config.dashboardUrl, logger),
+      memory.pages(),
+    ]);
+    return systemPrompt(new Date(), timeZone(), persona, { self, memory: memoryPrompt(pages) });
   };
   const conversations = new ConversationService({
     channel,

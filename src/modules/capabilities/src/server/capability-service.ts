@@ -66,20 +66,20 @@ export class CapabilityService {
 
   /** The catalog, with what each entry still needs and the Capability made from it. */
   async catalog(): Promise<CatalogItem[]> {
-    return Promise.all(
-      (this.deps.catalog?.offers() ?? []).map(async ({ entry, missing }) => {
-        const capability = await this.deps.store.getByCatalog(entry.id);
-        return {
-          id: entry.id,
-          title: entry.title,
-          description: entry.description,
-          icon: entry.icon,
-          ...(entry.requires && { requires: entry.requires }),
-          missing,
-          ...(capability && { capability }),
-        };
-      }),
-    );
+    // One query for every entry: this also runs on every turn, for the Agent's self report.
+    const all = await this.deps.store.list();
+    return (this.deps.catalog?.offers() ?? []).map(({ entry, missing }) => {
+      const capability = all.find(({ catalogId }) => catalogId === entry.id);
+      return {
+        id: entry.id,
+        title: entry.title,
+        description: entry.description,
+        icon: entry.icon,
+        ...(entry.requires && { requires: entry.requires }),
+        missing,
+        ...(capability && { capability }),
+      };
+    });
   }
 
   /**
